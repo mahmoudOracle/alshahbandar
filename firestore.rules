@@ -1,0 +1,97 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isPlatformAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/platformAdmins/$(request.auth.uid));
+    }
+
+    function companyUserDoc(companyId) {
+      return get(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid));
+    }
+
+    function isCompanyUser(companyId) {
+      return isSignedIn() && companyUserDoc(companyId).exists();
+    }
+
+    function hasCompanyRole(companyId, roles) {
+      return isCompanyUser(companyId) && (companyUserDoc(companyId).data.role in roles);
+    }
+
+    // Platform admin records: only platform admins may read/write
+    match /platformAdmins/{adminId} {
+      allow read, write: if isPlatformAdmin();
+    }
+
+    // Companies
+    match /companies/{companyId} {
+      // Allow platform admins to fully manage companies
+      allow create, update, delete: if isPlatformAdmin();
+
+      // Allow authenticated users to create their own company record during registration
+      // but only if the incoming document sets status to 'pending' and the email matches auth email
+      allow create: if isSignedIn() && (
+        // platform admins can create as above
+        isPlatformAdmin() || (
+          request.resource.data.status == 'pending' &&
+          request.resource.data.emailLower == request.auth.token.email.toLowerCase() &&
+          request.resource.data.ownerName is string
+        )
+      );
+
+      // Read allowed for authenticated members or platform admins
+      allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+
+      // Company scoped subcollections
+      match /{document=**} {
+        // Reads allowed for members or platform admins
+        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+
+        // Writes allowed only for platform admins or members with sufficient role
+        // However status updates (approval) must be done by platform admins only
+        allow create, update, delete: if isSignedIn() && (
+          isPlatformAdmin() || hasCompanyRole(companyId, ['owner', 'manager', 'editor'])
+        );
+      }
+    }
+
+    // Membership docs
+    match /companies/{companyId}/users/{userId} {
+      allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+      allow create: if isSignedIn() && (
+        request.auth.uid == userId || isPlatformAdmin() || hasCompanyRole(companyId, ['owner', 'manager'])
+      );
+      allow update, delete: if isSignedIn() && (
+        request.auth.uid == userId || isPlatformAdmin() || hasCompanyRole(companyId, ['owner', 'manager'])
+      );
+    }
+
+    // Invitations: NOT readable/writable by regular clients. Only server-side (Cloud Functions with admin SDK)
+    // should access invitation documents. Deny client-side access to invitations to force use of callables.
+    match /companies/{companyId}/invitations/{inviteId} {
+      allow read, write: if false;
+    }
+
+    match /invitations/{inviteId} {
+      allow read, write: if false;
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isPlatformAdmin());
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && (request.auth.uid == userId || isPlatformAdmin());
+      allow delete: if isPlatformAdmin();
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

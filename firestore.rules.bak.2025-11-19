@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Simple helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isPlatformAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/platformAdmins/$(request.auth.uid));
+    }
+
+    function companyUserDoc(companyId) {
+      return get(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid));
+    }
+
+    function isCompanyUser(companyId) {
+      return isSignedIn() && companyUserDoc(companyId).exists();
+    }
+
+    function hasCompanyRole(companyId, roles) {
+      return isCompanyUser(companyId) && (companyUserDoc(companyId).data.role in roles);
+    }
+
+    // Platform admin collection
+    match /platformAdmins/{adminId} {
+      allow read, write: if isPlatformAdmin();
+    }
+
+    // Companies root documents: creation/modification only by platform admins
+    match /companies/{companyId} {
+      allow create, update, delete: if isPlatformAdmin();
+      allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+
+      // Company-scoped data (subcollections)
+      match /{document=**} {
+        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+
+        // Writes allowed for platform admins or company members with owner/manager/editor roles
+        allow create, update, delete: if isSignedIn() && (
+          isPlatformAdmin() || hasCompanyRole(companyId, ['owner', 'manager', 'editor'])
+        );
+      }
+    }
+
+    // Users membership docs under companies
+    match /companies/{companyId}/users/{userId} {
+      allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+      allow create: if isSignedIn() && (
+          request.auth.uid == userId || isPlatformAdmin() || hasCompanyRole(companyId, ['owner', 'manager'])
+      );
+      allow update, delete: if isSignedIn() && (
+          request.auth.uid == userId || isPlatformAdmin() || hasCompanyRole(companyId, ['owner', 'manager'])
+      );
+    }
+
+    // Invitations under companies
+    match /companies/{companyId}/invitations/{inviteId} {
+      allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+      allow create: if isSignedIn() && (isPlatformAdmin() || hasCompanyRole(companyId, ['owner', 'manager']));
+      allow update, delete: if isSignedIn() && (isPlatformAdmin() || hasCompanyRole(companyId, ['owner', 'manager']));
+    }
+
+    // Top-level invitations (created by platform functions when provisioning companies)
+    match /invitations/{inviteId} {
+      // Only platform admins or server-side functions should create/read these. Functions run with admin privileges.
+      allow read, write: if isPlatformAdmin();
+    }
+
+    // Top-level users profile documents created/updated by server or the authenticated user
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isPlatformAdmin());
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && (request.auth.uid == userId || isPlatformAdmin());
+      allow delete: if isPlatformAdmin();
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "alshabandar-trading-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint \"**/*.{ts,tsx,js,jsx}\" --ext .ts,.tsx,.js,.jsx --ignore-pattern dist --ignore-pattern functions",
+    "lint:fix": "eslint \"**/*.{ts,tsx,js,jsx}\" --fix --ignore-pattern dist --ignore-pattern functions",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@heroicons/react": "^2.2.0",
+    "firebase": "^12.6.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^3.0.3",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.9.4",
+    "recharts": "^3.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "eslint": "^8.47.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.33.2",
+    "@typescript-eslint/parser": "^6.7.0",
+    "@typescript-eslint/eslint-plugin": "^6.7.0",
+    "prettier": "^3.7.0"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "currency": "USD",
+  "taxes": [
+    {
+      "id": "default-vat",
+      "name": "VAT",
+      "rate": 15
+    }
+  ]
+}
