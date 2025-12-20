@@ -39,3 +39,11 @@ module.exports.overrides = [
     }
   }
 ];
+
+// Allow explicit `any` in services where integrating third-party SDKs or shims.
+module.exports.overrides.push({
+  files: ['services/**/*.ts', 'services/**/*.tsx'],
+  rules: {
+    '@typescript-eslint/no-explicit-any': 'off'
+  }
+});

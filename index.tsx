@@ -7,6 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { AuthGuard } from './components/AuthGuard';
 import { setDataServiceImpl } from './services/dataService';
 import * as firestoreService from './services/firestoreService';
+import { initSentry } from './services/errorReporting';
 
 
 // Register Service Worker for PWA functionality
@@ -34,6 +35,11 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 
 try {
+  // Initialize Sentry (if DSN provided). Supports both process.env and Vite env.
+  const SENTRY_DSN = (process && (process.env as any)?.SENTRY_DSN) || (import.meta && (import.meta as any).env?.VITE_SENTRY_DSN);
+  if (SENTRY_DSN) {
+    initSentry(SENTRY_DSN as string).catch(e => console.warn('Sentry init failed', e));
+  }
   // 1. Inject the concrete service implementation into the data service proxy.
   // Importing 'firestoreService' triggers the automatic Firebase initialization
   // in 'services/firebase.ts', ensuring the data layer is ready before any components mount.

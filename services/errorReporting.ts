@@ -2,21 +2,22 @@
 // Provides a small adapter to integrate with Sentry or fall back to console.
 type ErrorPayload = {
     error: Error;
-    info?: any;
+    info?: unknown;
     context?: Record<string, unknown>;
 };
 
-let _sentry: any = null;
+let _sentry: unknown = null;
 let _sentryInitialized = false;
 
-export async function initSentry(dsn?: string, options?: Record<string, any>) {
+export async function initSentry(dsn?: string, options?: Record<string, unknown>) {
     if (!dsn) {
         return;
     }
 
     try {
         const Sentry = await import('@sentry/browser');
-        Sentry.init({ dsn, ...options });
+        // @ts-expect-error Sentry shape depends on package version
+        Sentry.init({ dsn, ...(options as any) });
         _sentry = Sentry;
         _sentryInitialized = true;
     } catch (e) {
@@ -36,8 +37,11 @@ export const reportError = (payload: ErrorPayload) => {
 
         if (_sentryInitialized && _sentry) {
             try {
-                _sentry.captureException(payload.error, { extra: { info: payload.info, context: payload.context } });
-                return;
+                const s = _sentry as any;
+                if (typeof s.captureException === 'function') {
+                    s.captureException(payload.error, { extra: { info: payload.info, context: payload.context } });
+                    return;
+                }
             } catch (e) {
                 // Fall through to console fallback
                 console.warn('[errorReporting] Sentry capture failed', e);
