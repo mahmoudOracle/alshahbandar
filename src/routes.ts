@@ -22,6 +22,11 @@ const ExpenseForm = lazy(() => import('@/pages/ExpenseForm'));
 const Reports = lazy(() => import('@/pages/Reports'));
 const NotAuthorizedPage = lazy(() => import('@/pages/NotAuthorizedPage'));
 const DevDebugPage = lazy(() => import('@/pages/DevDebugPage'));
+const SuppliersPage = lazy(() => import('@/pages/SuppliersPage'));
+const PurchasesPage = lazy(() => import('@/pages/PurchasesPage'));
+const WarehousePage = lazy(() => import('@/pages/WarehousePage'));
+const IncomingReceiptsList = lazy(() => import('@/pages/IncomingReceiptsList'));
+const ReceiptDetailPage = lazy(() => import('@/pages/ReceiptDetailPage'));
 
 export const routes = [
   { path: "/invite/accept", component: AcceptInvitationPage, title: "Accept Invitation" },
@@ -51,6 +56,12 @@ export const routes = [
   { path: "/expenses/new", component: ExpenseForm, title: "مصروف جديد" },
   { path: "/expenses/edit/:id", component: ExpenseForm, title: "تعديل المصروف" },
   { path: "/reports", component: Reports, title: "التقارير" },
+  { path: "/purchases", component: PurchasesPage, title: "المشتريات" },
+  { path: "/suppliers", component: SuppliersPage, title: "الموردون" },
+  // Receipt creation removed — use suppliers and receipts list instead
+  { path: "/receipts", component: IncomingReceiptsList, title: "سندات الاستلام" },
+  { path: "/receipts/:id", component: ReceiptDetailPage, title: "تفاصيل السند" },
+  { path: "/warehouse", component: WarehousePage, title: "المخزن" },
   { path: "/admin/*", component: NotAuthorizedPage, title: "وصول غير مصرح به" },
   { path: "/dev/debug", component: DevDebugPage, title: "Dev Debug" },
 ];

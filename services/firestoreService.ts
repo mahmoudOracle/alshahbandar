@@ -17,6 +17,7 @@ import {
     Invoice, Customer, Product, Payment, Settings, Expense, Quote, RecurringInvoice, 
     InvoiceStatus, PaymentType, QuoteStatus, Frequency, UserRole, StoredExpenseCategory, StoredVendor, PaginatedData,
     CompanyMembership, CompanyUser, CompanyInvitation, Company
+    , Supplier, IncomingReceipt, IncomingReceiptProduct
 } from '../types';
 import { db, functions, auth } from './firebase';
 import { serverTimestamp } from 'firebase/firestore';
@@ -180,18 +181,24 @@ const getCollectionRef = (companyId: string, collectionName: string) => {
     return collection(db, 'companies', companyId, collectionName);
 };
 
+const DEFAULT_PAGE_LIMIT = 50; // safe default to limit reads for cost control
+
 const getData = async <T>(
     companyId: string,
     collectionName: string,
     options: QueryOptions = {}
 ): Promise<PaginatedData<T>> => {
     const {
-        limit: queryLimit,
+        limit: queryLimitRaw,
         orderBy: orderByField,
         orderDirection = 'desc',
         startAfter: startAfterDoc,
         filters = []
     } = options;
+
+    // Apply a conservative default limit to prevent unbounded reads.
+    // Callers that need to fetch more should explicitly pass a larger `limit`.
+    const queryLimit = typeof queryLimitRaw === 'number' && queryLimitRaw > 0 ? queryLimitRaw : DEFAULT_PAGE_LIMIT;
 
     const constraints: QueryConstraint[] = [];
 
@@ -249,6 +256,17 @@ const saveData = async <T extends { id?: string }>(companyId: string, collection
 
 const deleteData = async (companyId: string, collectionName: string, id: string, section: WriteableSection): Promise<boolean> => {
     ensureWriteAllowed(section);
+    // Prefer server-side callable for safe (soft) deletes with audit and business logic.
+    try {
+        const fn = httpsCallable(functions, 'safeDeleteDocument');
+        const res = await fn({ companyId, collectionName, id, reason: 'deleted_via_ui' });
+        // Callable returns { success: true }
+        if (res && (res as any).data && (res as any).data.success) return true;
+    } catch (err) {
+        console.warn('[FIRESTORE] safeDeleteDocument callable failed, falling back to client delete', err?.message || err);
+    }
+
+    // Fallback to client-side hard delete (should be rare). Note: this path will be blocked by rules if enforced.
     await deleteDoc(doc(db, 'companies', companyId, collectionName, id));
     return true;
 };
@@ -473,11 +491,19 @@ export const getPendingInvitations = async (companyId: string): Promise<CompanyI
     // Invitations are server-managed; use callable to fetch pending invitations for a company
     const fn = httpsCallable(functions, 'getCompanyInvitations');
     try {
-        const res = await fn({ companyId });
+        // Use retry wrapper for transient network issues
+        const res = await withRetry(() => fn({ companyId }));
         const payload = (res && (res as any).data) ? (res as any).data : {};
         return (payload.invites || []) as CompanyInvitation[];
     } catch (err) {
         console.error('[DEBUG][Invite] getCompanyInvitations failed', err);
+        // Provide a clearer error code when the callable is not deployed or functions not reachable
+        const msg = String((err as any)?.message || '').toLowerCase();
+        if (msg.includes('not found') || msg.includes('unimplemented') || (err as any)?.code === 'not-found') {
+            const e: any = new Error('Invitations callable not available');
+            e.code = 'callable-unavailable';
+            throw e;
+        }
         throw err;
     }
 };
@@ -654,9 +680,18 @@ export const saveInvoice = async (companyId: string, invoice: Omit<Invoice, 'id'
 };
 
 export const deleteInvoice = async (companyId: string, id: string): Promise<boolean> => {
-    const invoiceToDelete = await getInvoiceById(companyId, id);
-    if (invoiceToDelete) await updateStockAtomically(companyId, invoiceToDelete, 'increase');
-    return deleteData(companyId, 'invoices', id, 'invoices');
+    // Use server-side callable to perform a safe soft-delete with audit logging and stock adjustments.
+    try {
+        const fn = httpsCallable(functions, 'safeDeleteDocument');
+        const res = await fn({ companyId, collectionName: 'invoices', id, reason: 'deleted_via_ui' });
+        return Boolean(res && (res as any).data && (res as any).data.success) || Boolean((res as any).data?.success) || true;
+    } catch (err) {
+        console.error('[FIRESTORE] safeDeleteDocument failed', err);
+        // Fallback to client-side delete if callable not available, but still perform stock correction.
+        const invoiceToDelete = await getInvoiceById(companyId, id);
+        if (invoiceToDelete) await updateStockAtomically(companyId, invoiceToDelete, 'increase');
+        return deleteData(companyId, 'invoices', id, 'invoices');
+    }
 };
 
 export const getPayments = (companyId: string, options: QueryOptions = {}) => getData<Payment>(companyId, 'payments', { orderBy: 'date', ...options });
@@ -694,6 +729,171 @@ export const saveExpenseCategory = (companyId: string, category: Omit<StoredExpe
 export const getVendors = (companyId: string) => getData<StoredVendor>(companyId, 'vendors');
 export const saveVendor = (companyId: string, vendor: Omit<StoredVendor, 'id'>) => saveData<StoredVendor>(companyId, 'vendors', vendor, 'expenses');
 
+// --- Suppliers (Inventory) ---
+export const getSuppliers = (companyId: string, options: QueryOptions = {}) => getData<any>(companyId, 'suppliers', { orderBy: 'supplierName', ...options });
+export const getSupplierById = (companyId: string, id: string) => getById<any>(companyId, 'suppliers', id);
+
+export const saveSupplier = async (companyId: string, supplier: Omit<any, 'id'> | any) => {
+    ensureWriteAllowed('products');
+    // Normalize name for uniqueness
+    if (!supplier.supplierName || !String(supplier.supplierName).trim()) throw new Error('Supplier name is required');
+    const nameLower = String(supplier.supplierName).trim().toLowerCase();
+
+    // Prevent duplicate supplier names within company (case-insensitive)
+    const q = query(getCollectionRef(companyId, 'suppliers'), where('supplierNameLower', '==', nameLower), firestoreLimit(1));
+    const snaps = await getDocs(q);
+    if ((!supplier.id || supplier.id === '') && snaps.docs.length > 0) {
+        throw new Error('Supplier with the same name already exists');
+    }
+
+    const toSave = {
+        ...supplier,
+        supplierName: String(supplier.supplierName).trim(),
+        supplierNameLower: nameLower,
+        createdAt: supplier.createdAt || serverTimestamp(),
+    } as any;
+
+    return saveData<any>(companyId, 'suppliers', toSave, 'products');
+}
+
+export const deleteSupplier = (companyId: string, id: string) => deleteData(companyId, 'suppliers', id, 'products');
+
+// --- Incoming Receipts (Supplier receiving) ---
+export const getIncomingReceipts = (companyId: string, options: QueryOptions = {}) => getData<IncomingReceipt>(companyId, 'incomingReceipts', { orderBy: 'receivedAt', ...options });
+export const getIncomingReceiptById = (companyId: string, id: string) => getById<IncomingReceipt>(companyId, 'incomingReceipts', id);
+
+export const saveIncomingReceipt = async (companyId: string, receipt: Omit<IncomingReceipt, 'id'> | IncomingReceipt): Promise<IncomingReceipt> => {
+    ensureWriteAllowed('products');
+
+    // Basic validation
+    if (!receipt || !receipt.supplierId) throw new Error('Cannot save receipt without supplier');
+    if (!receipt.products || !Array.isArray(receipt.products) || receipt.products.length === 0) throw new Error('Receipt must include at least one product');
+    for (const p of receipt.products) {
+        if (!p.productId) throw new Error('Product id missing in receipt');
+        if (typeof p.quantityReceived !== 'number' || p.quantityReceived <= 0) throw new Error('Quantity must be > 0');
+    }
+
+    // We do not support editing receipts in this function (to avoid complex delta logic).
+    if ('id' in receipt && receipt.id) throw new Error('Editing receipts is not supported in this operation');
+
+    // Run transaction to create receipt and update product stocks atomically
+    const receiptRef = doc(getCollectionRef(companyId, 'incomingReceipts'));
+    const idempotencyKey = (receipt as any).idempotencyKey;
+    const keyRef = idempotencyKey ? doc(db, 'companies', companyId, 'incomingReceiptKeys', idempotencyKey) : null;
+
+    try {
+        await runTransaction(db, async (tx) => {
+            // If idempotency key provided, ensure it's not used
+            if (keyRef) {
+                const keySnap = await tx.get(keyRef);
+                if (keySnap.exists()) {
+                    // Return early by throwing a specific error (caller can map to duplicate)
+                    const existingReceiptId = keySnap.data()?.receiptId;
+                    const e: any = new Error('Duplicate submission');
+                    e.code = 'duplicate-receipt';
+                    e.existingReceiptId = existingReceiptId;
+                    throw e;
+                }
+            }
+
+            // Verify supplier exists
+            const supplierRef = doc(db, 'companies', companyId, 'suppliers', receipt.supplierId);
+            const supSnap = await tx.get(supplierRef);
+            if (!supSnap.exists()) throw new Error('Supplier not found');
+
+            // For each product, update stock
+            for (const itm of receipt.products) {
+                const prodRef = doc(db, 'companies', companyId, 'products', itm.productId);
+                const prodSnap = await tx.get(prodRef);
+                if (!prodSnap.exists()) throw new Error(`Product not found: ${itm.productId}`);
+                const currentStock = prodSnap.data().stock || 0;
+                const newStock = currentStock + Math.abs(itm.quantityReceived);
+                tx.update(prodRef, { stock: newStock, updatedAt: Timestamp.now() } as any);
+                console.log('🟢 Stock updated for product:', itm.productId);
+            }
+
+            // Create receipt document
+            const payload = {
+                ...receipt,
+                supplierName: supSnap.data().supplierName || null,
+                receivedAt: serverTimestamp(),
+                createdAt: serverTimestamp(),
+            } as any;
+
+            tx.set(receiptRef, payload);
+
+            // Create idempotency key doc to mark this operation (if provided)
+            if (keyRef) {
+                tx.set(keyRef, { receiptId: receiptRef.id, createdAt: serverTimestamp() });
+            }
+        });
+
+        console.log('🟢 Transaction success: incoming receipt saved');
+        // Return the newly created receipt (optimistic fields)
+        return { id: receiptRef.id, ...receipt, receivedAt: Timestamp.now(), createdAt: Timestamp.now() } as IncomingReceipt;
+    } catch (error) {
+        console.error('🔴 Transaction failed:', error);
+        throw error;
+    }
+}
+
+// Edit existing receipt: compute deltas and apply atomically
+export const editIncomingReceipt = async (companyId: string, receiptId: string, updated: Omit<IncomingReceipt, 'id'> | IncomingReceipt): Promise<IncomingReceipt> => {
+    ensureWriteAllowed('products');
+    if (!receiptId) throw new Error('receiptId is required');
+
+    const receiptRef = doc(db, 'companies', companyId, 'incomingReceipts', receiptId);
+
+    try {
+        await runTransaction(db, async (tx) => {
+            const oldSnap = await tx.get(receiptRef);
+            if (!oldSnap.exists()) throw new Error('Receipt not found');
+            const old = oldSnap.data() as any;
+
+            // Validate updated payload
+            if (!updated.supplierId) throw new Error('Cannot save receipt without supplier');
+            if (!updated.products || !Array.isArray(updated.products) || updated.products.length === 0) throw new Error('Receipt must include at least one product');
+
+            // Build maps of old and new quantities
+            const oldMap: Record<string, number> = {};
+            for (const p of (old.products || [])) oldMap[p.productId] = (oldMap[p.productId] || 0) + (p.quantityReceived || 0);
+            const newMap: Record<string, number> = {};
+            for (const p of (updated.products || [])) newMap[p.productId] = (newMap[p.productId] || 0) + (p.quantityReceived || 0);
+
+            // Determine all productIds involved
+            const productIds = Array.from(new Set([...Object.keys(oldMap), ...Object.keys(newMap)]));
+
+            // Apply deltas per product
+            for (const pid of productIds) {
+                const oldQty = oldMap[pid] || 0;
+                const newQty = newMap[pid] || 0;
+                const delta = newQty - oldQty; // positive => increase stock, negative => decrease stock
+                if (delta === 0) continue;
+
+                const prodRef = doc(db, 'companies', companyId, 'products', pid);
+                const prodSnap = await tx.get(prodRef);
+                if (!prodSnap.exists()) throw new Error(`Product not found: ${pid}`);
+                const currentStock = prodSnap.data().stock || 0;
+                const newStock = currentStock + delta;
+                if (newStock < 0) throw new Error(`Insufficient stock for product ${pid}. Current: ${currentStock}, delta: ${delta}`);
+                tx.update(prodRef, { stock: newStock, updatedAt: Timestamp.now() } as any);
+                console.log('🟢 Stock updated for product (edit):', pid, 'delta', delta);
+            }
+
+            // Update the receipt document
+            const payload = { ...updated, updatedAt: serverTimestamp() } as any;
+            tx.set(receiptRef, payload, { merge: true });
+        });
+
+        console.log('🟢 Transaction success: incoming receipt edited', receiptId);
+        const snap = await getDoc(receiptRef);
+        return { id: receiptId, ...(snap.exists() ? snap.data() : updated) } as IncomingReceipt;
+    } catch (err) {
+        console.error('🔴 Edit transaction failed:', err);
+        throw err;
+    }
+}
+
 
 export const getQuotes = (companyId: string, options: QueryOptions = {}) => getData<Quote>(companyId, 'quotes', { orderBy: 'date', ...options });
 export const getQuoteById = (companyId: string, id: string) => getById<Quote>(companyId, 'quotes', id);
@@ -702,6 +902,190 @@ export const saveQuote = async (companyId: string, quote: Omit<Quote, 'id'> | Qu
         (quote as Quote).quoteNumber = await getNextDocumentNumber(companyId, 'quote');
     }
     return saveData<Quote>(companyId, 'quotes', quote, 'quotes');
+};
+
+// --- Goods Receipts (alias to a company-scoped goodsReceipts collection)
+export const saveGoodsReceipt = async (companyId: string, receipt: { supplierId: string; items: { productId: string; productName?: string; quantity: number; }[], idempotencyKey?: string }): Promise<{ id: string }> => {
+    ensureWriteAllowed('products');
+    if (!receipt || !receipt.supplierId) throw new Error('Cannot save goods receipt without supplier');
+    if (!receipt.items || !Array.isArray(receipt.items) || receipt.items.length === 0) throw new Error('Receipt must include at least one item');
+
+    const receiptRef = doc(getCollectionRef(companyId, 'goodsReceipts'));
+    const keyRef = receipt.idempotencyKey ? doc(db, 'companies', companyId, 'goodsReceiptKeys', receipt.idempotencyKey) : null;
+
+    try {
+        await runTransaction(db, async (tx) => {
+            if (keyRef) {
+                const kSnap = await tx.get(keyRef);
+                if (kSnap.exists()) {
+                    const e: any = new Error('Duplicate submission');
+                    e.code = 'duplicate-receipt';
+                    e.existingReceiptId = kSnap.data()?.receiptId;
+                    throw e;
+                }
+            }
+
+            const supRef = doc(db, 'companies', companyId, 'suppliers', receipt.supplierId);
+            const supSnap = await tx.get(supRef);
+            if (!supSnap.exists()) throw new Error('Supplier not found');
+
+            for (const it of receipt.items) {
+                const pRef = doc(db, 'companies', companyId, 'products', it.productId);
+                const pSnap = await tx.get(pRef);
+                if (!pSnap.exists()) throw new Error(`Product not found: ${it.productId}`);
+                const currentStock = pSnap.data().stock || 0;
+                const newStock = currentStock + Number(it.quantity || 0);
+                tx.update(pRef, { stock: newStock, updatedAt: Timestamp.now() } as any);
+            }
+
+            const payload = { supplierId: receipt.supplierId, supplierName: supSnap.data().name || null, items: receipt.items, receivedAt: serverTimestamp(), createdAt: serverTimestamp() } as any;
+            tx.set(receiptRef, payload);
+
+            if (keyRef) {
+                tx.set(keyRef, { receiptId: receiptRef.id, createdAt: serverTimestamp() });
+            }
+        });
+
+        return { id: receiptRef.id };
+    } catch (err) {
+        console.error('🔴 saveGoodsReceipt transaction failed:', err);
+        throw err;
+    }
+};
+
+// --- Accounting: Journal Entries (double-entry enforced)
+export const createJournalEntry = async (companyId: string, entry: { date?: any; lines: { accountId: string; debit: number; credit: number; }[], referenceType?: string; referenceId?: string; description?: string }) => {
+    ensureWriteAllowed('reports');
+    if (!entry || !Array.isArray(entry.lines) || entry.lines.length === 0) throw new Error('Journal entry requires lines');
+    // Validate double-entry
+    const totalDebit = entry.lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
+    const totalCredit = entry.lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
+    if (Math.abs(totalDebit - totalCredit) > 0.0001) throw new Error('Journal entry is not balanced');
+
+    const ref = doc(getCollectionRef(companyId, 'journalEntries'));
+    const payload = { date: entry.date || serverTimestamp(), lines: entry.lines, referenceType: entry.referenceType || null, referenceId: entry.referenceId || null, description: entry.description || null, createdAt: serverTimestamp() } as any;
+    await setDoc(ref, payload);
+    return { id: ref.id };
+};
+
+// --- Purchases: transactional creation + accounting + supplier balance update
+export const createPurchase = async (companyId: string, purchase: { supplierId: string; supplierName?: string; invoiceNumber?: string; items: { productId: string; productName?: string; quantity: number; unitPrice: number; }[], totalAmount: number }) => {
+    ensureWriteAllowed('expenses');
+    if (!purchase || !purchase.supplierId) throw new Error('Purchase requires supplierId');
+    const purchaseRef = doc(getCollectionRef(companyId, 'purchases'));
+
+    try {
+        await runTransaction(db, async (tx) => {
+            const supRef = doc(db, 'companies', companyId, 'suppliers', purchase.supplierId);
+            const supSnap = await tx.get(supRef);
+            if (!supSnap.exists()) throw new Error('Supplier not found');
+
+            // Create purchase doc
+            const payload = { supplierId: purchase.supplierId, supplierName: supSnap.data().name || purchase.supplierName || null, invoiceNumber: purchase.invoiceNumber || null, items: purchase.items, totalAmount: purchase.totalAmount || 0, paidAmount: 0, status: 'unpaid', createdAt: serverTimestamp() } as any;
+            tx.set(purchaseRef, payload);
+
+            // Update supplier balance (simple numeric balance field)
+            const currentBal = supSnap.data().balance || 0;
+            const newBal = currentBal + (purchase.totalAmount || 0);
+            tx.update(supRef, { balance: newBal, updatedAt: serverTimestamp() });
+
+            // Create journal entry: Debit Purchases (or Inventory) and Credit Accounts Payable
+            const journalRef = doc(getCollectionRef(companyId, 'journalEntries'));
+            const lines = [
+                { accountId: 'Purchases', debit: purchase.totalAmount || 0, credit: 0 },
+                { accountId: 'Payables', debit: 0, credit: purchase.totalAmount || 0 },
+            ];
+            tx.set(journalRef, { date: serverTimestamp(), lines, referenceType: 'purchase', referenceId: purchaseRef.id, createdAt: serverTimestamp() });
+        });
+
+        return { id: purchaseRef.id };
+    } catch (err) {
+        console.error('🔴 createPurchase transaction failed:', err);
+        throw err;
+    }
+};
+
+// --- Returns (Purchase Returns and Sales Returns) - basic implementations
+export const createPurchaseReturn = async (companyId: string, returnDoc: { purchaseId: string; items: { productId: string; quantity: number; }[], totalRefund: number }) => {
+    ensureWriteAllowed('expenses');
+    if (!returnDoc || !returnDoc.purchaseId) throw new Error('purchaseId required');
+    const ref = doc(getCollectionRef(companyId, 'purchaseReturns'));
+    try {
+        await runTransaction(db, async (tx) => {
+            // Load purchase
+            const purchaseRef = doc(db, 'companies', companyId, 'purchases', returnDoc.purchaseId);
+            const pSnap = await tx.get(purchaseRef);
+            if (!pSnap.exists()) throw new Error('Purchase not found');
+
+            // Adjust supplier balance
+            const supplierId = pSnap.data().supplierId;
+            const supRef = doc(db, 'companies', companyId, 'suppliers', supplierId);
+            const supSnap = await tx.get(supRef);
+            if (!supSnap.exists()) throw new Error('Supplier not found');
+            const curBal = supSnap.data().balance || 0;
+            tx.update(supRef, { balance: curBal - (returnDoc.totalRefund || 0), updatedAt: serverTimestamp() });
+
+            // Adjust inventory back (decrease stock because goods returned to supplier)
+            for (const it of returnDoc.items) {
+                const prodRef = doc(db, 'companies', companyId, 'products', it.productId);
+                const prodSnap = await tx.get(prodRef);
+                if (!prodSnap.exists()) throw new Error(`Product not found: ${it.productId}`);
+                const curStock = prodSnap.data().stock || 0;
+                const newStock = curStock - Number(it.quantity || 0);
+                if (newStock < 0) throw new Error('Insufficient stock for return');
+                tx.update(prodRef, { stock: newStock, updatedAt: serverTimestamp() });
+            }
+
+            // Create return doc
+            tx.set(ref, { purchaseId: returnDoc.purchaseId, items: returnDoc.items, totalRefund: returnDoc.totalRefund || 0, createdAt: serverTimestamp() });
+
+            // Create reversing journal entry
+            const journalRef = doc(getCollectionRef(companyId, 'journalEntries'));
+            const lines = [
+                { accountId: 'Payables', debit: returnDoc.totalRefund || 0, credit: 0 },
+                { accountId: 'Purchases', debit: 0, credit: returnDoc.totalRefund || 0 },
+            ];
+            tx.set(journalRef, { date: serverTimestamp(), lines, referenceType: 'purchaseReturn', referenceId: ref.id, createdAt: serverTimestamp() });
+        });
+        return { id: ref.id };
+    } catch (err) {
+        console.error('🔴 createPurchaseReturn failed:', err);
+        throw err;
+    }
+};
+
+export const createSalesReturn = async (companyId: string, returnDoc: { invoiceId: string; items: { productId: string; quantity: number; }[], totalRefund: number }) => {
+    ensureWriteAllowed('invoices');
+    if (!returnDoc || !returnDoc.invoiceId) throw new Error('invoiceId required');
+    const ref = doc(getCollectionRef(companyId, 'salesReturns'));
+    try {
+        await runTransaction(db, async (tx) => {
+            // Adjust inventory (increase stock because customer returned goods)
+            for (const it of returnDoc.items) {
+                const prodRef = doc(db, 'companies', companyId, 'products', it.productId);
+                const prodSnap = await tx.get(prodRef);
+                if (!prodSnap.exists()) throw new Error(`Product not found: ${it.productId}`);
+                const curStock = prodSnap.data().stock || 0;
+                const newStock = curStock + Number(it.quantity || 0);
+                tx.update(prodRef, { stock: newStock, updatedAt: serverTimestamp() });
+            }
+
+            // Create return doc
+            tx.set(ref, { invoiceId: returnDoc.invoiceId, items: returnDoc.items, totalRefund: returnDoc.totalRefund || 0, createdAt: serverTimestamp() });
+
+            // Create reversing journal entry
+            const journalRef = doc(getCollectionRef(companyId, 'journalEntries'));
+            const lines = [
+                { accountId: 'Sales', debit: returnDoc.totalRefund || 0, credit: 0 },
+                { accountId: 'Receivables', debit: 0, credit: returnDoc.totalRefund || 0 },
+            ];
+            tx.set(journalRef, { date: serverTimestamp(), lines, referenceType: 'salesReturn', referenceId: ref.id, createdAt: serverTimestamp() });
+        });
+        return { id: ref.id };
+    } catch (err) {
+        console.error('🔴 createSalesReturn failed:', err);
+        throw err;
+    }
 };
 
 export const createInvoiceFromQuote = async (companyId: string, quoteId: string): Promise<Invoice> => {
@@ -824,6 +1208,17 @@ export const acceptInvitation = async (inviteId: string, token: string): Promise
     const acceptInvitationFunction = httpsCallable(functions, 'acceptInvitation');
     const result = await acceptInvitationFunction({ inviteId, token });
     return result.data;
+};
+
+export const undeleteDocument = async (companyId: string, collectionName: string, id: string): Promise<boolean> => {
+    try {
+        const fn = httpsCallable(functions, 'safeUndeleteDocument');
+        const res = await fn({ companyId, collectionName, id });
+        return Boolean(res && (res as any).data && (res as any).data.success);
+    } catch (err) {
+        console.warn('[FIRESTORE] safeUndeleteDocument failed', err?.message || err);
+        return false;
+    }
 };
 
 // This function is not applicable in Firestore mode, it's for mocks.

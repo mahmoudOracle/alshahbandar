@@ -22,6 +22,8 @@ const UserManagement: React.FC = () => {
     const { settings } = useSettings();
     const [users, setUsers] = useState<CompanyUser[]>([]);
     const [pendingInvitations, setPendingInvitations] = useState<CompanyInvitation[]>([]);
+    const [invitationsLoading, setInvitationsLoading] = useState(false);
+    const [invitationsError, setInvitationsError] = useState<string | null>(null);
     const [newUserEmail, setNewUserEmail] = useState('');
     const [newUserRole, setNewUserRole] = useState<UserRole>(UserRole.Employee);
     const [loading, setLoading] = useState(true);
@@ -31,12 +33,23 @@ const UserManagement: React.FC = () => {
         if (!activeCompanyId) return;
         setLoading(true);
         try {
-            const [usersData, invitationsData] = await Promise.all([
-                getCompanyUsers(activeCompanyId),
-                getPendingInvitations(activeCompanyId)
-            ]);
+            // Load users first; invitations are fetched separately because the invitations
+            // callable may fail if Cloud Functions are not deployed or misconfigured.
+            const usersData = await getCompanyUsers(activeCompanyId);
             setUsers(usersData || []);
-            setPendingInvitations(invitationsData || []);
+
+            try {
+                setInvitationsError(null);
+                const invitationsData = await getPendingInvitations(activeCompanyId);
+                setPendingInvitations(invitationsData || []);
+            } catch (invErr) {
+                // Don't fail the whole users panel if invitations callable fails.
+                console.warn('[UserManagement] Failed to load invitations, continuing with users only', invErr);
+                const msg = (invErr as any)?.message || String(invErr);
+                setInvitationsError(msg);
+                setPendingInvitations([]);
+                addNotification('تعذر تحميل الدعوات المعلقة. تواصل مع الدعم إذا لزم الأمر.', 'warning');
+            }
         } catch (error) {
             addNotification('فشل تحميل بيانات المستخدمين.', 'error');
         } finally {
@@ -47,6 +60,23 @@ const UserManagement: React.FC = () => {
     useEffect(() => {
         fetchData();
     }, [activeCompanyId]);
+
+    const retryLoadInvitations = async () => {
+        if (!activeCompanyId) return;
+        setInvitationsLoading(true);
+        setInvitationsError(null);
+        try {
+            const invitationsData = await getPendingInvitations(activeCompanyId);
+            setPendingInvitations(invitationsData || []);
+        } catch (err) {
+            console.warn('[UserManagement] retryLoadInvitations failed', err);
+            const msg = (err as any)?.message || String(err);
+            setInvitationsError(msg);
+            addNotification('تعذر تحميل الدعوات المعلقة. تواصل مع الدعم إذا لزم الأمر.', 'warning');
+        } finally {
+            setInvitationsLoading(false);
+        }
+    };
 
     const handleInvite = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -159,7 +189,14 @@ const UserManagement: React.FC = () => {
 
                 <div>
                      <h4 className="text-lg font-semibold mb-3">الدعوات المعلقة</h4>
-                     {loading ? <p>جاري التحميل...</p> : pendingInvitations.length > 0 ? (
+                     {(loading || invitationsLoading) ? <p>جاري التحميل...</p> : invitationsError ? (
+                         <div className="text-center py-4">
+                             <p className="text-sm text-red-600 mb-2">تعذر تحميل الدعوات المعلقة. حاول مرة أخرى أو تواصل مع الدعم.</p>
+                             <div className="flex justify-center">
+                                 <Button onClick={retryLoadInvitations}>إعادة المحاولة</Button>
+                             </div>
+                         </div>
+                     ) : pendingInvitations.length > 0 ? (
                          <div className="space-y-3">
                             {pendingInvitations.map(inv => (
                                 <div key={inv.id} className="flex flex-col sm:flex-row items-center justify-between p-3 bg-gray-100 dark:bg-gray-700/50 rounded-md">

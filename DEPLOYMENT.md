@@ -52,3 +52,62 @@ This guide provides the steps to build the application for production and deploy
     ```
 
     The command will output the URL where your application is live. Your deployment is complete!
+
+## Continuous Deployment via GitHub Actions
+
+1. Add the following repository secrets in GitHub (Settings → Secrets & variables → Actions):
+    - `FIREBASE_SERVICE_ACCOUNT` — the JSON content of your Firebase service account (use base64 if you prefer).
+    - `FIREBASE_PROJECT_ID` — your Firebase project ID.
+
+2. A workflow is included at `.github/workflows/deploy.yml` which will build and deploy to Firebase when you push to `main` or `master`.
+
+3. To trigger a deployment from your machine, push changes to `main` after setting the secrets.
+
+Notes:
+- The CI workflow (`.github/workflows/ci.yml`) runs lint, unit tests and builds the site and uploads the `dist` artifact.
+- For end-to-end Playwright tests, install browsers locally with `npx playwright install` and run `npm run test:e2e` against a running dev server. E2E is optional in CI by default.
+
+## CI/CD Deploy Workflow
+
+We added a GitHub Actions workflow at `.github/workflows/deploy.yml` that runs on pushes to `main` and deploys both Hosting and Cloud Functions.
+
+Required repository secrets:
+- `FIREBASE_SERVICE_ACCOUNT` — The JSON key file for a service account with the following roles: `Firebase Admin`, `Cloud Functions Developer`, `Firebase Hosting Admin`, `Storage Admin` (or equivalent). Paste the raw JSON as the secret value.
+- `FIREBASE_PROJECT_ID` — Your Firebase project ID (e.g., `my-firebase-project`).
+
+How it works:
+- The workflow installs dependencies, runs `npm run build`, writes the `FIREBASE_SERVICE_ACCOUNT` secret to a temporary JSON file, sets `GOOGLE_APPLICATION_CREDENTIALS` and then runs `firebase deploy --only hosting,functions`.
+
+Notes & troubleshooting:
+- Ensure the service account JSON is valid and the account has sufficient permissions to deploy Hosting and Functions.
+- For preview channel deploys or more advanced gating (deploy to preview on PR, production on main), we can extend the workflow to deploy to a Hosting preview channel and run Playwright tests against it before promoting to production.
+
+### Create a service account (gcloud)
+
+If you prefer to create a dedicated service account using the Google Cloud SDK, you can run:
+
+```bash
+# Replace with your project id
+PROJECT=my-firebase-project-id
+SA_NAME=github-deploy-sa
+
+gcloud iam service-accounts create $SA_NAME --project=$PROJECT --display-name="GitHub Actions Deploy"
+
+# Grant roles required for Firebase deploy
+gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:${SA_NAME}@${PROJECT}.iam.gserviceaccount.com" --role="roles/firebase.admin"
+gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:${SA_NAME}@${PROJECT}.iam.gserviceaccount.com" --role="roles/cloudfunctions.developer"
+gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:${SA_NAME}@${PROJECT}.iam.gserviceaccount.com" --role="roles/firebasehosting.admin"
+gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:${SA_NAME}@${PROJECT}.iam.gserviceaccount.com" --role="roles/storage.admin"
+
+# Create JSON key
+gcloud iam service-accounts keys create key.json --iam-account=${SA_NAME}@${PROJECT}.iam.gserviceaccount.com --project=$PROJECT
+
+# Inspect key.json and copy its contents into GitHub repo secret `FIREBASE_SERVICE_ACCOUNT` (raw JSON)
+```
+
+Important: keep `key.json` secure and never commit it. Use GitHub Secrets to store the JSON.
+
+If you want, I can:
+- Extend the workflow to deploy preview channels for PRs and run Playwright tests against them.
+- Add a workflow to deploy only functions when function code changes.
+

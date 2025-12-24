@@ -11,6 +11,7 @@ import { FullPageSpinner } from './components/Spinner';
 import OfflineBanner from './components/OfflineBanner';
 import OnboardingBanner from './components/OnboardingBanner';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { DataIsolationDebug } from '@/components/DataIsolationDebug';
 import { routes } from '@/src/routes';
 
 const AppRoutes: React.FC = () => (
@@ -102,6 +103,9 @@ function App() {
                     </Suspense>
                 </div>
             </main>
+
+            {/* Data Isolation Debug Info (dev only) */}
+            <DataIsolationDebug />
         </div>
     )
 }

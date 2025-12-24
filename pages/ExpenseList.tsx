@@ -1,8 +1,8 @@
 
 
-import React, { useState, useEffect, useMemo, Suspense, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getExpenses, deleteExpense } from '../services/dataService';
+import { getExpenses, deleteExpense, undeleteDocument } from '../services/dataService';
 import { Expense } from '../types';
 import { PlusIcon, PencilIcon, TrashIcon, CurrencyDollarIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { useSettings } from '../contexts/SettingsContext';
@@ -10,7 +10,34 @@ import TableSkeleton from '../components/TableSkeleton';
 import EmptyState from '../components/EmptyState';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+// Dynamically load Recharts to reduce bundle size
+type ChartDatum = { name: string; value: number };
+function ExpenseChartLoader({ data, colors, currency }: { data: ChartDatum[]; colors: string[]; currency?: string }) {
+    const [R, setR] = useState<any | null>(null);
+    useEffect(() => {
+        let mounted = true;
+        import('recharts')
+            .then(mod => { if (mounted) setR(mod); })
+            .catch(() => {});
+        return () => { mounted = false; };
+    }, []);
+
+    if (!R) return <CardSkeleton />;
+    const { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } = R;
+    return (
+        <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+                <Pie data={data} cx="50%" cy="50%" labelLine={false} outerRadius={70} fill="#8884d8" dataKey="value">
+                    {data.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                    ))}
+                </Pie>
+                <Tooltip formatter={(value: number) => `${value.toFixed(2)} ${currency}`} />
+                <Legend />
+            </PieChart>
+        </ResponsiveContainer>
+    );
+}
 import { Card } from '../components/ui/Card';
 import { Select } from '../components/ui/Select';
 import { Button } from '../components/ui/Button';
@@ -51,23 +78,11 @@ const ExpenseSummary: React.FC<{ expenses: Expense[] }> = ({ expenses }) => {
                     <p className="text-3xl font-bold mt-2 text-danger-600">{totalThisMonth.toFixed(2)} {settings?.currency}</p>
                 </div>
                 <div className="md:col-span-2 h-48">
-                    <Suspense fallback={<CardSkeleton />}>
-                        {chartData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie data={chartData} cx="50%" cy="50%" labelLine={false} outerRadius={70} fill="#8884d8" dataKey="value">
-                                        {chartData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip formatter={(value: number) => `${value.toFixed(2)} ${settings?.currency}`} />
-                                    <Legend />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="flex items-center justify-center h-full text-gray-500">لا توجد مصروفات هذا الشهر.</div>
-                        )}
-                    </Suspense>
+                    {chartData.length > 0 ? (
+                        <ExpenseChartLoader data={chartData} colors={COLORS} currency={settings?.currency} />
+                    ) : (
+                        <div className="flex items-center justify-center h-full text-gray-500">لا توجد مصروفات هذا الشهر.</div>
+                    )}
                 </div>
             </div>
         </Card>
@@ -167,9 +182,17 @@ const ExpenseList: React.FC = () => {
     if (expenseToDelete && activeCompanyId) {
         try {
             const result = await deleteExpense(activeCompanyId, expenseToDelete.id);
-            if (result) {
-                addNotification('تم حذف المصروف بنجاح!', 'success');
-                fetchExpenses(prevCursors[prevCursors.length - 1] || undefined);
+                        if (result) {
+                                addNotification('تم حذف المصروف بنجاح!', 'success', {
+                                    label: 'تراجع',
+                                    onClick: async () => {
+                                        try {
+                                            const ok = await undeleteDocument(activeCompanyId, 'expenses', expenseToDelete.id);
+                                            if (ok) await fetchExpenses(prevCursors[prevCursors.length - 1] || undefined);
+                                        } catch (e) { console.error(e); }
+                                    }
+                                });
+                                fetchExpenses(prevCursors[prevCursors.length - 1] || undefined);
             } else {
                 addNotification('فشل حذف المصروف.', 'error');
             }

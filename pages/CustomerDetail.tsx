@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getCustomerById, getInvoices, getPaymentsByCustomerId } from '../services/dataService';
 import { Customer, Invoice, Payment } from '../types';
@@ -30,6 +30,44 @@ const CustomerDetail: React.FC = () => {
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const { settings, loading: settingsLoading } = useSettings();
     const { addNotification } = useNotification();
+    const printableRef = useRef<HTMLDivElement | null>(null);
+
+    const handleExportStatement = async (format: 'pdf' | 'png') => {
+        if (!printableRef.current) return;
+        const [html2canvasMod, jspdfMod] = await Promise.all([
+            import('html2canvas'),
+            import('jspdf').catch(() => ({})),
+        ]);
+        const html2canvas = (html2canvasMod && (html2canvasMod.default || html2canvasMod));
+        const jsPDF = jspdfMod && (jspdfMod.jsPDF || jspdfMod.default);
+
+        try {
+            const canvas = await html2canvas(printableRef.current, { scale: 2 });
+            if (format === 'png') {
+                const image = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.href = image;
+                link.download = `statement-${customer?.id || 'customer'}.png`;
+                link.click();
+            } else {
+                const imgData = canvas.toDataURL('image/png');
+                if (jsPDF) {
+                    const pdf = new jsPDF('p', 'mm', 'a4');
+                    const pdfWidth = pdf.internal.pageSize.getWidth();
+                    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                    pdf.save(`statement-${customer?.id || 'customer'}.pdf`);
+                } else {
+                    const link = document.createElement('a');
+                    link.href = imgData;
+                    link.download = `statement-${customer?.id || 'customer'}.png`;
+                    link.click();
+                }
+            }
+        } catch (e: any) {
+            addNotification(mapFirestoreError(e), 'error');
+        }
+    };
 
     const fetchData = async () => {
         if (!id || !activeCompanyId) return;
@@ -73,7 +111,7 @@ const CustomerDetail: React.FC = () => {
     if (!customer) return <div>لم يتم العثور على العميل.</div>;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6" ref={printableRef}>
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                 <div className="flex justify-between items-start">
                     <div>
@@ -95,6 +133,10 @@ const CustomerDetail: React.FC = () => {
                             </button>
                         </div>
                     )}
+                    <div className="flex gap-2 ms-4">
+                        <button onClick={() => handleExportStatement('pdf')} className="px-3 py-2 bg-red-600 text-white rounded-md">تصدير كشف (PDF)</button>
+                        <button onClick={() => handleExportStatement('png')} className="px-3 py-2 bg-green-600 text-white rounded-md">تصدير كشف (صورة)</button>
+                    </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
                     <StatCard title="إجمالي الفواتير" value={`${financialSummary.totalBilled.toFixed(2)} ${settings?.currency}`} />

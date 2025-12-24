@@ -1,0 +1,10 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "companies",
+      "queryScope": "COLLECTION",
+      "fields": []
+    }
+  ],
+  "fieldOverrides": []
+}

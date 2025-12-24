@@ -7,8 +7,7 @@ const URLS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png',
+  // icons were removed from manifest to avoid dev download errors
 ];
 
 // Install event - cache static assets

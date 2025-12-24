@@ -11,6 +11,7 @@ import { mapFirestoreError } from '../services/firebaseErrors';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import DateInput from '../components/ui/DateInput';
 import { Select } from '../components/ui/Select';
 import { FormSkeleton } from '../components/ui/FormSkeleton';
 
@@ -215,8 +216,8 @@ const RecurringInvoiceForm: React.FC = () => {
                             options={Object.values(Frequency).map(f => ({ value: f, label: f }))} />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Input label="تاريخ البدء" type="date" name="startDate" value={recInvoice.startDate} onChange={handleInputChange} required />
-                        <Input label="تاريخ الانتهاء (اختياري)" type="date" name="endDate" value={recInvoice.endDate || ''} onChange={handleInputChange} />
+                        <DateInput label="تاريخ البدء" name="startDate" value={recInvoice.startDate} onChange={handleInputChange} required />
+                        <DateInput label="تاريخ الانتهاء (اختياري)" name="endDate" value={recInvoice.endDate || ''} onChange={handleInputChange} />
                     </div>
                     <div>
                         <h3 className="text-lg font-semibold mb-2">البنود</h3>

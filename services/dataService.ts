@@ -11,7 +11,7 @@ let dataSourceType: string = 'uninitialized';
  * @param impl - The service module to use.
  * @param name - A string identifier for the service implementation (e.g., 'firestore').
  */
-export const setDataServiceImpl = (impl: ServiceModule, name: string) => {
+export const setDataServiceImpl = (impl: ServiceModule, name: string): void => {
     service = impl;
     dataSourceType = name;
 };
@@ -19,15 +19,30 @@ export const setDataServiceImpl = (impl: ServiceModule, name: string) => {
 /**
  * Returns the name of the currently configured data source.
  */
-export const getDataSourceType = () => dataSourceType;
+export const getDataSourceType = (): string => dataSourceType;
 
 // This is a proxy that ensures the service implementation is set before being used.
 // It throws a clear error if any service function is called prematurely.
+// Simple in-memory read cache to reduce repeated reads and improve perceived performance
+const READ_CACHE_TTL = 15 * 1000; // 15 seconds
+const readCache = new Map<string, { ts: number; data: any }>();
+
+const cacheKey = (fn: string | symbol, args: unknown[]) => {
+    try {
+        return `${String(fn)}:${JSON.stringify(args)}`;
+    } catch {
+        return `${String(fn)}:${args.map(a => String(a)).join('|')}`;
+    }
+};
+
+const READ_CACHE_FUNCS = new Set(['getProducts', 'getCustomers', 'getInvoices', 'getSettings', 'getQuotes', 'getPayments', 'getExpenses']);
+// Cache supplier reads as well
+READ_CACHE_FUNCS.add('getSuppliers');
+
 const safeService = new Proxy({}, {
-    get(target, prop) {
-        return (...args: any[]) => {
+    get(_target, prop: string | symbol) {
+        return async (...args: unknown[]) => {
             if (!service) {
-                // This is a critical developer error, so we throw to stop execution.
                 throw new Error(`Data service has not been initialized. Ensure setDataServiceImpl() is called at startup.`);
             }
 
@@ -38,8 +53,26 @@ const safeService = new Proxy({}, {
                 return Promise.reject(new Error(errorMsg));
             }
 
+            // Serve from cache for some read-only functions
+            if (READ_CACHE_FUNCS.has(String(prop))) {
+                const key = cacheKey(prop, args);
+                const cached = readCache.get(key);
+                const now = Date.now();
+                if (cached && (now - cached.ts) < READ_CACHE_TTL) {
+                    return cached.data;
+                }
+                try {
+                    const res = await svcAny[prop](...args);
+                    readCache.set(key, { ts: now, data: res });
+                    return res;
+                } catch (err) {
+                    // don't cache errors
+                    throw err;
+                }
+            }
+
             return svcAny[prop](...args);
-        }
+        };
     }
 }) as ServiceModule;
 
@@ -90,6 +123,20 @@ export const {
     saveExpenseCategory,
     getVendors,
     saveVendor,
+    // Suppliers & Receiving
+    getSuppliers,
+    getSupplierById,
+    saveSupplier,
+    deleteSupplier,
+    getIncomingReceipts,
+    getIncomingReceiptById,
+    saveGoodsReceipt,
+    saveIncomingReceipt,
+    editIncomingReceipt,
+    createJournalEntry,
+    createPurchase,
+    createPurchaseReturn,
+    createSalesReturn,
     getQuotes,
     getQuoteById,
     saveQuote,
@@ -104,6 +151,7 @@ export const {
     // Customer Invitations
     createCustomerInvitation,
     acceptInvitation,
+    undeleteDocument,
     // Development
     populateDummyData,
     deleteAllCompanyData

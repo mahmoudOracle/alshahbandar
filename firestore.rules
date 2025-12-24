@@ -52,11 +52,14 @@ service cloud.firestore {
         // Reads allowed for members or platform admins
         allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
 
-        // Writes allowed only for platform admins or members with sufficient role
-        // However status updates (approval) must be done by platform admins only
-        allow create, update, delete: if isSignedIn() && (
-          isPlatformAdmin() || hasCompanyRole(companyId, ['owner', 'manager', 'editor'])
-        );
+          // Writes allowed only for platform admins or members with sufficient role
+          // For destructive operations (deletes) require server-side callable to set `isDeleted` flag.
+          allow create, update: if isSignedIn() && (
+            isPlatformAdmin() || hasCompanyRole(companyId, ['owner', 'manager', 'editor'])
+          );
+
+          // Prevent client-side hard deletes; require server-side callable to mark `isDeleted`.
+          allow delete: if false;
       }
     }
 

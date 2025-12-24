@@ -3,14 +3,39 @@
 // $env:GOOGLE_APPLICATION_CREDENTIALS="C:\path\to\service-account.json"; $env:OWNER_EMAIL='hoodaalawamry@gmail.com'; node .\scripts\provisionOwnerCompany.js
 // Optional: set COMPANY_ID and COMPANY_NAME and PLATFORM_ADMIN=true
 
-const admin = require('firebase-admin');
+import admin from 'firebase-admin';
+import fs from 'fs';
+import path from 'path';
 
-if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-  console.error('ERROR: GOOGLE_APPLICATION_CREDENTIALS env var must point to a service account JSON with Firestore/Admin privileges.');
+// Allow passing a service account path as the first CLI argument,
+// or via env var `SERVICE_ACCOUNT_PATH` or `GOOGLE_APPLICATION_CREDENTIALS`.
+// If none provided, attempt to auto-detect common filenames in the repo root.
+const cliPath = process.argv[2];
+const envPath = process.env.SERVICE_ACCOUNT_PATH || process.env.GOOGLE_APPLICATION_CREDENTIALS;
+
+let saPath = cliPath || envPath;
+if (!saPath) {
+  const root = path.resolve(__dirname, '..');
+  const candidates = [
+    path.join(root, 'service-account.json'),
+    path.join(root, 'serviceAccountKey.json'),
+    path.join(root, 'firebase-service-account.json'),
+    path.join(root, 'firebase-adminsdk.json'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) { saPath = c; break; }
+  }
+}
+
+if (!saPath) {
+  console.error('ERROR: Service account JSON not found. Provide it as the first argument, set SERVICE_ACCOUNT_PATH, or place a file named service-account.json in the project root.');
+  console.error('Example (PowerShell):');
+  console.error('  node .\\scripts\\provisionOwnerCompany.js C:\\path\\to\\service-account.json');
   process.exit(1);
 }
 
-admin.initializeApp();
+process.env.GOOGLE_APPLICATION_CREDENTIALS = saPath;
+admin.initializeApp({ credential: admin.credential.applicationDefault() });
 const db = admin.firestore();
 
 const OWNER_EMAIL = process.env.OWNER_EMAIL || 'hoodaalawamry@gmail.com';
@@ -47,6 +72,7 @@ async function run() {
         ownerMobile: '',
         plan: 'free',
         isActive: true,
+        status: 'approved',
         ownerUid: uid,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),

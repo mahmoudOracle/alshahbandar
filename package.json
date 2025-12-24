@@ -9,15 +9,21 @@
     "preview": "vite preview",
     "lint": "eslint \"**/*.{ts,tsx,js,jsx}\" --ext .ts,.tsx,.js,.jsx --ignore-pattern dist --ignore-pattern functions",
     "lint:fix": "eslint \"**/*.{ts,tsx,js,jsx}\" --fix --ignore-pattern dist --ignore-pattern functions",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "firebase": "^12.6.0",
+    "firebase-admin": "^13.6.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-is": "^18.2.0",
     "react-router-dom": "^7.9.4",
     "recharts": "^3.3.0"
   },
@@ -25,15 +31,23 @@
     "@sentry/browser": "^7.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.0.0",
+    "@testing-library/react": "^16.0.0",
     "@types/node": "^22.14.0",
+    "@typescript-eslint/eslint-plugin": "^6.7.0",
+    "@typescript-eslint/parser": "^6.7.0",
     "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0",
+    "chrome-launcher": "^1.2.1",
     "eslint": "^8.47.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-react": "^7.33.2",
-    "@typescript-eslint/parser": "^6.7.0",
-    "@typescript-eslint/eslint-plugin": "^6.7.0",
-    "prettier": "^3.7.0"
+    "jsdom": "^22.0.0",
+    "lighthouse": "^13.0.1",
+    "prettier": "^3.7.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "vitest": "^4.0.16"
   }
 }

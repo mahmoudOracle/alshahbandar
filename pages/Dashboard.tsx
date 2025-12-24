@@ -1,9 +1,8 @@
 
-import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { getInvoices, getCustomers, getPayments, getExpenses, generateInvoicesFromRecurring, getProducts } from '../services/dataService';
 import { Invoice, Customer, Payment, InvoiceStatus, Expense, Product } from '../types';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useSettings } from '../contexts/SettingsContext';
 import { UsersIcon, BanknotesIcon, ExclamationTriangleIcon, CurrencyDollarIcon, ArrowPathIcon, DocumentPlusIcon, UserPlusIcon } from '@heroicons/react/24/outline';
 import { useNotification } from '../contexts/NotificationContext';
@@ -116,6 +115,14 @@ const Dashboard: React.FC = () => {
   }, [payments, expenses]);
 
 
+  const [Recharts, setRecharts] = useState<any | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    import('recharts').then(mod => { if (mounted) setRecharts(mod); }).catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+
   if (loading || settingsLoading) {
     return (
         <div className="space-y-6">
@@ -200,19 +207,26 @@ const Dashboard: React.FC = () => {
 
       <Card header={<h2 className="text-xl font-bold">ملخص التدفق النقدي (آخر 6 أشهر)</h2>}>
         <div style={{ width: '100%', height: 300 }}>
-            <Suspense fallback={<div className="flex items-center justify-center h-full"><CardSkeleton /></div>}>
-                <ResponsiveContainer>
-                    <LineChart data={cashFlowData}>
-                        <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip formatter={(value: number) => `${value.toFixed(2)} ${settings?.currency}`} />
-                        <Legend />
-                        <Line type="monotone" dataKey="moneyIn" name="الأموال الداخلة" stroke="#16a34a" strokeWidth={2} />
-                        <Line type="monotone" dataKey="moneyOut" name="الأموال الخارجة" stroke="#dc2626" strokeWidth={2} />
-                    </LineChart>
-                </ResponsiveContainer>
-            </Suspense>
+            {Recharts ? (
+              (() => {
+                const { ResponsiveContainer: RC, LineChart: LC, CartesianGrid: CG, XAxis: X, YAxis: Y, Tooltip: T, Legend: L, Line: LN } = Recharts;
+                return (
+                  <RC>
+                    <LC data={cashFlowData}>
+                      <CG strokeDasharray="3 3" strokeOpacity={0.2} />
+                      <X dataKey="name" />
+                      <Y />
+                      <T formatter={(value: number) => `${value.toFixed(2)} ${settings?.currency}`} />
+                      <L />
+                      <LN type="monotone" dataKey="moneyIn" name="الأموال الداخلة" stroke="#16a34a" strokeWidth={2} />
+                      <LN type="monotone" dataKey="moneyOut" name="الأموال الخارجة" stroke="#dc2626" strokeWidth={2} />
+                    </LC>
+                  </RC>
+                );
+              })()
+            ) : (
+              <div className="flex items-center justify-center h-full"><CardSkeleton /></div>
+            )}
         </div>
       </Card>
     </div>

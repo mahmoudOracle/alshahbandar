@@ -67,9 +67,22 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
     setSettings({ ...newSettings, source: 'firestore' });
   };
   
-  // Render children only when settings are loaded to prevent components from accessing null settings
-  if (loading || !settings) {
+  // If still loading, show full-screen loader to avoid flashing UI
+  if (loading) {
     return <div className="flex items-center justify-center h-screen">جاري تحميل الإعدادات...</div>;
+  }
+
+  // If there is no active company (e.g., before user selects/joins a company),
+  // provide a safe local default so the app can render without blocking.
+  if (!activeCompanyId || !settings) {
+    const safeUpdate = async (_: Omit<Settings, 'source'>) => {
+      throw new Error('Cannot save settings: no active company');
+    };
+    return (
+      <SettingsContext.Provider value={{ settings: hardcodedDefaultSettings, loading: false, updateSettings: safeUpdate }}>
+        {children}
+      </SettingsContext.Provider>
+    );
   }
 
   return (

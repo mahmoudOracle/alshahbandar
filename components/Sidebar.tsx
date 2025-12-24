@@ -30,11 +30,15 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const navItems = [
     { to: '/', text: 'ملخص', icon: HomeIcon },
     { to: '/invoices', text: 'الفواتير', icon: DocumentTextIcon },
+    { to: '/purchases', text: 'المشتريات', icon: CurrencyDollarIcon },
     { to: '/quotes', text: 'عروض الأسعار', icon: DocumentDuplicateIcon },
     { to: '/recurring', text: 'الفواتير المتكررة', icon: ArrowPathIcon },
     { to: '/expenses', text: 'المصروفات', icon: CurrencyDollarIcon },
     { to: '/customers', text: 'العملاء', icon: UsersIcon },
     { to: '/products', text: 'المنتجات', icon: ArchiveBoxIcon },
+    { to: '/suppliers', text: 'الموردون', icon: UsersIcon },
+    { to: '/receipts', text: 'سندات الاستلام', icon: DocumentTextIcon },
+    { to: '/warehouse', text: 'المخزن', icon: ArchiveBoxIcon },
     { to: '/reports', text: 'التقارير', icon: ChartPieIcon },
     { to: '/settings', text: 'الإعدادات', icon: Cog6ToothIcon },
   ];
@@ -65,15 +69,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         {navItems.map((item, index) => {
           // FIX: Removed check for non-existent 'visible' property.
           return (
-             <NavLink
+            <NavLink
               key={index}
               to={item.to}
               onClick={onClose}
               end={item.to === '/'}
-              className={({ isActive }) => {
-                const finalIsActive = location.pathname === '/' ? isActive : location.pathname.startsWith(item.to);
-                return navLinkClass({ isActive: finalIsActive });
-              }}
+              className={({ isActive }) => navLinkClass({ isActive })}
             >
               <item.icon className="h-6 w-6 me-3" />
               {item.text}

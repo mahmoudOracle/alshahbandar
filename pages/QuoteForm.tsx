@@ -8,6 +8,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import { mapFirestoreError } from '../services/firebaseErrors';
+import DateInput from '../components/ui/DateInput';
 
 type State = Omit<Quote, 'id' | 'subtotal' | 'total' | 'taxAmount'>;
 
@@ -182,12 +183,10 @@ const QuoteForm: React.FC = () => {
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">تاريخ العرض</label>
-          <input type="date" name="date" value={quote.date} onChange={handleInputChange} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600" />
+          <DateInput label="تاريخ العرض" name="date" value={quote.date} onChange={handleInputChange} required />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">تاريخ الانتهاء</label>
-          <input type="date" name="expiryDate" value={quote.expiryDate} onChange={handleInputChange} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600" />
+          <DateInput label="تاريخ الانتهاء" name="expiryDate" value={quote.expiryDate} onChange={handleInputChange} required />
         </div>
       </div>
 

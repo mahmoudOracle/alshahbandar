@@ -1,0 +1,29 @@
+name: Preview Channel Cleanup
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup-preview-channel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare Service Account
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then echo "Missing FIREBASE_SERVICE_ACCOUNT secret"; exit 1; fi
+          echo "$FIREBASE_SERVICE_ACCOUNT" > ${{ runner.temp }}/firebase-service-account.json
+          export GOOGLE_APPLICATION_CREDENTIALS=${{ runner.temp }}/firebase-service-account.json
+
+      - name: Install firebase-tools
+        run: npm install -g firebase-tools
+
+      - name: Delete preview channel
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          CHANNEL=pr-${PR_NUMBER}
+          echo "Deleting preview channel: $CHANNEL"
+          firebase hosting:channel:delete "$CHANNEL" --project "$FIREBASE_PROJECT_ID" --force || true

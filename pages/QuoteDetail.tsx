@@ -3,8 +3,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getQuoteById, createInvoiceFromQuote } from '../services/dataService';
 import { Quote, QuoteStatus, Invoice } from '../types';
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
 import { useSettings } from '../contexts/SettingsContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';

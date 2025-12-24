@@ -326,6 +326,140 @@ exports.acceptInvitation = functions.https.onCall(async (data, context) => {
     return { success: true, companyId };
 });
 
+// Safe delete callable: performs server-side validation and a soft-delete with audit logging.
+exports.safeDeleteDocument = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+    const { companyId, collectionName, id, reason } = data || {};
+    if (!companyId || !collectionName || !id) throw new functions.https.HttpsError('invalid-argument', 'Missing companyId, collectionName or id');
+
+    // Authorization: platform admin OR company owner/manager
+    try {
+        const platformAdminRef = db.collection('platformAdmins').doc(context.auth.uid);
+        const platformAdminDoc = await platformAdminRef.get();
+        let authorized = false;
+        if (platformAdminDoc.exists) authorized = true;
+
+        if (!authorized) {
+            const memberRef = db.collection('companies').doc(companyId).collection('users').doc(context.auth.uid);
+            const memberDoc = await memberRef.get();
+            if (memberDoc.exists) {
+                const member = memberDoc.data();
+                const role = (member && member.role) ? String(member.role).toLowerCase() : '';
+                if (['owner', 'manager', 'company_owner', 'admin'].includes(role)) authorized = true;
+            }
+        }
+
+        if (!authorized) {
+            throw new functions.https.HttpsError('permission-denied', 'Caller is not authorized to delete this resource');
+        }
+
+        const docRef = db.collection('companies').doc(companyId).collection(collectionName).doc(id);
+        const snap = await docRef.get();
+        if (!snap.exists) throw new functions.https.HttpsError('not-found', 'Document not found');
+        const before = snap.data();
+
+        const batch = db.batch();
+
+        // Soft-delete: mark document deleted and keep previous data for audit
+        batch.update(docRef, {
+            deletedAt: admin.firestore.FieldValue.serverTimestamp(),
+            deletedBy: context.auth.uid,
+            deletedByEmail: context.auth.token.email || null,
+            deletedReason: reason || null,
+            isDeleted: true
+        });
+
+        // If invoices, attempt to restore stock counts for items
+        if (collectionName === 'invoices' && Array.isArray(before?.items)) {
+            for (const item of before.items) {
+                try {
+                    if (!item.productId || !item.quantity) continue;
+                    const prodRef = db.collection('companies').doc(companyId).collection('products').doc(String(item.productId));
+                    batch.update(prodRef, { stock: admin.firestore.FieldValue.increment(Number(item.quantity) || 0) });
+                } catch (e) {
+                    console.warn('Could not enqueue stock increment for item', item, e?.message || e);
+                }
+            }
+        }
+
+        // Audit log entry
+        const auditRef = db.collection('companies').doc(companyId).collection('auditLogs').doc();
+        batch.set(auditRef, {
+            action: 'soft-delete',
+            collection: collectionName,
+            docId: id,
+            performedBy: context.auth.uid,
+            performedByEmail: context.auth.token.email || null,
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            reason: reason || null,
+            before: before || null
+        });
+
+        await batch.commit();
+        return { success: true };
+    } catch (err) {
+        console.error('[safeDeleteDocument] failed', err);
+        if (err instanceof functions.https.HttpsError) throw err;
+        throw new functions.https.HttpsError('internal', 'Failed to delete document');
+    }
+});
+
+// Safe undelete callable: reverses a soft-delete performed by safeDeleteDocument
+exports.safeUndeleteDocument = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+    const { companyId, collectionName, id } = data || {};
+    if (!companyId || !collectionName || !id) throw new functions.https.HttpsError('invalid-argument', 'Missing companyId, collectionName or id');
+
+    try {
+        const platformAdminRef = db.collection('platformAdmins').doc(context.auth.uid);
+        const platformAdminDoc = await platformAdminRef.get();
+        let authorized = false;
+        if (platformAdminDoc.exists) authorized = true;
+
+        if (!authorized) {
+            const memberRef = db.collection('companies').doc(companyId).collection('users').doc(context.auth.uid);
+            const memberDoc = await memberRef.get();
+            if (memberDoc.exists) {
+                const member = memberDoc.data();
+                const role = (member && member.role) ? String(member.role).toLowerCase() : '';
+                if (['owner', 'manager', 'company_owner', 'admin'].includes(role)) authorized = true;
+            }
+        }
+
+        if (!authorized) throw new functions.https.HttpsError('permission-denied', 'Caller not authorized');
+
+        const docRef = db.collection('companies').doc(companyId).collection(collectionName).doc(id);
+        const snap = await docRef.get();
+        if (!snap.exists) throw new functions.https.HttpsError('not-found','Document not found');
+
+        const batch = db.batch();
+        batch.update(docRef, {
+            isDeleted: false,
+            deletedAt: admin.firestore.FieldValue.delete(),
+            deletedBy: admin.firestore.FieldValue.delete(),
+            deletedByEmail: admin.firestore.FieldValue.delete(),
+            deletedReason: admin.firestore.FieldValue.delete()
+        });
+
+        const auditRef = db.collection('companies').doc(companyId).collection('auditLogs').doc();
+        batch.set(auditRef, {
+            action: 'undelete',
+            collection: collectionName,
+            docId: id,
+            performedBy: context.auth.uid,
+            performedByEmail: context.auth.token.email || null,
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        await batch.commit();
+        return { success: true };
+    } catch (err) {
+        console.error('[safeUndeleteDocument] failed', err);
+        if (err instanceof functions.https.HttpsError) throw err;
+        throw new functions.https.HttpsError('internal', 'Failed to undelete document');
+    }
+});
+
 // Resolve first login: link any pending invitations for the authenticated user's email to their UID.
 // This runs server-side with admin privileges and avoids exposing invitations to the client.
 exports.resolveFirstLogin = functions.https.onCall(async (data, context) => {

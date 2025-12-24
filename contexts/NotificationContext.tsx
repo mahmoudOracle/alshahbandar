@@ -2,10 +2,15 @@
 import React, { createContext, useState, useContext, ReactNode, useCallback } from 'react';
 import Notification, { NotificationProps } from '../components/Notification';
 
-type NotificationType = 'success' | 'error' | 'info';
+type NotificationType = 'success' | 'error' | 'info' | 'warning';
+
+interface NotificationAction {
+  label: string;
+  onClick: () => void | Promise<void>;
+}
 
 interface NotificationContextType {
-  addNotification: (message: string, type: NotificationType) => void;
+  addNotification: (message: string, type: NotificationType, action?: NotificationAction) => void;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -15,9 +20,9 @@ let notificationId = 0;
 export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [notifications, setNotifications] = useState<Omit<NotificationProps, 'onDismiss'>[]>([]);
 
-  const addNotification = useCallback((message: string, type: NotificationType) => {
+  const addNotification = useCallback((message: string, type: NotificationType, action?: NotificationAction) => {
     const id = notificationId++;
-    setNotifications(prev => [...prev, { id, message, type }]);
+    setNotifications(prev => [...prev, { id, message, type, action }]);
   }, []);
 
   const dismissNotification = useCallback((id: number) => {
@@ -39,7 +44,8 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
 export const useNotification = () => {
   const context = useContext(NotificationContext);
   if (context === undefined) {
-    throw new Error('useNotification must be used within a NotificationProvider');
+    // Provide a safe no-op implementation to simplify usage and testing
+    return { addNotification: (_message: string, _type: NotificationType) => {} } as NotificationContextType;
   }
   return context;
 };

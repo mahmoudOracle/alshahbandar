@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getProducts, deleteProduct } from '../services/dataService';
+import { getProducts, deleteProduct, undeleteDocument } from '../services/dataService';
 import { Product } from '../types';
 import { PlusIcon, PencilIcon, TrashIcon, ArchiveBoxIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { useSettings } from '../contexts/SettingsContext';
@@ -48,6 +48,7 @@ const ProductList: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'name_asc' | 'name_desc' | 'price_asc' | 'price_desc'>('name_asc');
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
   const [nextCursor, setNextCursor] = useState<any | null>(null);
@@ -103,6 +104,17 @@ const ProductList: React.FC = () => {
             const result = await deleteProduct(activeCompanyId, productToDelete.id);
             if(result) {
                 addNotification('تم حذف المنتج بنجاح!', 'success');
+                addNotification('تم حذف المنتج بنجاح.', 'success', {
+                  label: 'تراجع',
+                  onClick: async () => {
+                    try {
+                      const ok = await undeleteDocument(activeCompanyId, 'products', productToDelete.id);
+                      if (ok) {
+                        await fetchProducts(prevCursors[prevCursors.length - 1] || undefined);
+                      }
+                    } catch (e) { console.error(e); }
+                  }
+                });
                 fetchProducts(prevCursors[prevCursors.length - 1] || undefined);
             } else {
                 addNotification('فشل حذف المنتج.', 'error');
@@ -115,10 +127,13 @@ const ProductList: React.FC = () => {
   }
 
   const filteredProducts = useMemo(() => {
-    return products.filter(product =>
-      (product.name || '').toLowerCase().includes((searchTerm || '').toLowerCase())
-    );
-  }, [products, searchTerm]);
+    let list = products.filter(product => (product.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()));
+    if (sortBy === 'name_asc') list = list.sort((a,b) => (a.name||'').localeCompare(b.name||'', 'ar'));
+    if (sortBy === 'name_desc') list = list.sort((a,b) => (b.name||'').localeCompare(a.name||'', 'ar'));
+    if (sortBy === 'price_asc') list = list.sort((a,b) => (a.price || 0) - (b.price || 0));
+    if (sortBy === 'price_desc') list = list.sort((a,b) => (b.price || 0) - (a.price || 0));
+    return list;
+  }, [products, searchTerm, sortBy]);
 
   if (loading || settingsLoading) return <TableSkeleton cols={5} rows={PAGE_SIZE} />;
 
@@ -136,13 +151,21 @@ const ProductList: React.FC = () => {
   return (
     <Card>
       <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
-        <Input
-            type="text"
-            placeholder="ابحث عن منتج..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-full md:w-64"
-        />
+        <div className="flex gap-2 w-full md:w-auto items-center">
+          <Input
+              type="text"
+              placeholder="ابحث عن منتج..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full md:w-64"
+          />
+          <select value={sortBy} onChange={e => setSortBy(e.target.value as any)} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700">
+            <option value="name_asc">الاسم (أ-ي)</option>
+            <option value="name_desc">الاسم (ي-أ)</option>
+            <option value="price_asc">السعر (من الأقل)</option>
+            <option value="price_desc">السعر (من الأعلى)</option>
+          </select>
+        </div>
         {canWrite && (
             <Link to="/products/new" className="w-full md:w-auto">
                 <Button variant="primary" className="w-full">

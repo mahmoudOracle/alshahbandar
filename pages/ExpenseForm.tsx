@@ -8,6 +8,7 @@ import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import DateInput from '../components/ui/DateInput';
 import { Select } from '../components/ui/Select';
 import { Textarea } from '../components/ui/Textarea';
 import { FormSkeleton } from '../components/ui/FormSkeleton';
@@ -168,7 +169,7 @@ const ExpenseForm: React.FC = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
                 <fieldset disabled={!canWrite} className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Input label="التاريخ" type="date" name="date" value={expense.date} onChange={handleInputChange} required error={errors.date} />
+                        <DateInput label="التاريخ" name="date" value={expense.date} onChange={handleInputChange} required error={errors.date} />
                         <Input label="المبلغ" type="number" name="amount" value={expense.amount} onChange={handleInputChange} step="0.01" required error={errors.amount} />
                     </div>
                     <div>

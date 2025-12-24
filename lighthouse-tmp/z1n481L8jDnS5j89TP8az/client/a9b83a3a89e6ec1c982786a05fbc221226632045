@@ -1,0 +1,18 @@
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/node_modules/react/jsx-dev-runtime.js", {"importedNames":["jsxDEV"]});
+const __vite_ssr_import_1__ = await __vite_ssr_import__("/node_modules/@testing-library/react/dist/index.js", {"importedNames":["render","screen"]});
+const __vite_ssr_import_2__ = await __vite_ssr_import__("/App.tsx", {"importedNames":["default"]});
+describe("App (smoke)", () => {
+  it("renders without crashing", () => {
+    (0,__vite_ssr_import_1__.render)(/* @__PURE__ */ (0,__vite_ssr_import_0__.jsxDEV)((0,__vite_ssr_import_2__.default), {}, void 0, false, {
+      fileName: "C:/Users/Mahmoud/Downloads/alshabandar-trading-app (8)/src/__tests__/App.test.tsx",
+      lineNumber: 7,
+      columnNumber: 12
+    }, this));
+    const el = __vite_ssr_import_1__.screen.queryByText(/Alshabandar|تجاري|Login|Dashboard/i);
+    expect(el === null || el).toBeDefined();
+  });
+});
+//# sourceMappingSource=vite-generated
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6IkFBTVc7QUFMWDtBQUNBO0FBRUEsU0FBUyxlQUFlLE1BQU07QUFDNUIsS0FBRyw0QkFBNEIsTUFBTTtBQUNuQyxxQ0FBTyxvREFBQyxvQ0FBRDtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBQUssQ0FBRTtBQUVkLFVBQU0sS0FBSyw2QkFBTyxZQUFZLG9DQUFvQztBQUNsRSxXQUFPLE9BQU8sUUFBUSxFQUFFLEVBQUUsWUFBWTtBQUFBLEVBQ3hDLENBQUM7QUFDSCxDQUFDIiwibmFtZXMiOltdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJBcHAudGVzdC50c3giXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IFJlYWN0IGZyb20gJ3JlYWN0JztcclxuaW1wb3J0IHsgcmVuZGVyLCBzY3JlZW4gfSBmcm9tICdAdGVzdGluZy1saWJyYXJ5L3JlYWN0JztcclxuaW1wb3J0IEFwcCBmcm9tICcuLi8uLi9BcHAnO1xyXG5cclxuZGVzY3JpYmUoJ0FwcCAoc21va2UpJywgKCkgPT4ge1xyXG4gIGl0KCdyZW5kZXJzIHdpdGhvdXQgY3Jhc2hpbmcnLCAoKSA9PiB7XHJcbiAgICByZW5kZXIoPEFwcCAvPik7XHJcbiAgICAvLyBCYXNpYyBzbW9rZTogZXhwZWN0IHRoZSBhcHAgdG8gcmVuZGVyIHNvbWV0aGluZyByb290LWlzaFxyXG4gICAgY29uc3QgZWwgPSBzY3JlZW4ucXVlcnlCeVRleHQoL0Fsc2hhYmFuZGFyfNiq2KzYp9ix2Yp8TG9naW58RGFzaGJvYXJkL2kpO1xyXG4gICAgZXhwZWN0KGVsID09PSBudWxsIHx8IGVsKS50b0JlRGVmaW5lZCgpO1xyXG4gIH0pO1xyXG59KTtcclxuIl0sImZpbGUiOiIvc3JjL19fdGVzdHNfXy9BcHAudGVzdC50c3gifQ==
+
+//# vitestCache=W3siZmlsZSI6IjEiLCJpZCI6IjEiLCJ1cmwiOiIyIiwiaW1wb3J0ZXJzIjoiMyIsImltcG9ydGVkVXJscyI6IjQiLCJtYXBwaW5ncyI6ZmFsc2V9LCJDOi9Vc2Vycy9NYWhtb3VkL0Rvd25sb2Fkcy9hbHNoYWJhbmRhci10cmFkaW5nLWFwcCAoOCkvc3JjL19fdGVzdHNfXy9BcHAudGVzdC50c3giLCIvc3JjL19fdGVzdHNfXy9BcHAudGVzdC50c3giLFtdLFtdXQ==

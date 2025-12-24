@@ -55,6 +55,8 @@ const CustomerList: React.FC = () => {
   const [nextCursor, setNextCursor] = useState<any | null>(null);
   const [prevCursors, setPrevCursors] = useState<any[]>([]);
   const [isLastPage, setIsLastPage] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'name_asc' | 'name_desc' | 'recent'>('name_asc');
   
   const { addNotification } = useNotification();
   const navigate = useNavigate();
@@ -99,8 +101,16 @@ const CustomerList: React.FC = () => {
   };
 
   const filteredCustomers = useMemo(() => {
-    return customers.filter(c => showInactive || c.isActive);
-  }, [customers, showInactive]);
+    let list = customers.filter(c => showInactive || c.isActive);
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      list = list.filter(c => (c.name || '').toLowerCase().includes(q) || (c.mobilePhone || '').toLowerCase().includes(q) || (c.email || '').toLowerCase().includes(q));
+    }
+    if (sortBy === 'name_asc') list = list.sort((a,b) => (a.name||'').localeCompare(b.name||'', 'ar'));
+    if (sortBy === 'name_desc') list = list.sort((a,b) => (b.name||'').localeCompare(a.name||'', 'ar'));
+    if (sortBy === 'recent') list = list.sort((a,b) => (b.createdAt? Date.parse(b.createdAt as any) : 0) - (a.createdAt? Date.parse(a.createdAt as any) : 0));
+    return list;
+  }, [customers, showInactive, searchTerm, sortBy]);
 
   const handleOpenPaymentModal = (customer: Customer) => {
     setSelectedCustomer(customer);
@@ -129,7 +139,8 @@ const CustomerList: React.FC = () => {
   return (
     <Card>
       <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
-        <div className="flex items-center space-x-4 rtl:space-x-reverse">
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <Input placeholder="ابحث عن عميل..." className="w-full md:w-64" onChange={e => setSearchTerm(e.target.value)} />
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -140,14 +151,21 @@ const CustomerList: React.FC = () => {
             <span className="text-sm">إظهار العملاء غير النشطين</span>
           </label>
         </div>
-        {canWrite && (
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <select value={sortBy} onChange={e => setSortBy(e.target.value as any)} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700">
+            <option value="name_asc">الاسم (أ-ي)</option>
+            <option value="name_desc">الاسم (ي-أ)</option>
+            <option value="recent">الأحدث</option>
+          </select>
+          {canWrite && (
             <Link to="/customers/new" className="w-full md:w-auto">
                 <Button variant="primary" className="w-full">
                     <PlusIcon className="h-5 w-5 me-2" />
                     إضافة عميل
                 </Button>
             </Link>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="hidden md:block overflow-x-auto">

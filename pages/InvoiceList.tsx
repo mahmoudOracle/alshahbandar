@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getInvoices } from '../services/dataService';
+import { getInvoices, deleteInvoice, undeleteDocument } from '../services/dataService';
 import { Invoice, InvoiceStatus } from '../types';
-import { PencilIcon, EyeIcon, PlusIcon, DocumentTextIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, EyeIcon, PlusIcon, DocumentTextIcon, ChevronLeftIcon, ChevronRightIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { useSettings } from '../contexts/SettingsContext';
 import TableSkeleton from '../components/TableSkeleton';
 import EmptyState from '../components/EmptyState';
@@ -29,7 +29,7 @@ const getStatusBadge = (status: InvoiceStatus, dueDate: string): React.ReactNode
 
 const PAGE_SIZE = 15;
 
-const InvoiceCard: React.FC<{ invoice: Invoice, currency?: string, canWrite: boolean }> = ({ invoice, currency, canWrite }) => (
+const InvoiceCard: React.FC<{ invoice: Invoice, currency?: string, canWrite: boolean, onDelete?: (id: string) => void }> = ({ invoice, currency, canWrite, onDelete }) => (
     <Card padding="sm" className="md:hidden">
         <div className="flex justify-between items-start mb-2">
             <div>
@@ -63,6 +63,14 @@ const InvoiceCard: React.FC<{ invoice: Invoice, currency?: string, canWrite: boo
                     </Button>
                 </Link>
             )}
+            {canWrite && (
+              <div className="flex-1">
+                <Button type="button" variant="danger" size="sm" className="w-full" onClick={() => { if (window.confirm('هل أنت متأكد أنك تريد حذف هذه الفاتورة؟ لا يمكن التراجع عن هذا الإجراء.')) { onDelete && onDelete(invoice.id); } }}>
+                  <TrashIcon className="h-4 w-4 me-2" />
+                  حذف
+                </Button>
+              </div>
+            )}
         </div>
     </Card>
 );
@@ -75,6 +83,7 @@ const InvoiceList: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'All'>('All');
   const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
+  const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'total_desc' | 'total_asc'>('date_desc');
   
   const [nextCursor, setNextCursor] = useState<any | null>(null);
   const [prevCursors, setPrevCursors] = useState<any[]>([]);
@@ -131,6 +140,38 @@ const InvoiceList: React.FC = () => {
     }
   };
   
+  const handleDelete = async (invoiceId: string) => {
+    if (!activeCompanyId) return;
+    const ok = window.confirm('هل أنت متأكد أنك تريد حذف هذه الفاتورة؟ لا يمكن التراجع عن هذا الإجراء.');
+    if (!ok) return;
+    try {
+      const res = await deleteInvoice(activeCompanyId, invoiceId);
+      if (res) {
+        setInvoices(prev => prev.filter(i => i.id !== invoiceId));
+        addNotification('تم حذف الفاتورة بنجاح.', 'success', {
+          label: 'تراجع',
+          onClick: async () => {
+            try {
+              const ok = await undeleteDocument(activeCompanyId, 'invoices', invoiceId);
+              if (ok) {
+                await fetchInvoices();
+                return;
+              }
+              throw new Error('فشل استرجاع الفاتورة');
+            } catch (e) {
+              console.error(e);
+            }
+          }
+        });
+        fetchInvoices();
+      } else {
+        addNotification('فشل حذف الفاتورة.', 'error');
+      }
+    } catch (err: any) {
+      addNotification(err.message || 'خطأ أثناء حذف الفاتورة.', 'error');
+    }
+  };
+  
   const filteredInvoices = useMemo(() => {
     return invoices.filter(invoice => {
       if (statusFilter !== 'All' && invoice.status !== statusFilter) return false;
@@ -140,6 +181,15 @@ const InvoiceList: React.FC = () => {
       return true;
     });
   }, [invoices, searchTerm, statusFilter, dateFilter]);
+
+  const sortedInvoices = useMemo(() => {
+    const list = [...filteredInvoices];
+    if (sortBy === 'date_desc') return list.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    if (sortBy === 'date_asc') return list.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    if (sortBy === 'total_desc') return list.sort((a,b) => (b.total || 0) - (a.total || 0));
+    if (sortBy === 'total_asc') return list.sort((a,b) => (a.total || 0) - (b.total || 0));
+    return list;
+  }, [filteredInvoices, sortBy]);
 
   if (loading || settingsLoading) return <TableSkeleton cols={7} rows={PAGE_SIZE} />;
 
@@ -163,10 +213,28 @@ const InvoiceList: React.FC = () => {
                 className="w-full md:w-auto"
             />
             <div className="flex items-center gap-2 w-full md:w-auto">
-                <Input type="date" value={dateFilter.start} onChange={e => setDateFilter(p => ({...p, start: e.target.value}))} className="w-full"/>
-                <span className="text-sm text-gray-500">إلى</span>
-                <Input type="date" value={dateFilter.end} onChange={e => setDateFilter(p => ({...p, end: e.target.value}))} className="w-full"/>
+              <input type="text" value={dateFilter.start.split('-').reverse().join('/')} onChange={e => {
+                const val = e.target.value;
+                const s = val.includes('/') ? '/' : val.includes('-') ? '-' : '/';
+                const parts = val.split(s).map(p=>p.trim());
+                const iso = parts.length===3 ? `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}` : val;
+                setDateFilter(p => ({...p, start: iso}));
+              }} className="w-full px-3 py-2 border rounded-md" />
+              <span className="text-sm text-gray-500">إلى</span>
+              <input type="text" value={dateFilter.end.split('-').reverse().join('/')} onChange={e => {
+                const val = e.target.value;
+                const s = val.includes('/') ? '/' : val.includes('-') ? '-' : '/';
+                const parts = val.split(s).map(p=>p.trim());
+                const iso = parts.length===3 ? `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}` : val;
+                setDateFilter(p => ({...p, end: iso}));
+              }} className="w-full px-3 py-2 border rounded-md" />
             </div>
+              <select value={sortBy} onChange={e => setSortBy(e.target.value as any)} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700">
+                <option value="date_desc">الأحدث</option>
+                <option value="date_asc">الأقدم</option>
+                <option value="total_desc">الأعلى قيمة</option>
+                <option value="total_asc">الأدنى قيمة</option>
+              </select>
             {canWrite && (
                 <Link to="/invoices/new" className="w-full md:w-auto">
                     <Button variant="primary" className="w-full">
@@ -176,7 +244,7 @@ const InvoiceList: React.FC = () => {
             )}
         </div>
       
-      {filteredInvoices.length > 0 ? (
+      {sortedInvoices.length > 0 ? (
         <>
             <div className="hidden md:block overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -191,7 +259,7 @@ const InvoiceList: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {filteredInvoices.map(invoice => (
+                  {sortedInvoices.map(invoice => (
                     <tr key={invoice.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                       <td className="px-6 py-4 whitespace-nowrap">{invoice.invoiceNumber}</td>
                       <td className="px-6 py-4 whitespace-nowrap">{invoice.customerName}</td>
@@ -202,6 +270,7 @@ const InvoiceList: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <Link to={`/invoices/${invoice.id}`} className="text-primary-600 hover:text-primary-700 p-2" aria-label="عرض التفاصيل"><EyeIcon className="h-5 w-5" /></Link>
                           {canWrite && <Link to={`/invoices/edit/${invoice.id}`} className="text-gray-600 hover:text-gray-900 p-2" aria-label="تعديل الفاتورة"><PencilIcon className="h-5 w-5" /></Link>}
+                          {canWrite && <button onClick={() => handleDelete(invoice.id)} className="text-red-600 hover:text-red-900 p-2" aria-label="حذف الفاتورة"><TrashIcon className="h-5 w-5" /></button>}
                         </div>
                       </td>
                     </tr>
@@ -211,8 +280,8 @@ const InvoiceList: React.FC = () => {
             </div>
 
             <div className="md:hidden space-y-4 mt-4">
-                {filteredInvoices.map(invoice => (
-                    <InvoiceCard key={invoice.id} invoice={invoice} currency={settings?.currency} canWrite={canWrite} />
+                {sortedInvoices.map(invoice => (
+                  <InvoiceCard key={invoice.id} invoice={invoice} currency={settings?.currency} canWrite={canWrite} onDelete={handleDelete} />
                 ))}
             </div>
             

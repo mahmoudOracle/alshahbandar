@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Companies tenant root
+    match /companies/{companyId} {
+      // Products: app-owned stock data
+      match /products/{productId} {
+        allow read: if request.auth != null && resource.data.companyId == companyId;
+        allow write: if false; // only server/cloud functions or transactions in trusted code should update stock
+      }
+
+      // Suppliers
+      match /suppliers/{supplierId} {
+        allow read: if request.auth != null;
+        allow create, update, delete: if request.auth != null; // tighten as needed
+      }
+
+      // Incoming receipts
+      match /incomingReceipts/{receiptId} {
+        allow read: if request.auth != null;
+        // Only allow creation if authenticated and payload shaped correctly.
+        allow create: if request.auth != null
+                      && request.resource.data.supplierId is string
+                      && request.resource.data.products is list
+                      && request.resource.data.products.size() > 0
+                      && request.resource.data.products[0].productId is string
+                      && request.resource.data.products[0].quantityReceived is number;
+        // Allow updates only for owners/managers in server-side logic; disallow client-side edits by default
+        allow update, delete: if false;
+      }
+
+      // Idempotency keys used to prevent duplicate receipts
+      match /incomingReceiptKeys/{key} {
+        allow read: if request.auth != null;
+        // Prevent clients from creating idempotency keys directly.
+        allow create: if false;
+      }
+    }
+  }
+}

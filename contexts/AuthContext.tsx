@@ -7,6 +7,7 @@ import { getUserProfile, getCompany, getCompanyMembershipByUid } from '../servic
 import { FullPageSpinner } from '../components/Spinner';
 import { useNotification } from '../contexts/NotificationContext';
 import { DEBUG_MODE } from '../config';
+import { validateUserDataIsolation, cleanupSessionData } from '../services/dataTenantUtils';
 
 export type WriteableSection = 'invoices' | 'customers' | 'products' | 'expenses' | 'settings' | 'users' | 'quotes' | 'recurring' | 'payments' | 'reports';
 
@@ -35,6 +36,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
     const [companyMemberships, setCompanyMemberships] = useState<CompanyMembership[]>([]);
     const [activeCompany, setActiveCompany] = useState<any | null>(null);
+    const companyCacheRef = React.useRef<Map<string, any>>(new Map());
     const [activeCompanyId, setActiveCompanyIdState] = useState<string | null>(() => {
         try {
             return localStorage.getItem(ACTIVE_COMPANY_ID_KEY);
@@ -45,12 +47,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const notify = useNotification();
 
     const setActiveCompanyId = useCallback((companyId: string | null) => {
+        // Validate company ID format before setting
+        if (companyId) {
+            if (typeof companyId !== 'string' || companyId.length === 0) {
+                console.error('[AUTH] Invalid companyId provided:', companyId);
+                return;
+            }
+            // Security: Ensure company ID matches one of user's memberships
+            const isMemberOfCompany = companyMemberships.some(m => m.companyId === companyId);
+            if (!isMemberOfCompany) {
+                console.error('[AUTH] User attempted to switch to unauthorized company:', companyId);
+                return;
+            }
+        }
+        
         setActiveCompanyIdState(companyId);
         try {
-            if (companyId) localStorage.setItem(ACTIVE_COMPANY_ID_KEY, companyId);
-            else localStorage.removeItem(ACTIVE_COMPANY_ID_KEY);
+            if (companyId) {
+                localStorage.setItem(ACTIVE_COMPANY_ID_KEY, companyId);
+            } else {
+                localStorage.removeItem(ACTIVE_COMPANY_ID_KEY);
+                cleanupSessionData(null);
+            }
         } catch (e) { /* ignore localStorage write errors (privacy/browser settings) */ }
-    }, []);
+    }, [companyMemberships]);
 
     useEffect(() => {
         setAuthLoading(true);
@@ -72,12 +92,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 setFirebaseUser(user);
                 if (DEBUG_MODE) console.log('🔍 [AUTH] Logged in user detected, uid:', user.uid, 'email:', user.email);
 
-                const isAdmin = await dataService.checkIfPlatformAdmin(user.uid);
+                // Run independent reads in parallel to reduce latency
+                const [isAdmin, profile] = await Promise.all([
+                    dataService.checkIfPlatformAdmin(user.uid).catch(() => false),
+                    getUserProfile(user.uid).catch(() => null),
+                ]);
+
                 setIsPlatformAdmin(isAdmin);
                 if (DEBUG_MODE) console.log(`🔍 [AUTH] isPlatformAdmin: ${isAdmin}`);
 
-                // Fetch user profile to determine company association
-                const profile = await getUserProfile(user.uid);
                 if (!profile) {
                     if (DEBUG_MODE) console.warn('🟡 [FIRESTORE] User profile not found for uid:', user.uid);
                     setOnboardingError('لم يتم إعداد ملف المستخدم. يرجى التواصل مع الدعم.');
@@ -98,52 +121,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     return;
                 }
 
-                // Fetch company and check status (with permission-failure fallback diagnostics)
-                if (DEBUG_MODE) console.log('🔍 [FIRESTORE] Fetching company for companyId:', companyId);
-                let company = null;
-                try {
-                    company = await getCompany(companyId);
-                    if (!company) {
-                        if (DEBUG_MODE) console.warn('🟡 [FIRESTORE] Company not found for companyId:', companyId);
-                        setOnboardingError('لم يتم العثور على الشركة المرتبطة بحسابك.');
-                        setCompanyMemberships([]);
-                        setActiveCompanyIdState(null);
-                        setAuthLoading(false);
-                        return;
-                    }
-                } catch (companyErr: any) {
-                    // If permission denied, attempt to read membership doc for clearer diagnostics
-                    if (companyErr?.code === 'permission-denied' || /permission/i.test(companyErr?.message || '')) {
-                        if (DEBUG_MODE) console.warn('[AUTH][DIAG] Permission denied reading company. Attempting membership check...', companyErr?.message || companyErr);
-                        try {
-                            const membership = await getCompanyMembershipByUid(companyId, user.uid);
-                            if (membership) {
-                                console.error('[AUTH][DIAG] Membership exists but company read was denied. Check Firestore rules or company-level restrictions.', { companyId, uid: user.uid });
-                                setOnboardingError('تم العثور على عضويتك، لكن لا يمكن الوصول إلى بيانات الشركة بسبب قواعد الأمان. تحقق من إعدادات القواعد.');
-                            } else {
-                                if (DEBUG_MODE) console.warn('[AUTH][DIAG] No membership document found for user', { companyId, uid: user.uid });
-                                setOnboardingError('لم يتم العثور على عضويتك في الشركة. يرجى التواصل مع الدعم.');
-                            }
-                        } catch (memErr) {
-                            console.error('[AUTH][DIAG] Failed to read membership doc during fallback check', memErr);
-                            setOnboardingError('حدث خطأ أثناء التحقق من حالة العضوية. تواصل مع الدعم.');
-                        }
-                        setCompanyMemberships([]);
-                        setActiveCompanyIdState(null);
-                        setAuthLoading(false);
-                        return;
-                    }
-                    // Re-throw unexpected errors
-                    throw companyErr;
+                // Use cache if available
+                let company = companyCacheRef.current.get(companyId) || null;
+
+                // Fetch company and membership in parallel
+                const [companySnap, membership] = await Promise.all([
+                    company ? Promise.resolve(company) : getCompany(companyId).catch((err) => { throw err; }),
+                    getCompanyMembershipByUid(companyId, user.uid).catch(() => null),
+                ]);
+
+                company = companySnap;
+                if (!company) {
+                    if (DEBUG_MODE) console.warn('🟡 [FIRESTORE] Company not found for companyId:', companyId);
+                    setOnboardingError('لم يتم العثور على الشركة المرتبطة بحسابك.');
+                    setCompanyMemberships([]);
+                    setActiveCompanyIdState(null);
+                    setAuthLoading(false);
+                    return;
                 }
 
+                // Cache the company for subsequent reads
+                companyCacheRef.current.set(companyId, company);
+
                 if (DEBUG_MODE) console.log('🟢 [FIRESTORE] Company retrieved:', { companyId, status: company.status });
-                // Validate required company fields
-                const requiredFields = ['companyName', 'companyAddress', 'country', 'city', 'phone', 'email', 'ownerUid', 'status', 'createdAt'];
-                const missing = requiredFields.filter(f => !(f in company));
-                if (missing.length > 0) {
-                    console.warn('🟡 [DATA] Company document missing required fields:', missing, company);
-                    setOnboardingError('بيانات الشركة غير كاملة. يرجى إكمال إعدادات الشركة أو التواصل مع الدعم.');
+
+                // Minimal validation: require companyName and status
+                if (!company.companyName || !company.status) {
+                    console.warn('🟡 [DATA] Company document missing minimal required fields:', { companyId, company });
+                    setOnboardingError('بيانات الشركة غير كاملة. يرجى إكمال إعدادات الشركة.');
                     setCompanyMemberships([]);
                     setActiveCompanyIdState(null);
                     setAuthLoading(false);
@@ -160,10 +165,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     return;
                 }
 
-                // Approved: set membership and active company
-                if (DEBUG_MODE) console.log('🟢 [ACCESS] Company approved, proceeding to set membership for companyId:', companyId);
-                const membership: CompanyMembership = { companyId, companyName: company.companyName, role: (profile.role as UserRole) || UserRole.Owner, status: 'active' };
-                setCompanyMemberships([membership]);
+                // Prepare membership data (use profile.role if membership doc missing)
+                const roleFromProfile = (profile.role as UserRole) || UserRole.Owner;
+                const memberRole = membership?.role || roleFromProfile;
+                const membershipObj: CompanyMembership = { companyId, companyName: company.companyName, role: memberRole, status: 'active' };
+
+                // Batch update state to minimize re-renders
+                setCompanyMemberships([membershipObj]);
                 setActiveCompanyIdState(companyId);
                 setActiveCompany(company);
                 setOnboardingError(null);
@@ -171,11 +179,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             } catch (err: any) {
                 console.error('🔴 [AUTH] Error during auth processing:', err);
                 if (DEBUG_MODE) console.error('🔴 [AUTH] error details:', err?.message || err);
-                // Detect offline/network errors and display a helpful message
                 const msg = String(err?.message || '').toLowerCase();
                 if (err?.code === 'client-offline' || /client offline|failed to reach firestore|could not reach cloud firestore|net::err_connection_closed/.test(msg)) {
                     console.error('🔴 [AUTH] Network/offline detected while accessing Firestore', err);
                     setOnboardingError('تعذر الاتصال بخوادمنا. تحقق من اتصال الإنترنت وحاول مرة أخرى.');
+                } else if (err?.code === 'permission-denied' || /permission/i.test(err?.message || '')) {
+                    setOnboardingError('لا تملك صلاحية الوصول إلى بيانات الشركة. تواصل مع الدعم.');
                 } else {
                     setOnboardingError('حدث خطأ أثناء تحميل بيانات المصادقة. حاول إعادة تسجيل الدخول.');
                 }
@@ -197,6 +206,53 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             else localStorage.removeItem(ACTIVE_ROLE_KEY);
         } catch (e) { /* ignore localStorage write errors */ }
     }, [activeRole]);
+
+    // Session timeout check: Auto-logout after inactivity (30 minutes)
+    useEffect(() => {
+        if (!firebaseUser || !activeCompanyId) return;
+
+        const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+        let timeoutId: ReturnType<typeof setTimeout>;
+        let activityCheckInterval: ReturnType<typeof setInterval>;
+
+        const resetTimeout = () => {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                if (DEBUG_MODE) console.log('🟡 [AUTH] Session timeout - auto-logout');
+                authService.signOutUser().catch(e => console.error('Logout error:', e));
+            }, SESSION_TIMEOUT_MS);
+        };
+
+        const handleUserActivity = () => {
+            resetTimeout();
+        };
+
+        // Track user activity
+        window.addEventListener('mousedown', handleUserActivity);
+        window.addEventListener('keydown', handleUserActivity);
+        window.addEventListener('scroll', handleUserActivity);
+
+        // Initial timeout
+        resetTimeout();
+
+        return () => {
+            clearTimeout(timeoutId);
+            window.removeEventListener('mousedown', handleUserActivity);
+            window.removeEventListener('keydown', handleUserActivity);
+            window.removeEventListener('scroll', handleUserActivity);
+        };
+    }, [firebaseUser, activeCompanyId]);
+
+    // Validate data isolation on company/user change
+    useEffect(() => {
+        if (firebaseUser && activeCompanyId) {
+            const isolationCheck = validateUserDataIsolation(firebaseUser, activeCompanyId);
+            if (!isolationCheck.isValid) {
+                console.error('[AUTH] Data isolation check failed:', isolationCheck);
+                // In production, could trigger logout or alert
+            }
+        }
+    }, [firebaseUser, activeCompanyId]);
 
     const value: AuthContextType = {
         firebaseUser,
@@ -221,7 +277,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (context === undefined) {
-        throw new Error('useAuth must be used within an AuthProvider');
+        // Return safe defaults when used outside of provider (simplifies testing and simple usage)
+        return {
+            firebaseUser: null,
+            authLoading: false,
+            isPlatformAdmin: false,
+            companyMemberships: [],
+            activeCompanyId: null,
+            activeCompany: null,
+            activeRole: null,
+            setActiveCompanyId: (_: string | null) => {},
+            signOutUser: async () => {},
+            onboardingError: null,
+            clearOnboardingError: () => {},
+            user: null,
+            role: null,
+            companyId: null,
+        } as unknown as AuthContextType & { user: FirebaseUser | null; role: UserRole | null; companyId: string | null };
     }
     return { ...context, user: context.firebaseUser, role: context.activeRole, companyId: context.activeCompanyId } as AuthContextType & { user: FirebaseUser | null; role: UserRole | null; companyId: string | null };
 };

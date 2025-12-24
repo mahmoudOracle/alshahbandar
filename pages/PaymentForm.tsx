@@ -6,6 +6,7 @@ import { useNotification } from '../contexts/NotificationContext';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import DateInput from '../components/ui/DateInput';
 import { Select } from '../components/ui/Select';
 import { mapFirestoreError } from '../services/firebaseErrors';
 
@@ -87,13 +88,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, onPaymentSaved, onC
         min="0.01"
         step="0.01"
       />
-      <Input
-        label="تاريخ الدفع"
-        type="date"
-        value={date}
-        onChange={(e) => setDate(e.target.value)}
-        required
-      />
+      <DateInput label="تاريخ الدفع" name="date" value={date} onChange={(e) => setDate(e.target.value)} required />
       <Select
         label="ربط بفاتورة (اختياري)"
         value={invoiceId}

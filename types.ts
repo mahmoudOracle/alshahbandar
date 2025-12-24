@@ -218,3 +218,35 @@ export interface PaginatedData<T> {
   nextCursor?: any;
   prevCursor?: any;
 }
+
+// --- Inventory / Suppliers Types ---
+export interface Supplier {
+  id: string;
+  supplierName: string;
+  supplierNameLower?: string;
+  companyName?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  notes?: string;
+  createdAt?: any;
+}
+
+export interface IncomingReceiptProduct {
+  productId: string;
+  productName?: string;
+  quantityReceived: number;
+  note?: string;
+}
+
+export interface IncomingReceipt {
+  id: string;
+  receiptId?: string;
+  supplierId: string;
+  supplierName?: string;
+  products: IncomingReceiptProduct[];
+  receivedBy?: string;
+  receivedAt?: any;
+  createdAt?: any;
+  idempotencyKey?: string;
+}
