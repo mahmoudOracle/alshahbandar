@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getInvoiceById, saveInvoice, getCustomers, getProducts } from '../services/dataService';
 import { Invoice, InvoiceItem, Customer, Product, InvoiceStatus, PaymentType } from '../types';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import MobileNumericKeypad from '../components/MobileNumericKeypad';
 import { useSettings } from '../contexts/SettingsContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
@@ -105,6 +106,9 @@ const InvoiceForm: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [keypadVisible, setKeypadVisible] = useState(false);
+  const [keypadValue, setKeypadValue] = useState('');
+  const [keypadIndex, setKeypadIndex] = useState<number | null>(null);
   const { settings, loading: settingsLoading } = useSettings();
 
   useEffect(() => {
@@ -262,7 +266,7 @@ const InvoiceForm: React.FC = () => {
                       options={products.map(p => ({ value: p.id, label: `${p.name} (المتاح: ${p.stock})` }))} placeholder="ابحث عن منتج" name={`product_${index}`} />
                 </div>
                 <div className="md:col-span-2">
-                    <Input type="number" placeholder="الكمية" value={item.quantity} onChange={e => handleItemChange(index, 'quantity', parseInt(e.target.value))} error={errors[`item_${index}_quantity`]} />
+                  <Input type="number" placeholder="الكمية" value={item.quantity} onChange={e => handleItemChange(index, 'quantity', parseInt(e.target.value))} onFocus={() => { setKeypadIndex(index); setKeypadValue(String(item.quantity || '')); setKeypadVisible(true); }} error={errors[`item_${index}_quantity`]} />
                 </div>
                 <div className="md:col-span-2">
                     <Input type="number" placeholder="السعر" value={item.price} onChange={e => handleItemChange(index, 'price', parseFloat(e.target.value))} error={errors[`item_${index}_price`]} />
@@ -276,6 +280,19 @@ const InvoiceForm: React.FC = () => {
                 </div>
               </div>
             ))}
+              {/* Mobile numeric keypad */}
+              {keypadVisible && (
+                <div className="md:hidden mt-4">
+                  <MobileNumericKeypad value={keypadValue} onChange={(v) => setKeypadValue(v)} onConfirm={() => {
+                    if (keypadIndex !== null) {
+                      const val = keypadValue === '' ? 0 : Number(keypadValue);
+                      handleItemChange(keypadIndex, 'quantity', Number.isNaN(val) ? 0 : val);
+                    }
+                    setKeypadVisible(false);
+                    setKeypadIndex(null);
+                  }} />
+                </div>
+              )}
             {canWrite && 
               <Button type="button" onClick={addItem} variant="secondary">
                   <PlusIcon className="h-4 w-4 me-2" />
