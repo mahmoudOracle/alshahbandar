@@ -37,10 +37,10 @@ const tryParseAny = (s: string) => {
   if (!s) return null;
   s = s.trim();
   // yyyy-mm-dd
-  const isoMatch = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  const isoMatch = s.match(new RegExp('^(\\d{4})(?:-|/|\\.)(\\d{1,2})(?:-|/|\\.)(\\d{1,2})$'));
   if (isoMatch) return `${isoMatch[1]}-${pad(isoMatch[2])}-${pad(isoMatch[3])}`;
   // dd/mm/yyyy or ddmmyyyy
-  const dm = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  const dm = s.match(new RegExp('^(\\d{1,2})(?:-|/|\\.)(\\d{1,2})(?:-|/|\\.)(\\d{4})$'));
   if (dm) return `${dm[3]}-${pad(dm[2])}-${pad(dm[1])}`;
   const compact = s.match(/^(\d{2})(\d{2})(\d{4})$/);
   if (compact) return `${compact[3]}-${compact[2]}-${compact[1]}`;
