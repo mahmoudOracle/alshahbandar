@@ -8,6 +8,7 @@ import MobileNumericKeypad from '../components/MobileNumericKeypad';
 import QuickAddProduct from '../components/QuickAddProduct';
 import { clearProductCache } from '../services/repositories/products';
 import { saveProduct } from '../services/dataService';
+import { loadDraft, debounceSaveDraft, clearDraft } from '../src/utils/draftAutosave';
 import { useSettings } from '../contexts/SettingsContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
@@ -147,6 +148,17 @@ const InvoiceForm: React.FC = () => {
                addNotification('Invoice not found', 'error');
             }
         }
+        // Restore draft for new invoices
+        if (!id) {
+          try {
+            const draftKey = `draft:invoice:${activeCompanyId}:new`;
+            const draft = loadDraft(draftKey);
+            if (draft) {
+              dispatch({ type: 'SET_INITIAL_INVOICE', payload: { ...invoice, ...(draft as any) } as State });
+              addNotification('تم استعادة مسودة الفاتورة.', 'info');
+            }
+          } catch (e) {}
+        }
       } catch (error: any) {
         addNotification(mapFirestoreError(error), 'error');
       } finally {
@@ -155,6 +167,15 @@ const InvoiceForm: React.FC = () => {
     };
     fetchData();
   }, [id, activeCompanyId, addNotification]);
+
+  // Autosave invoice draft to localStorage (debounced)
+  useEffect(() => {
+    if (!activeCompanyId) return;
+    const key = `draft:invoice:${activeCompanyId}:${id || 'new'}`;
+    // Save only for new or when editing without explicit save
+    debounceSaveDraft(key, invoice);
+    return () => {};
+  }, [invoice, activeCompanyId, id]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;

@@ -11,6 +11,14 @@ const keys = ['7','8','9','4','5','6','1','2','3','0','.','←'];
 const MobileNumericKeypad: React.FC<Props> = ({ value, onChange, onConfirm }) => {
   const press = (k: string) => {
     if (k === '←') return onChange(value.slice(0, -1));
+    // Prevent multiple decimals
+    if (k === '.' && value.includes('.')) return;
+    // Limit length to reasonable number
+    if (value.length >= 12) return;
+    // Prevent leading zeros like "00"
+    if (value === '0' && k === '0') return;
+    // If current is '0' and user types digit, replace
+    if (value === '0' && k !== '.') return onChange(k);
     onChange(value + k);
   };
 
