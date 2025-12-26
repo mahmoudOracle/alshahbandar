@@ -60,6 +60,8 @@ const ProductList: React.FC = () => {
   const { settings, loading: settingsLoading } = useSettings();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editedProduct, setEditedProduct] = useState<Partial<Product> | null>(null);
 
   const fetchProducts = useCallback(async (cursor?: any, direction: 'next' | 'prev' = 'next') => {
       if (!activeCompanyId) return;
@@ -168,7 +170,8 @@ const ProductList: React.FC = () => {
             }} />
           </div>
         )}
-      
+      </div>
+
       <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
         <div className="flex gap-2 w-full md:w-auto items-center">
           <Input
@@ -208,17 +211,54 @@ const ProductList: React.FC = () => {
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {filteredProducts.map(product => (
               <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-200">
-                <td className="px-6 py-4 whitespace-nowrap font-medium">{product.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap">{product.price.toFixed(2)} {settings?.currency}</td>
-                <td className="px-6 py-4 whitespace-nowrap">{product.stock}</td>
-                {canWrite && 
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center gap-2">
-                            <Link to={`/products/edit/${product.id}`} className="text-gray-600 hover:text-gray-900 p-2" aria-label="تعديل المنتج"><PencilIcon className="h-5 w-5" /></Link>
-                            <button onClick={() => setProductToDelete(product)} className="text-danger-600 hover:text-danger-700 p-2" aria-label="حذف المنتج"><TrashIcon className="h-5 w-5" /></button>
-                      </div>
+                {editingId === product.id ? (
+                  <>
+                    <td className="px-6 py-4 whitespace-nowrap font-medium">
+                      <Input value={(editedProduct?.name ?? product.name) as any} onChange={e => setEditedProduct(p => ({ ...(p||{}), name: e.target.value }))} />
                     </td>
-                }
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <Input value={String(editedProduct?.price ?? product.price)} onChange={e => setEditedProduct(p => ({ ...(p||{}), price: parseFloat(e.target.value || '0') }))} /> {settings?.currency}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <Input value={String(editedProduct?.stock ?? product.stock)} onChange={e => setEditedProduct(p => ({ ...(p||{}), stock: parseInt(e.target.value || '0') }))} />
+                    </td>
+                    {canWrite && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex items-center gap-2">
+                          <Button variant="secondary" size="sm" onClick={async () => {
+                            if (!activeCompanyId || !editedProduct) return;
+                            try {
+                              const toSave = { id: product.id, name: editedProduct.name ?? product.name, price: Number(editedProduct.price ?? product.price), stock: Number(editedProduct.stock ?? product.stock) } as Product;
+                              await saveProduct(activeCompanyId, toSave as any);
+                              try { clearProductCache(activeCompanyId); } catch (e) {}
+                              addNotification('تم حفظ المنتج بنجاح.', 'success');
+                              setEditingId(null);
+                              setEditedProduct(null);
+                              await fetchProducts(prevCursors[prevCursors.length - 1] || undefined);
+                            } catch (err: any) {
+                              addNotification(mapFirestoreError(err), 'error');
+                            }
+                          }}>حفظ</Button>
+                          <Button variant="ghost" size="sm" onClick={() => { setEditingId(null); setEditedProduct(null); }}>إلغاء</Button>
+                        </div>
+                      </td>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <td className="px-6 py-4 whitespace-nowrap font-medium">{product.name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{product.price.toFixed(2)} {settings?.currency}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{product.stock}</td>
+                    {canWrite && 
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex items-center gap-2">
+                                <button onClick={() => { setEditingId(product.id); setEditedProduct({ name: product.name, price: product.price, stock: product.stock }); }} className="text-gray-600 hover:text-gray-900 p-2" aria-label="تعديل المنتج"><PencilIcon className="h-5 w-5" /></button>
+                                <button onClick={() => setProductToDelete(product)} className="text-danger-600 hover:text-danger-700 p-2" aria-label="حذف المنتج"><TrashIcon className="h-5 w-5" /></button>
+                          </div>
+                        </td>
+                    }
+                  </>
+                )}
               </tr>
             ))}
           </tbody>
