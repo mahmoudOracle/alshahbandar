@@ -76,7 +76,7 @@ const DateInput: React.FC<Props> = ({ label, name, value, onChange, required, di
 
   const setAndMaybeAdvance = (which: 'd' | 'm' | 'y', val: string) => {
     // If user typed separators (e.g. 12/03/2025) parse entire string
-    if (/[\/.\-]/.test(val)) {
+    if (val.includes('/') || val.includes('.') || val.includes('-')) {
       const iso = tryParseAny(val);
       if (iso) {
         const p = isoToParts(iso);
