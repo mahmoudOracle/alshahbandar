@@ -76,6 +76,8 @@ export interface Settings {
   contactInfo: string;
   currency: string;
   logo: string;
+  invoiceFooter?: string;
+  language?: 'ar' | 'en';
   taxes: Tax[];
   source?: 'firestore' | 'local';
 }

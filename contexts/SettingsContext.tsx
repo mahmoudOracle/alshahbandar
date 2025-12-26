@@ -20,6 +20,8 @@ const hardcodedDefaultSettings: Settings = {
     contactInfo: 'contact@example.com',
     currency: 'USD',
     logo: '',
+  invoiceFooter: '',
+  language: 'ar',
     taxes: [{ id: '1', name: 'VAT', rate: 15 }],
     source: 'local',
 };

@@ -110,6 +110,7 @@ const SettingsPage: React.FC = () => {
                             <Input label="الشعار (Slogan)" name="slogan" value={settings.slogan} onChange={handleInputChange} />
                         </div>
                         <Textarea label="العنوان" name="address" value={settings.address} onChange={handleInputChange} rows={3} />
+                        <Textarea label="نص تذييل الفاتورة" name="invoiceFooter" value={settings.invoiceFooter || ''} onChange={handleInputChange} rows={3} />
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <Input label="معلومات الاتصال" name="contactInfo" value={settings.contactInfo} onChange={handleInputChange} />
                             <Select label="العملة الافتراضية" name="currency" value={settings.currency} onChange={handleInputChange}
@@ -118,6 +119,14 @@ const SettingsPage: React.FC = () => {
                                     { value: 'EGP', label: 'جنيه مصري (EGP)' },
                                     { value: 'USD', label: 'دولار أمريكي (USD)' },
                                     { value: 'AED', label: 'درهم إماراتي (AED)' },
+                                ]}
+                            />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                            <Select label="اللغة الافتراضية" name="language" value={settings.language || 'ar'} onChange={handleInputChange}
+                                options={[
+                                    { value: 'ar', label: 'العربية' },
+                                    { value: 'en', label: 'English' },
                                 ]}
                             />
                         </div>
