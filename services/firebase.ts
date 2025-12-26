@@ -1,8 +1,8 @@
 
 import { initializeApp, FirebaseApp, getApp, getApps, FirebaseOptions } from 'firebase/app';
-import { getFirestore, Firestore } from 'firebase/firestore';
-import { getFunctions, Functions } from 'firebase/functions';
-import { getAuth, Auth } from 'firebase/auth';
+import { getFirestore, Firestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getFunctions, Functions, connectFunctionsEmulator } from 'firebase/functions';
+import { getAuth, Auth, connectAuthEmulator } from 'firebase/auth';
 
 /**
  * Firebase configuration object.
@@ -38,6 +38,22 @@ try {
     auth = getAuth(app);
     db = getFirestore(app);
     functions = getFunctions(app);
+    // Connect to local emulators when requested via Vite env var
+    try {
+        const useEmulators = (import.meta as any).env?.VITE_USE_FIREBASE_EMULATORS === 'true';
+        if (useEmulators) {
+            const host = (import.meta as any).env?.VITE_FIREBASE_EMULATOR_HOST || 'localhost';
+            const firestorePort = Number((import.meta as any).env?.VITE_FIRESTORE_EMULATOR_PORT || 8080);
+            const authPort = Number((import.meta as any).env?.VITE_AUTH_EMULATOR_PORT || 9099);
+            const functionsPort = Number((import.meta as any).env?.VITE_FUNCTIONS_EMULATOR_PORT || 5001);
+            connectFirestoreEmulator(db, host, firestorePort);
+            connectAuthEmulator(auth, `http://${host}:${authPort}`, { disableWarnings: true });
+            connectFunctionsEmulator(functions, host, functionsPort);
+            console.info('[FIREBASE] Connected to emulators', { host, firestorePort, authPort, functionsPort });
+        }
+    } catch (e) {
+        console.warn('[FIREBASE] Failed to connect to emulators', e);
+    }
 } catch (error) {
     console.error("CRITICAL: Firebase initialization failed.", error);
     // We throw an error here to make it clear that the app cannot function

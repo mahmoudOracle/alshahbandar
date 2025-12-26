@@ -70,7 +70,11 @@ const Reports: React.FC = () => {
 
     useEffect(() => {
         const fetchData = async () => {
-            if (!activeCompanyId) return;
+            if (!activeCompanyId) {
+                // No active company selected — show a clear message instead of stuck loading state
+                setLoading(false);
+                return;
+            }
             setLoading(true);
             try {
                 const [invoicesData, expensesData] = await Promise.all([getInvoices(activeCompanyId), getExpenses(activeCompanyId)]);

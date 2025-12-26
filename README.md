@@ -37,6 +37,56 @@ npm install
 npm run dev
 ```
 
+### Mock mode & Firebase emulators (helpful for development)
+
+- To use the in-memory mock service (shows sample data without a Firebase backend), create a `.env.local` file with:
+
+```
+VITE_USE_MOCK=true
+```
+
+- To connect the app to local Firebase emulators (Functions, Firestore, Auth), set:
+
+```
+VITE_USE_FIREBASE_EMULATORS=true
+VITE_FIREBASE_EMULATOR_HOST=localhost
+VITE_FIRESTORE_EMULATOR_PORT=8080
+VITE_AUTH_EMULATOR_PORT=9099
+VITE_FUNCTIONS_EMULATOR_PORT=5001
+```
+
+Then run the Firebase emulators and the dev server:
+
+```bash
+firebase emulators:start --only functions,firestore,auth
+npm run dev
+```
+
+Using mock mode is the quickest way to see `Dashboard` and `Reports` populated when production Cloud Functions or Firestore access is restricted.
+
+## Deploy checklist & one-command verification
+
+I added a convenience script `scripts/deploy-and-verify.ps1` to deploy functions and perform basic verification steps.
+
+Usage (PowerShell):
+
+```powershell
+# Deploy only the new `isPlatformAdmin` function and verify
+.\scripts\deploy-and-verify.ps1
+
+# Deploy all functions (may take longer)
+.\scripts\deploy-and-verify.ps1 -AllFunctions
+```
+
+What the script does:
+- Reads `projectId` from `public/config/firebase.json` or `FIREBASE_PROJECT` env var.
+- Ensures you are logged in to the Firebase CLI.
+- Deploys the `isPlatformAdmin` function (falls back to all functions).
+- Lists deployed functions and looks for `isPlatformAdmin`.
+- Tails recent logs for `isPlatformAdmin` to show any runtime errors.
+
+After deployment, disable mock mode locally (remove or set `.env.local` `VITE_USE_MOCK=false`) and restart `npm run dev` to verify the frontend connects to the live backend.
+
 ## Linting & Formatting
 
 - Lint the codebase:

@@ -35,7 +35,7 @@ const cacheKey = (fn: string | symbol, args: unknown[]) => {
     }
 };
 
-const READ_CACHE_FUNCS = new Set(['getProducts', 'getCustomers', 'getInvoices', 'getSettings', 'getQuotes', 'getPayments', 'getExpenses']);
+const READ_CACHE_FUNCS = new Set(['getProducts', 'getCustomers', 'getInvoices', 'getSettings', 'getQuotes', 'getPayments', 'getExpenses', 'getJournalEntries']);
 // Cache supplier reads as well
 READ_CACHE_FUNCS.add('getSuppliers');
 
@@ -115,6 +115,7 @@ export const {
     getPayments,
     getPaymentsByCustomerId,
     savePayment,
+    getJournalEntries,
     getExpenses,
     getExpenseById,
     saveExpense,

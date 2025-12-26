@@ -8,10 +8,12 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3001,
         host: '0.0.0.0',
+        // Allow Vite to choose the HMR socket port dynamically so when the dev
+        // server falls back to a different port (e.g., 3002) HMR still connects
+        // correctly. Explicit host/port here caused the client to try the
+        // wrong websocket port and show connection errors.
         hmr: {
-          protocol: 'ws',
-          host: 'localhost',
-          port: 3001,
+          protocol: 'ws'
         }
       },
       plugins: [react()],

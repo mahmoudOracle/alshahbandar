@@ -8,6 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { AuthGuard } from './components/AuthGuard';
 import { setDataServiceImpl } from './services/dataService';
 import * as firestoreService from './services/firestoreService';
+import * as mockService from './services/mockService';
 import { initSentry } from './services/errorReporting';
 
 
@@ -42,9 +43,18 @@ try {
     initSentry(SENTRY_DSN as string).catch(e => console.warn('Sentry init failed', e));
   }
   // 1. Inject the concrete service implementation into the data service proxy.
-  // Importing 'firestoreService' triggers the automatic Firebase initialization
-  // in 'services/firebase.ts', ensuring the data layer is ready before any components mount.
-  setDataServiceImpl(firestoreService, 'firestore');
+  // In development you can enable `VITE_USE_MOCK=true` to use an in-memory
+  // mock service which provides sample data (handy when Cloud Functions
+  // or Firestore data are unavailable). By default we use Firestore.
+  const useMock = Boolean((import.meta as any).env?.VITE_USE_MOCK === 'true');
+  if (useMock) {
+    console.info('[DEV] Using mock data service (VITE_USE_MOCK=true)');
+    // seed mock data once (company id is not relevant for mock seeding)
+    mockService.seedData('mock-company-id').catch(() => {});
+    setDataServiceImpl(mockService as any, 'mock');
+  } else {
+    setDataServiceImpl(firestoreService, 'firestore');
+  }
 
   // 2. Render the application.
   root.render(

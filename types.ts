@@ -250,3 +250,20 @@ export interface IncomingReceipt {
   createdAt?: any;
   idempotencyKey?: string;
 }
+
+// --- Accounting / Journal ---
+export interface JournalLine {
+  accountId: string;
+  debit: number;
+  credit: number;
+}
+
+export interface JournalEntry {
+  id: string;
+  date: string | any; // ISO string or Firestore Timestamp
+  lines: JournalLine[];
+  referenceType?: string | null;
+  referenceId?: string | null;
+  description?: string | null;
+  createdAt?: any;
+}

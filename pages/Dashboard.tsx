@@ -211,7 +211,7 @@ const Dashboard: React.FC = () => {
               (() => {
                 const { ResponsiveContainer: RC, LineChart: LC, CartesianGrid: CG, XAxis: X, YAxis: Y, Tooltip: T, Legend: L, Line: LN } = Recharts;
                 return (
-                  <RC>
+                  <RC width="100%" height={300}>
                     <LC data={cashFlowData}>
                       <CG strokeDasharray="3 3" strokeOpacity={0.2} />
                       <X dataKey="name" />

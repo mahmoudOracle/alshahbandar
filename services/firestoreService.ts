@@ -724,6 +724,9 @@ export const getExpenseById = (companyId: string, id: string) => getById<Expense
 export const saveExpense = (companyId: string, expense: Omit<Expense, 'id'> | Expense) => saveData<Expense>(companyId, 'expenses', expense, 'expenses');
 export const deleteExpense = (companyId: string, id: string) => deleteData(companyId, 'expenses', id, 'expenses');
 
+// Journal entries (accounting source of truth)
+export const getJournalEntries = (companyId: string, options: QueryOptions = {}) => getData<JournalEntry>(companyId, 'journalEntries', { orderBy: 'date', ...options });
+
 export const getExpenseCategories = (companyId: string) => getData<StoredExpenseCategory>(companyId, 'expenseCategories');
 export const saveExpenseCategory = (companyId: string, category: Omit<StoredExpenseCategory, 'id'>) => saveData<StoredExpenseCategory>(companyId, 'expenseCategories', category, 'expenses');
 export const getVendors = (companyId: string) => getData<StoredVendor>(companyId, 'vendors');

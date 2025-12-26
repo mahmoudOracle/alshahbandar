@@ -102,6 +102,23 @@ exports.createCompanyAsAdmin = functions.https.onCall(async (data, context) => {
     }
 });
 
+// Simple callable to check whether the caller is a platform admin.
+// The client uses this to hide/show platform admin UI. Providing this
+// callable avoids CORS/preflight errors that happen when the client
+// tries to call a non-existent function URL.
+exports.isPlatformAdmin = functions.https.onCall(async (data, context) => {
+    try {
+        if (!context.auth) return { isAdmin: false };
+        const adminRef = db.collection('platformAdmins').doc(context.auth.uid);
+        const adminDoc = await adminRef.get();
+        return { isAdmin: adminDoc.exists };
+    } catch (err) {
+        console.error('[isPlatformAdmin] failed', err);
+        // Fail closed: treat as not admin to avoid exposing admin UI on errors
+        return { isAdmin: false };
+    }
+});
+
 
 exports.createInvitation = functions.https.onCall(async (data, context) => {
   if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');

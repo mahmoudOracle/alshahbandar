@@ -20,6 +20,7 @@ const RecurringInvoiceForm = lazy(() => import('@/pages/RecurringInvoiceForm'));
 const ExpenseList = lazy(() => import('@/pages/ExpenseList'));
 const ExpenseForm = lazy(() => import('@/pages/ExpenseForm'));
 const Reports = lazy(() => import('@/pages/Reports'));
+const CashFlow = lazy(() => import('@/pages/CashFlow'));
 const NotAuthorizedPage = lazy(() => import('@/pages/NotAuthorizedPage'));
 const DevDebugPage = lazy(() => import('@/pages/DevDebugPage'));
 const SuppliersPage = lazy(() => import('@/pages/SuppliersPage'));
@@ -56,6 +57,7 @@ export const routes = [
   { path: "/expenses/new", component: ExpenseForm, title: "مصروف جديد" },
   { path: "/expenses/edit/:id", component: ExpenseForm, title: "تعديل المصروف" },
   { path: "/reports", component: Reports, title: "التقارير" },
+  { path: "/cash-flow", component: CashFlow, title: "قائمة التدفقات النقدية" },
   { path: "/purchases", component: PurchasesPage, title: "المشتريات" },
   { path: "/suppliers", component: SuppliersPage, title: "الموردون" },
   // Receipt creation removed — use suppliers and receipts list instead

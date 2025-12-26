@@ -23,9 +23,14 @@ service cloud.firestore {
       return isCompanyUser(companyId) && (companyUserDoc(companyId).data.role in roles);
     }
 
-    // Platform admin records: only platform admins may read/write
+    // Platform admin records:
+    // - Allow a signed-in user to read their OWN admin record so the client
+    //   can detect whether the signed-in user is a platform admin without
+    //   relying on Cloud Functions (avoids requiring Blaze for simple checks).
+    // - Writing admin records remains restricted to platform admins.
     match /platformAdmins/{adminId} {
-      allow read, write: if isPlatformAdmin();
+      allow read: if request.auth != null && request.auth.uid == adminId;
+      allow write: if isPlatformAdmin();
     }
 
     // Companies
