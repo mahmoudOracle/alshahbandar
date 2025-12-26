@@ -20,6 +20,7 @@ import {
     , Supplier, IncomingReceipt, IncomingReceiptProduct
 } from '../types';
 import { db, functions, auth } from './firebase';
+import * as productsRepo from './repositories/products';
 import { serverTimestamp } from 'firebase/firestore';
 import { DEBUG_MODE } from '../config';
 
@@ -305,25 +306,44 @@ export const getCompanyMemberships = async (uid: string): Promise<CompanyMembers
     const usersQuery = query(collectionGroup(db, 'users'), where('uid', '==', uid));
     const querySnapshot = await withRetry(() => getDocs(usersQuery));
 
+    // Collect companyIds and fetch company docs in parallel to avoid sequential N+1 reads
+    const companyIds: string[] = [];
+    const userDocs: Array<{ companyId: string; userData: CompanyUser }> = [];
     for (const userDoc of querySnapshot.docs) {
         const userData = userDoc.data() as CompanyUser;
         const companyId = userDoc.ref.parent.parent?.id; // companies/{companyId}/users/{userId}
         if (companyId) {
-            const companyDoc = await withRetry(() => getDoc(doc(db, 'companies', companyId)));
-            if (companyDoc.exists()) {
-                if (DEBUG_MODE) console.log(`🟢 [FIRESTORE] Found company doc for companyId=${companyId}`, { id: companyDoc.id, data: companyDoc.data() });
-                const compData = companyDoc.data() as any;
-                memberships.push({
-                    companyId: companyId,
-                    companyName: compData.companyName || compData.name || 'Unnamed Company',
-                    role: userData.role,
-                    status: userData.status,
-                });
-            } else {
-                if (DEBUG_MODE) console.warn(`🟡 [FIRESTORE] Company doc not found for companyId=${companyId} while resolving memberships`);
-            }
+            companyIds.push(companyId);
+            userDocs.push({ companyId, userData });
         }
     }
+
+    const uniqueCompanyIds = Array.from(new Set(companyIds));
+    const companySnaps = await Promise.all(uniqueCompanyIds.map(id => withRetry(() => getDoc(doc(db, 'companies', id))).catch(() => null)));
+    const companyMap = new Map<string, any>();
+    for (let i = 0; i < uniqueCompanyIds.length; i++) {
+        const id = uniqueCompanyIds[i];
+        const snap = companySnaps[i] as any;
+        if (snap && snap.exists && snap.exists()) {
+            companyMap.set(id, snap.data());
+            if (DEBUG_MODE) console.log(`🟢 [FIRESTORE] Found company doc for companyId=${id}`, { id, data: snap.data() });
+        } else {
+            if (DEBUG_MODE) console.warn(`🟡 [FIRESTORE] Company doc not found for companyId=${id} while resolving memberships`);
+        }
+    }
+
+    for (const ud of userDocs) {
+        const compData = companyMap.get(ud.companyId);
+        if (compData) {
+            memberships.push({
+                companyId: ud.companyId,
+                companyName: compData.companyName || compData.name || 'Unnamed Company',
+                role: ud.userData.role,
+                status: ud.userData.status,
+            });
+        }
+    }
+
     return memberships;
 };
 
@@ -645,7 +665,10 @@ export const saveCustomer = (companyId: string, customer: Omit<Customer, 'id' | 
     }
 };
 
-export const getProducts = (companyId: string, options: QueryOptions = {}) => getData<Product>(companyId, 'products', options);
+export const getProducts = (companyId: string, options: QueryOptions = {}) => {
+    // Delegate to the new tenant-aware products repository (includes simple caching)
+    return productsRepo.getProducts(companyId, options as any);
+};
 export const getProductById = (companyId: string, id: string) => getById<Product>(companyId, 'products', id);
 export const saveProduct = (companyId: string, product: Omit<Product, 'id'> | Product) => saveData<Product>(companyId, 'products', product, 'products');
 export const deleteProduct = (companyId: string, id: string) => deleteData(companyId, 'products', id, 'products');
