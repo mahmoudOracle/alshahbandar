@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getInvoices, deleteInvoice, undeleteDocument } from '../services/dataService';
+import { getInvoices, deleteInvoice, undeleteDocument, duplicateLastInvoice, duplicateInvoice } from '../services/dataService';
 import { Invoice, InvoiceStatus } from '../types';
 import { PencilIcon, EyeIcon, PlusIcon, DocumentTextIcon, ChevronLeftIcon, ChevronRightIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { useSettings } from '../contexts/SettingsContext';
@@ -29,7 +29,7 @@ const getStatusBadge = (status: InvoiceStatus, dueDate: string): React.ReactNode
 
 const PAGE_SIZE = 15;
 
-const InvoiceCard: React.FC<{ invoice: Invoice, currency?: string, canWrite: boolean, onDelete?: (id: string) => void }> = ({ invoice, currency, canWrite, onDelete }) => (
+const InvoiceCard: React.FC<{ invoice: Invoice, currency?: string, canWrite: boolean, onDelete?: (id: string) => void, onDuplicate?: (id: string) => void }> = ({ invoice, currency, canWrite, onDelete, onDuplicate }) => (
     <Card padding="sm" className="md:hidden">
         <div className="flex justify-between items-start mb-2">
             <div>
@@ -71,6 +71,14 @@ const InvoiceCard: React.FC<{ invoice: Invoice, currency?: string, canWrite: boo
                 </Button>
               </div>
             )}
+            {canWrite && (
+              <div className="flex-1">
+                <Button type="button" variant="secondary" size="sm" className="w-full" onClick={() => { onDuplicate && onDuplicate(invoice.id); }}>
+                  <DocumentTextIcon className="h-4 w-4 me-2" />
+                  نسخ
+                </Button>
+              </div>
+            )}
         </div>
     </Card>
 );
@@ -88,6 +96,7 @@ const InvoiceList: React.FC = () => {
   const [nextCursor, setNextCursor] = useState<any | null>(null);
   const [prevCursors, setPrevCursors] = useState<any[]>([]);
   const [isLastPage, setIsLastPage] = useState(false);
+  const [dupLoading, setDupLoading] = useState(false);
 
   const { settings, loading: settingsLoading } = useSettings();
   const { addNotification } = useNotification();
@@ -171,6 +180,42 @@ const InvoiceList: React.FC = () => {
       addNotification(err.message || 'خطأ أثناء حذف الفاتورة.', 'error');
     }
   };
+
+  const handleDuplicateLast = async () => {
+    if (!activeCompanyId) return;
+    setDupLoading(true);
+    try {
+      const newInv = await duplicateLastInvoice(activeCompanyId);
+      addNotification('تم تكرار آخر فاتورة بنجاح.', 'success', {
+        label: 'عرض',
+        onClick: () => navigate(`/invoices/edit/${newInv.id}`)
+      });
+      await fetchInvoices();
+      navigate(`/invoices/edit/${newInv.id}`);
+    } catch (err: any) {
+      addNotification(err?.message || 'فشل تكرار الفاتورة.', 'error');
+    } finally {
+      setDupLoading(false);
+    }
+  };
+
+  const handleDuplicateInvoice = async (invoiceId: string) => {
+    if (!activeCompanyId) return;
+    setDupLoading(true);
+    try {
+      const newInv = await duplicateInvoice(activeCompanyId, invoiceId);
+      addNotification('تم تكرار الفاتورة بنجاح.', 'success', {
+        label: 'عرض',
+        onClick: () => navigate(`/invoices/edit/${newInv.id}`)
+      });
+      await fetchInvoices();
+      navigate(`/invoices/edit/${newInv.id}`);
+    } catch (err: any) {
+      addNotification(err?.message || 'فشل تكرار الفاتورة.', 'error');
+    } finally {
+      setDupLoading(false);
+    }
+  };
   
   const filteredInvoices = useMemo(() => {
     return invoices.filter(invoice => {
@@ -236,11 +281,18 @@ const InvoiceList: React.FC = () => {
                 <option value="total_asc">الأدنى قيمة</option>
               </select>
             {canWrite && (
-                <Link to="/invoices/new" className="w-full md:w-auto">
-                    <Button variant="primary" className="w-full">
-                        <PlusIcon className="h-5 w-5 me-2" /> فاتورة جديدة
+                <>
+                  <Link to="/invoices/new" className="w-full md:w-auto">
+                      <Button variant="primary" className="w-full">
+                          <PlusIcon className="h-5 w-5 me-2" /> فاتورة جديدة
+                      </Button>
+                  </Link>
+                  <div className="w-full md:w-auto">
+                    <Button onClick={handleDuplicateLast} variant="secondary" className="w-full mt-2 md:mt-0" disabled={dupLoading}>
+                      <DocumentTextIcon className="h-5 w-5 me-2" /> نسخ آخر فاتورة
                     </Button>
-                </Link>
+                  </div>
+                </>
             )}
         </div>
       
@@ -271,6 +323,7 @@ const InvoiceList: React.FC = () => {
                           <Link to={`/invoices/${invoice.id}`} className="text-primary-600 hover:text-primary-700 p-2" aria-label="عرض التفاصيل"><EyeIcon className="h-5 w-5" /></Link>
                           {canWrite && <Link to={`/invoices/edit/${invoice.id}`} className="text-gray-600 hover:text-gray-900 p-2" aria-label="تعديل الفاتورة"><PencilIcon className="h-5 w-5" /></Link>}
                           {canWrite && <button onClick={() => handleDelete(invoice.id)} className="text-red-600 hover:text-red-900 p-2" aria-label="حذف الفاتورة"><TrashIcon className="h-5 w-5" /></button>}
+                          {canWrite && <button onClick={() => handleDuplicateInvoice(invoice.id)} className="text-gray-600 hover:text-gray-900 p-2" aria-label="نسخ الفاتورة"><DocumentTextIcon className="h-5 w-5" /></button>}
                         </div>
                       </td>
                     </tr>
@@ -281,7 +334,7 @@ const InvoiceList: React.FC = () => {
 
             <div className="md:hidden space-y-4 mt-4">
                 {sortedInvoices.map(invoice => (
-                  <InvoiceCard key={invoice.id} invoice={invoice} currency={settings?.currency} canWrite={canWrite} onDelete={handleDelete} />
+                  <InvoiceCard key={invoice.id} invoice={invoice} currency={settings?.currency} canWrite={canWrite} onDelete={handleDelete} onDuplicate={handleDuplicateInvoice} />
                 ))}
             </div>
             

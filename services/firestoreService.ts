@@ -716,6 +716,18 @@ export const duplicateLastInvoice = async (companyId: string): Promise<Invoice> 
     return saveInvoice(companyId, clone as Omit<Invoice, 'id'>);
 };
 
+export const duplicateInvoice = async (companyId: string, invoiceId: string): Promise<Invoice> => {
+    const inv = await getInvoiceById(companyId, invoiceId);
+    if (!inv) throw new Error('Invoice not found');
+    const clone: any = { ...inv };
+    delete clone.id;
+    delete clone.invoiceNumber;
+    delete clone.createdAt;
+    delete clone.updatedAt;
+    clone.date = Timestamp.now();
+    return saveInvoice(companyId, clone as Omit<Invoice, 'id'>);
+};
+
 export const deleteInvoice = async (companyId: string, id: string): Promise<boolean> => {
     // Use server-side callable to perform a safe soft-delete with audit logging and stock adjustments.
     try {
