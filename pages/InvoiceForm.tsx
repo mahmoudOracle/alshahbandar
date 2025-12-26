@@ -5,6 +5,9 @@ import { getInvoiceById, saveInvoice, getCustomers, getProducts } from '../servi
 import { Invoice, InvoiceItem, Customer, Product, InvoiceStatus, PaymentType } from '../types';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import MobileNumericKeypad from '../components/MobileNumericKeypad';
+import QuickAddProduct from '../components/QuickAddProduct';
+import { clearProductCache } from '../services/repositories/products';
+import { saveProduct } from '../services/dataService';
 import { useSettings } from '../contexts/SettingsContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
@@ -109,6 +112,8 @@ const InvoiceForm: React.FC = () => {
   const [keypadVisible, setKeypadVisible] = useState(false);
   const [keypadValue, setKeypadValue] = useState('');
   const [keypadIndex, setKeypadIndex] = useState<number | null>(null);
+  const [quickAddVisible, setQuickAddVisible] = useState(false);
+  const [quickAddTargetIndex, setQuickAddTargetIndex] = useState<number | null>(null);
   const { settings, loading: settingsLoading } = useSettings();
 
   useEffect(() => {
@@ -264,6 +269,9 @@ const InvoiceForm: React.FC = () => {
                 <div className="md:col-span-4">
                     <SearchableSelect value={item.productId} onChange={(val) => handleItemChange(index, 'productId', val)} error={errors[`item_${index}_product`]}
                       options={products.map(p => ({ value: p.id, label: `${p.name} (المتاح: ${p.stock})` }))} placeholder="ابحث عن منتج" name={`product_${index}`} />
+                    <div className="mt-2">
+                      <button type="button" onClick={() => { setQuickAddTargetIndex(index); setQuickAddVisible(true); }} className="text-sm text-primary-600 hover:underline">إضافة سريع</button>
+                    </div>
                 </div>
                 <div className="md:col-span-2">
                   <Input type="number" placeholder="الكمية" value={item.quantity} onChange={e => handleItemChange(index, 'quantity', parseInt(e.target.value))} onFocus={() => { setKeypadIndex(index); setKeypadValue(String(item.quantity || '')); setKeypadVisible(true); }} error={errors[`item_${index}_quantity`]} />
@@ -300,6 +308,36 @@ const InvoiceForm: React.FC = () => {
               </Button>
             }
             {errors.items && <p className="text-sm text-danger-600 mt-1">{errors.items}</p>}
+            {/* Quick Add product panel (inline) */}
+            {quickAddVisible && (
+              <div className="mt-4">
+                <QuickAddProduct onAdd={async (p) => {
+                  if (!activeCompanyId) return;
+                  try {
+                    const saved = await saveProduct(activeCompanyId, {
+                      name: p.name,
+                      price: p.price,
+                      stock: p.stock,
+                      createdAt: (new Date()).toISOString()
+                    } as any);
+                    // clear repo cache and refresh local list
+                    try { clearProductCache(activeCompanyId); } catch (e) { /* ignore */ }
+                    const refreshed = await getProducts(activeCompanyId);
+                    setProducts(refreshed.data || [...products, saved]);
+                    // auto-select into the target item if present
+                    if (quickAddTargetIndex !== null) {
+                      handleItemChange(quickAddTargetIndex, 'productId', saved.id);
+                    }
+                    addNotification('تم إضافة المنتج بنجاح.', 'success');
+                  } catch (err: any) {
+                    addNotification(err?.message || 'فشل إضافة المنتج.', 'error');
+                  } finally {
+                    setQuickAddVisible(false);
+                    setQuickAddTargetIndex(null);
+                  }
+                }} />
+              </div>
+            )}
           </div>
           {/* Taxes removed from invoice creation per request */}
         </fieldset>
