@@ -9,6 +9,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import useTenantConfig from '../hooks/useTenantConfig';
 import { t } from '../services/i18n';
+import LanguageToggle from './LanguageToggle';
 import { Button } from './ui/Button';
 
 interface SidebarProps {
@@ -92,9 +93,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 <p className="font-semibold text-gray-800 dark:text-gray-200">{user?.displayName || user?.email}</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{activeRole}</p>
           </div>
-              <Button variant="secondary" className="w-full mt-4" onClick={signOutUser}>
-                {t('logout', lang)}
-              </Button>
+          <LanguageToggle />
+          <Button variant="secondary" className="w-full mt-4" onClick={signOutUser}>
+            {t('logout', lang)}
+          </Button>
       </div>
     </aside>
   );
