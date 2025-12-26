@@ -4,6 +4,8 @@ import { Settings, Tax, UserRole } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { storage } from '../services/firebase';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import UserManagement from '../components/UserManagement';
 import { Card } from '../components/ui/Card';
@@ -36,15 +38,19 @@ const SettingsPage: React.FC = () => {
 
     const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                if (settings) {
-                    setSettings(prev => ({ ...prev!, logo: reader.result as string }));
-                }
-            };
-            reader.readAsDataURL(file);
-        }
+        if (!file || !activeCompanyId) return;
+        // Upload to Firebase Storage under companies/{companyId}/logo_{timestamp}
+        (async () => {
+            try {
+                const path = `companies/${activeCompanyId}/assets/logo_${Date.now()}_${file.name}`;
+                const sref = storageRef(storage, path);
+                const snap = await uploadBytes(sref, file);
+                const url = await getDownloadURL(snap.ref);
+                setSettings(prev => ({ ...prev!, logo: url }));
+            } catch (err) {
+                console.error('Logo upload failed', err);
+            }
+        })();
     };
     
     const handleTaxChange = (index: number, field: keyof Tax, value: string | number) => {

@@ -3,6 +3,7 @@ import { initializeApp, FirebaseApp, getApp, getApps, FirebaseOptions } from 'fi
 import { getFirestore, Firestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getFunctions, Functions, connectFunctionsEmulator } from 'firebase/functions';
 import { getAuth, Auth, connectAuthEmulator } from 'firebase/auth';
+import { getStorage, ref as storageRef, connectStorageEmulator, FirebaseStorage } from 'firebase/storage';
 
 /**
  * Firebase configuration object.
@@ -27,6 +28,7 @@ let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
 let functions: Functions;
+let storage: FirebaseStorage;
 
 try {
     if (!firebaseConfig.apiKey) {
@@ -38,6 +40,7 @@ try {
     auth = getAuth(app);
     db = getFirestore(app);
     functions = getFunctions(app);
+    storage = getStorage(app);
     // Connect to local emulators when requested via Vite env var
     try {
         const useEmulators = (import.meta as any).env?.VITE_USE_FIREBASE_EMULATORS === 'true';
@@ -46,9 +49,16 @@ try {
             const firestorePort = Number((import.meta as any).env?.VITE_FIRESTORE_EMULATOR_PORT || 8080);
             const authPort = Number((import.meta as any).env?.VITE_AUTH_EMULATOR_PORT || 9099);
             const functionsPort = Number((import.meta as any).env?.VITE_FUNCTIONS_EMULATOR_PORT || 5001);
+                const storagePort = Number((import.meta as any).env?.VITE_STORAGE_EMULATOR_PORT || 9199);
             connectFirestoreEmulator(db, host, firestorePort);
             connectAuthEmulator(auth, `http://${host}:${authPort}`, { disableWarnings: true });
             connectFunctionsEmulator(functions, host, functionsPort);
+                try {
+                    connectStorageEmulator(storage, host, storagePort);
+                } catch (e) {
+                    // connectStorageEmulator may not be available in some SDK combos; ignore if fails
+                    console.warn('[FIREBASE] Failed to connect storage emulator', e);
+                }
             console.info('[FIREBASE] Connected to emulators', { host, firestorePort, authPort, functionsPort });
         }
     } catch (e) {
@@ -76,4 +86,4 @@ if (DEBUG_MODE) {
 // The module now only exports the initialized services.
 // The `initializeFirebase` function is no longer needed as initialization
 // happens automatically on module import.
-export { app, auth, db, functions };
+export { app, auth, db, functions, storage, storageRef };
