@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getProducts, deleteProduct, undeleteDocument } from '../services/dataService';
+import { getProducts, deleteProduct, undeleteDocument, saveProduct } from '../services/dataService';
 import { Product } from '../types';
 import { PlusIcon, PencilIcon, TrashIcon, ArchiveBoxIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { useSettings } from '../contexts/SettingsContext';
@@ -14,6 +14,8 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { mapFirestoreError } from '../services/firebaseErrors';
+import QuickAddProduct from '../components/QuickAddProduct';
+import { clearProductCache } from '../services/repositories/products';
 
 const PAGE_SIZE = 15;
 
@@ -150,6 +152,23 @@ const ProductList: React.FC = () => {
 
   return (
     <Card>
+      <div className="flex flex-col md:flex-row justify-between items-start mb-4 gap-4">
+        {canWrite && (
+          <div className="w-full md:w-80 mb-2 md:mb-0">
+            <QuickAddProduct onAdd={async (p) => {
+              if (!activeCompanyId) return;
+              try {
+                await saveProduct(activeCompanyId, { name: p.name, price: p.price, stock: p.stock });
+                clearProductCache(activeCompanyId);
+                addNotification('تمت إضافة المنتج بنجاح', 'success');
+                fetchProducts(prevCursors[prevCursors.length - 1] || undefined);
+              } catch (err: any) {
+                addNotification(mapFirestoreError(err), 'error');
+              }
+            }} />
+          </div>
+        )}
+      
       <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
         <div className="flex gap-2 w-full md:w-auto items-center">
           <Input
