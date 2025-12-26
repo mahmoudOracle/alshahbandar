@@ -7,6 +7,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
+import useTenantConfig from '../hooks/useTenantConfig';
+import { t } from '../services/i18n';
 import { Button } from './ui/Button';
 
 interface SidebarProps {
@@ -27,20 +29,23 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
     }`;
 
+  const { config } = useTenantConfig();
+  const lang = (config && config.language) || 'ar';
+
   const navItems = [
-    { to: '/', text: 'ملخص', icon: HomeIcon },
-    { to: '/invoices', text: 'الفواتير', icon: DocumentTextIcon },
-    { to: '/purchases', text: 'المشتريات', icon: CurrencyDollarIcon },
-    { to: '/quotes', text: 'عروض الأسعار', icon: DocumentDuplicateIcon },
-    { to: '/recurring', text: 'الفواتير المتكررة', icon: ArrowPathIcon },
-    { to: '/expenses', text: 'المصروفات', icon: CurrencyDollarIcon },
-    { to: '/customers', text: 'العملاء', icon: UsersIcon },
-    { to: '/products', text: 'المنتجات', icon: ArchiveBoxIcon },
-    { to: '/suppliers', text: 'الموردون', icon: UsersIcon },
-    { to: '/receipts', text: 'سندات الاستلام', icon: DocumentTextIcon },
-    { to: '/warehouse', text: 'المخزن', icon: ArchiveBoxIcon },
-    { to: '/reports', text: 'التقارير', icon: ChartPieIcon },
-    { to: '/settings', text: 'الإعدادات', icon: Cog6ToothIcon },
+    { to: '/', text: t('dashboard', lang), icon: HomeIcon },
+    { to: '/invoices', text: t('invoices', lang), icon: DocumentTextIcon },
+    { to: '/purchases', text: t('purchases', lang), icon: CurrencyDollarIcon },
+    { to: '/quotes', text: t('quotes', lang), icon: DocumentDuplicateIcon },
+    { to: '/recurring', text: t('recurring', lang), icon: ArrowPathIcon },
+    { to: '/expenses', text: t('expenses', lang), icon: CurrencyDollarIcon },
+    { to: '/customers', text: t('customers', lang), icon: UsersIcon },
+    { to: '/products', text: t('products', lang), icon: ArchiveBoxIcon },
+    { to: '/suppliers', text: t('suppliers', lang), icon: UsersIcon },
+    { to: '/receipts', text: t('receipts', lang), icon: DocumentTextIcon },
+    { to: '/warehouse', text: t('warehouse', lang), icon: ArchiveBoxIcon },
+    { to: '/reports', text: t('reports', lang), icon: ChartPieIcon },
+    { to: '/settings', text: t('settings', lang), icon: Cog6ToothIcon },
   ];
   
   const sidebarClasses = `
@@ -55,10 +60,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     <aside id="sidebar" className={sidebarClasses}>
       <div className="flex justify-between items-center text-center py-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex-1">
-          {settings?.logo ? (
-              <img src={settings.logo} alt="Logo" className="h-16 mx-auto object-contain" />
+          { (settings?.logo || config?.logoUrl) ? (
+              <img src={settings?.logo || config?.logoUrl || ''} alt="Logo" className="h-16 mx-auto object-contain" />
           ) : (
-              <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">Alshabandar</h1>
+              <h1 className="text-2xl font-bold text-blue-600 dark:text-blue-400">{settings?.businessName || config?.businessName || t('app_name', lang)}</h1>
           )}
         </div>
         <button onClick={onClose} className="md:hidden text-gray-500 dark:text-gray-400" aria-controls="sidebar" aria-label="Close sidebar">
@@ -84,12 +89,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       </nav>
       <div className="mt-auto pt-4 border-t border-gray-200 dark:border-gray-700">
           <div className="text-center">
-              <p className="font-semibold text-gray-800 dark:text-gray-200">{user?.displayName || user?.email}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{activeRole}</p>
+                <p className="font-semibold text-gray-800 dark:text-gray-200">{user?.displayName || user?.email}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{activeRole}</p>
           </div>
-          <Button variant="secondary" className="w-full mt-4" onClick={signOutUser}>
-              تسجيل الخروج
-          </Button>
+              <Button variant="secondary" className="w-full mt-4" onClick={signOutUser}>
+                {t('logout', lang)}
+              </Button>
       </div>
     </aside>
   );
