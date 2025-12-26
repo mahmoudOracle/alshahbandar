@@ -230,7 +230,7 @@ const ProductList: React.FC = () => {
                             try {
                               const toSave = { id: product.id, name: editedProduct.name ?? product.name, price: Number(editedProduct.price ?? product.price), stock: Number(editedProduct.stock ?? product.stock) } as Product;
                               await saveProduct(activeCompanyId, toSave as any);
-                              try { clearProductCache(activeCompanyId); } catch (e) {}
+                              try { clearProductCache(activeCompanyId); } catch (e) { /* ignore cache clear errors */ }
                               addNotification('تم حفظ المنتج بنجاح.', 'success');
                               setEditingId(null);
                               setEditedProduct(null);
