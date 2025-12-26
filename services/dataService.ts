@@ -106,6 +106,7 @@ export const {
     getInvoices,
     getInvoiceById,
     saveInvoice,
+    duplicateLastInvoice,
     deleteInvoice,
     getPayments,
     getPaymentsByCustomerId,
