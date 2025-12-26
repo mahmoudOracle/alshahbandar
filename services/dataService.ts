@@ -61,14 +61,9 @@ const safeService = new Proxy({}, {
                 if (cached && (now - cached.ts) < READ_CACHE_TTL) {
                     return cached.data;
                 }
-                try {
-                    const res = await svcAny[prop](...args);
-                    readCache.set(key, { ts: now, data: res });
-                    return res;
-                } catch (err) {
-                    // don't cache errors
-                    throw err;
-                }
+                const res = await svcAny[prop](...args);
+                readCache.set(key, { ts: now, data: res });
+                return res;
             }
 
             return svcAny[prop](...args);

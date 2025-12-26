@@ -89,7 +89,7 @@ const DateInput: React.FC<Props> = ({ label, name, value, onChange, required, di
       }
     }
     // keep only digits
-    let digits = val.replace(/[^0-9]/g, '');
+    const digits = val.replace(/[^0-9]/g, '');
     if (which === 'd') {
       // distribute overflow: if user typed more than 2 digits, push to month/year
       const dayPart = digits.slice(0, 2);
@@ -192,7 +192,6 @@ const DateInput: React.FC<Props> = ({ label, name, value, onChange, required, di
           onPaste={onPaste}
           placeholder="DD"
           maxLength={2}
-          pattern="\d{1,2}"
           className="w-14 text-center px-3 py-2 border rounded-md bg-transparent focus:outline-none touch-manipulation"
         />
         <span className="select-none">/</span>
@@ -209,7 +208,6 @@ const DateInput: React.FC<Props> = ({ label, name, value, onChange, required, di
           onPaste={onPaste}
           placeholder="MM"
           maxLength={2}
-          pattern="\d{1,2}"
           className="w-14 text-center px-3 py-2 border rounded-md bg-transparent focus:outline-none touch-manipulation"
         />
         <span className="select-none">/</span>
@@ -226,7 +224,6 @@ const DateInput: React.FC<Props> = ({ label, name, value, onChange, required, di
           onPaste={onPaste}
           placeholder="YYYY"
           maxLength={4}
-          pattern="\d{4}"
           className="w-24 text-center px-3 py-2 border rounded-md bg-transparent focus:outline-none touch-manipulation"
         />
       </div>
