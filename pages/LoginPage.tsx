@@ -38,13 +38,15 @@ const LoginPage: React.FC = () => {
         }
     };
 
+    const { config } = useTenantConfig();
+
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center items-center p-4">
             <div className="w-full max-w-md">
-                            <div className="text-center mb-8">
-                                <h1 className="text-4xl font-bold text-primary-600 dark:text-primary-400">{(useTenantConfig().config?.businessName) || t('app_name', (useTenantConfig().config?.language || 'ar'))}</h1>
-                                <p className="text-lg text-gray-600 dark:text-gray-300 mt-2">{t('welcome_back', (useTenantConfig().config?.language || 'ar'))}</p>
-                            </div>
+                <div className="text-center mb-8">
+                    <h1 className="text-4xl font-bold text-primary-600 dark:text-primary-400">{(config?.businessName) || t('app_name', (config?.language || 'ar'))}</h1>
+                    <p className="text-lg text-gray-600 dark:text-gray-300 mt-2">{t('welcome_back', (config?.language || 'ar'))}</p>
+                </div>
                 <Card>
                     <form onSubmit={handleEmailSignIn} className="space-y-6">
                         <Input
