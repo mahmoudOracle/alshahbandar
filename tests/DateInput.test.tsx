@@ -10,15 +10,15 @@ describe('DateInput', () => {
     const day = getByPlaceholderText('DD') as HTMLInputElement;
 
     // simulate paste
-    fireEvent.paste(day, { clipboardData: { getData: () => '12/03/2025' } } as any);
+    fireEvent.paste(day, { clipboardData: { getData: () => '12/03/2025' } } as unknown as DataTransferEvent);
 
     // allow microtask
     await Promise.resolve();
 
     // onChange should have been called with ISO date
     expect(handle).toHaveBeenCalled();
-    const calls = handle.mock.calls as any[];
-    const last = calls[calls.length - 1][0];
+    const calls = handle.mock.calls as unknown[];
+    const last = calls[calls.length - 1][0] as { target?: { value?: string } };
     expect(last.target.value).toBe('2025-03-12');
   });
 
@@ -38,8 +38,8 @@ describe('DateInput', () => {
     await Promise.resolve();
 
     expect(handle).toHaveBeenCalled();
-    const calls = handle.mock.calls as any[];
-    const last = calls[calls.length - 1][0];
+    const calls = handle.mock.calls as unknown[];
+    const last = calls[calls.length - 1][0] as { target?: { value?: string } };
     expect(last.target.value).toBe('2023-11-05');
   });
 });

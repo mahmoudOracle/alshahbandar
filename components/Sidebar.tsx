@@ -1,12 +1,12 @@
 
 import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { 
     HomeIcon, DocumentTextIcon, UsersIcon, ArchiveBoxIcon, Cog6ToothIcon, XMarkIcon, 
     DocumentDuplicateIcon, ArrowPathIcon, CurrencyDollarIcon, ChartPieIcon
 } from '@heroicons/react/24/outline';
 import { useSettings } from '../contexts/SettingsContext';
-import { useAuth, useCanWrite } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import useTenantConfig from '../hooks/useTenantConfig';
 import { t } from '../services/i18n';
 import LanguageToggle from './LanguageToggle';
@@ -18,10 +18,8 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  const location = useLocation();
   const { settings } = useSettings();
   const { user, signOutUser, activeRole } = useAuth();
-  const canWriteInvoices = useCanWrite('invoices');
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center px-4 py-3 text-lg font-medium rounded-lg transition-colors duration-200 ${

@@ -1,7 +1,5 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { getInvoices, getExpenses } from '../services/dataService';
-// FIX: Removed unused ExpenseCategory import that was causing an error.
 import { Invoice, Expense, InvoiceStatus } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,7 +9,7 @@ import { useNotification } from '../contexts/NotificationContext';
 type ChartDatum = { name: string; value: number };
 
 function ChartLoader({ data, colors, currency }: { data: ChartDatum[]; colors: string[]; currency?: string }) {
-    const [R, setR] = useState<any>(null);
+    const [R, setR] = useState<unknown>(null);
 
     useEffect(() => {
         let mounted = true;
@@ -34,7 +32,7 @@ function ChartLoader({ data, colors, currency }: { data: ChartDatum[]; colors: s
     return (
         <ResponsiveContainer width="100%" height={300}>
             <PieChart>
-                <Pie
+                    <Pie
                     data={data}
                     cx="50%"
                     cy="50%"
@@ -43,7 +41,7 @@ function ChartLoader({ data, colors, currency }: { data: ChartDatum[]; colors: s
                     fill="#8884d8"
                     dataKey="value"
                     nameKey="name"
-                    label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    label={(p: Record<string, unknown>) => `${String(p.name)} ${((p.percent as number || 0) * 100).toFixed(0)}%`}
                 >
                     {data.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
@@ -79,9 +77,9 @@ const Reports: React.FC = () => {
             try {
                 const [invoicesData, expensesData] = await Promise.all([getInvoices(activeCompanyId), getExpenses(activeCompanyId)]);
                 // FIX: Handle PaginatedData response
-                setInvoices(invoicesData.data || []);
-                setExpenses(expensesData.data || []);
-            } catch (error: any) {
+                setInvoices(((invoicesData as unknown) as { data?: Invoice[] }).data || []);
+                setExpenses(((expensesData as unknown) as { data?: Expense[] }).data || []);
+            } catch (error: unknown) {
                 addNotification(mapFirestoreError(error), 'error');
             }
             setLoading(false);
@@ -89,9 +87,7 @@ const Reports: React.FC = () => {
         fetchData();
     }, [activeCompanyId, addNotification]);
 
-    const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setDateRange(prev => ({ ...prev, [e.target.name]: e.target.value }));
-    };
+    // date inputs update `dateRange` directly in-place
 
     const financialSummary = useMemo(() => {
         const start = new Date(dateRange.start);
@@ -142,7 +138,8 @@ const Reports: React.FC = () => {
                                 if (parts.length !== 3) return val;
                                 return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
                             })();
-                            handleDateChange({ target: { name: 'start', value: iso } } as any);
+                            // use helper to avoid synthetic event typing
+                            setDateRange(prev => ({ ...prev, start: iso }));
                         }} placeholder="dd/mm/yyyy" className="mt-1 block px-3 py-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600" />
                     </div>
                      <div>
@@ -155,7 +152,7 @@ const Reports: React.FC = () => {
                                 if (parts.length !== 3) return val;
                                 return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
                             })();
-                            handleDateChange({ target: { name: 'end', value: iso } } as any);
+                            setDateRange(prev => ({ ...prev, end: iso }));
                         }} placeholder="dd/mm/yyyy" className="mt-1 block px-3 py-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600" />
                     </div>
                 </div>

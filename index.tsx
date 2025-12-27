@@ -38,7 +38,11 @@ const root = ReactDOM.createRoot(rootElement);
 
 try {
   // Initialize Sentry (if DSN provided). Supports both process.env and Vite env.
-  const SENTRY_DSN = (process && (process.env as any)?.SENTRY_DSN) || (import.meta && (import.meta as any).env?.VITE_SENTRY_DSN);
+  const SENTRY_DSN = (
+    typeof process !== 'undefined' ? (process as unknown as { env?: Record<string,string> }).env?.SENTRY_DSN : undefined
+  ) || (
+    typeof import.meta !== 'undefined' ? (import.meta as unknown as { env?: Record<string,string> }).env?.VITE_SENTRY_DSN : undefined
+  );
   if (SENTRY_DSN) {
     initSentry(SENTRY_DSN as string).catch(e => console.warn('Sentry init failed', e));
   }
@@ -46,12 +50,13 @@ try {
   // In development you can enable `VITE_USE_MOCK=true` to use an in-memory
   // mock service which provides sample data (handy when Cloud Functions
   // or Firestore data are unavailable). By default we use Firestore.
-  const useMock = Boolean((import.meta as any).env?.VITE_USE_MOCK === 'true');
+  const useMock = typeof import.meta !== 'undefined' && (import.meta as unknown as { env?: Record<string,string> }).env?.VITE_USE_MOCK === 'true';
   if (useMock) {
     console.info('[DEV] Using mock data service (VITE_USE_MOCK=true)');
     // seed mock data once (company id is not relevant for mock seeding)
-    mockService.seedData('mock-company-id').catch(() => {});
-    setDataServiceImpl(mockService as any, 'mock');
+    // intentionally ignore failures
+    try { mockService.seedData?.('mock-company-id'); } catch { /* ignore */ }
+    setDataServiceImpl(mockService as unknown as typeof firestoreService, 'mock');
   } else {
     setDataServiceImpl(firestoreService, 'firestore');
   }

@@ -32,11 +32,8 @@ class ErrorBoundary extends Component<Props, State> {
 
     render() {
         if (this.state.hasError) {
-            // Access props via a safe any-cast to avoid TypeScript instance typing edge-cases.
-            const propsAny = (this as any).props;
-            if (propsAny && propsAny.fallback) {
-                return propsAny.fallback;
-            }
+            const { fallback } = this.props;
+            if (fallback) return fallback;
             
             return (
                 <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
@@ -75,8 +72,7 @@ class ErrorBoundary extends Component<Props, State> {
             );
         }
 
-        // Access children via any-cast to avoid TypeScript instance typing edge-cases.
-        return (this as any).props.children;
+        return this.props.children as ReactNode;
     }
 }
 

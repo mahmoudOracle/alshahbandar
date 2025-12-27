@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import TableSkeleton from '../components/TableSkeleton';
 import { getIncomingReceiptById, editIncomingReceipt } from '../services/dataService';
+import { IncomingReceipt, IncomingReceiptProduct } from '../types';
+import { mapFirestoreError } from '../services/firebaseErrors';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -12,9 +14,9 @@ const ReceiptDetailPage: React.FC = () => {
   const { id } = useParams();
   const { activeCompanyId } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [receipt, setReceipt] = useState<any | null>(null);
+  const [receipt, setReceipt] = useState<IncomingReceipt | null>(null);
   const [editing, setEditing] = useState(false);
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<IncomingReceiptProduct[]>([]);
   const navigate = useNavigate();
   const { addNotification } = useNotification();
 
@@ -25,9 +27,9 @@ const ReceiptDetailPage: React.FC = () => {
       try {
         const r = await getIncomingReceiptById(activeCompanyId, id);
         setReceipt(r || null);
-        setItems((r?.products || []).map((p:any)=>({ ...p })));
-      } catch (err:any) {
-        addNotification(err?.message || 'Failed to load receipt', 'error');
+        setItems(((r?.products || []) as IncomingReceiptProduct[]).map(p => ({ ...p })));
+      } catch (err: unknown) {
+        addNotification(mapFirestoreError(err), 'error');
       } finally { setLoading(false); }
     };
     fetch();
@@ -36,15 +38,15 @@ const ReceiptDetailPage: React.FC = () => {
   if (loading) return <TableSkeleton cols={3} rows={6} />;
   if (!receipt) return <Card><p>Receipt not found</p></Card>;
 
-  const updateItem = (index:number, changes:any) => setItems(prev=>prev.map((it,i)=>i===index?{...it,...changes}:it));
+  const updateItem = (index:number, changes: Partial<IncomingReceiptProduct>) => setItems(prev=>prev.map((it,i)=>i===index?{...it,...changes}:it));
   const submitEdit = async () => {
     if (!activeCompanyId || !id) return;
     try {
       await editIncomingReceipt(activeCompanyId, id, { ...receipt, products: items });
       addNotification('Receipt updated', 'success');
       navigate('/receipts');
-    } catch (err:any) {
-      addNotification(err?.message || 'Failed to edit receipt', 'error');
+    } catch (err: unknown) {
+      addNotification(mapFirestoreError(err), 'error');
     }
   };
 
@@ -63,7 +65,7 @@ const ReceiptDetailPage: React.FC = () => {
           <p>المورد: {receipt.supplierName}</p>
           <table className="min-w-full divide-y divide-gray-200 mt-4">
             <thead className="bg-gray-50"><tr><th>المنتج</th><th>الكمية</th><th>ملاحظة</th></tr></thead>
-            <tbody>{(receipt.products||[]).map((p:any,i:number)=>(<tr key={i}><td>{p.productName}</td><td>{p.quantityReceived}</td><td>{p.note||'-'}</td></tr>))}</tbody>
+            <tbody>{(receipt.products||[]).map((p: IncomingReceiptProduct, i: number) => (<tr key={i}><td>{p.productName}</td><td>{p.quantityReceived}</td><td>{p.note || '-'}</td></tr>))}</tbody>
           </table>
         </div>
       )}

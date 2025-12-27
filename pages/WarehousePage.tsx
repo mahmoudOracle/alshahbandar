@@ -4,11 +4,12 @@ import { Input } from '../components/ui/Input';
 import TableSkeleton from '../components/TableSkeleton';
 import { useAuth } from '../contexts/AuthContext';
 import { getProducts } from '../services/dataService';
+import { Product } from '../types';
 
 const WarehousePage: React.FC = () => {
   const { activeCompanyId } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
 
   const fetch = async () => {
@@ -44,14 +45,18 @@ const WarehousePage: React.FC = () => {
             <th className="px-4 py-2 text-right">آخر تحديث</th>
           </tr></thead>
           <tbody>
-            {filtered.map(p => (
-              <tr key={p.id} className="hover:bg-gray-50">
-                <td className="px-4 py-2">{p.name}</td>
-                <td className="px-4 py-2">{p.category || '-'}</td>
-                <td className="px-4 py-2">{p.stock}</td>
-                <td className="px-4 py-2">{p.updatedAt ? new Date(p.updatedAt.seconds * 1000).toLocaleString() : '-'}</td>
-              </tr>
-            ))}
+            {filtered.map(p => {
+              const updatedAtVal = ((p as unknown) as Record<string, unknown>)['updatedAt'];
+              const updatedText = updatedAtVal && (updatedAtVal as { toDate?: () => Date }).toDate ? (updatedAtVal as { toDate: () => Date }).toDate().toLocaleString() : (typeof updatedAtVal === 'string' ? String(updatedAtVal) : '-');
+              return (
+                <tr key={p.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-2">{p.name}</td>
+                  <td className="px-4 py-2">{String(((p as Record<string, unknown>)['category']) ?? '-')}</td>
+                  <td className="px-4 py-2">{p.stock}</td>
+                  <td className="px-4 py-2">{updatedText}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

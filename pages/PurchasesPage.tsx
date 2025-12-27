@@ -7,13 +7,15 @@ import EmptyState from '../components/EmptyState';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { getSuppliers, getProducts, createPurchase } from '../services/dataService';
+import { Supplier, Product } from '../types';
+import { mapFirestoreError } from '../services/firebaseErrors';
 
 const PurchasesPage: React.FC = () => {
   const { activeCompanyId } = useAuth();
   const { addNotification } = useNotification();
   const [loading, setLoading] = useState(true);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [supplierId, setSupplierId] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [items, setItems] = useState<{ productId: string; productName?: string; quantity: number; unitPrice: number }[]>([]);
@@ -27,8 +29,8 @@ const PurchasesPage: React.FC = () => {
       setSuppliers(s.data || []);
       const p = await getProducts(activeCompanyId, { limit: 1000 });
       setProducts(p.data || []);
-    } catch (err: any) {
-      addNotification(err?.message || 'فشل تحميل البيانات', 'error');
+    } catch (err: unknown) {
+      addNotification(mapFirestoreError(err), 'error');
       setSuppliers([]);
       setProducts([]);
     } finally { setLoading(false); }
@@ -36,8 +38,11 @@ const PurchasesPage: React.FC = () => {
 
   useEffect(() => { fetchLookups(); }, [activeCompanyId]);
 
-  const addRow = (product?: any) => setItems(prev => [...prev, { productId: product?.id || '', productName: product?.name || '', quantity: 1, unitPrice: product?.cost || 0 }]);
-  const updateRow = (index: number, changes: any) => setItems(prev => prev.map((it,i)=>i===index?{...it,...changes}:it));
+  const addRow = (product?: Product) => {
+    const cost = Number(((product as unknown) as Record<string, unknown>)['cost'] ?? 0);
+    setItems(prev => [...prev, { productId: product?.id || '', productName: product?.name || '', quantity: 1, unitPrice: cost }]);
+  };
+  const updateRow = (index: number, changes: Partial<{ productId: string; productName?: string; quantity: number; unitPrice: number }>) => setItems(prev => prev.map((it,i)=>i===index?{...it,...changes}:it));
   const removeRow = (index: number) => setItems(prev => prev.filter((_,i)=>i!==index));
 
   const total = items.reduce((s, it) => s + (Number(it.quantity || 0) * Number(it.unitPrice || 0)), 0);
@@ -51,11 +56,11 @@ const PurchasesPage: React.FC = () => {
     setSubmitting(true);
     try {
       const payload = { supplierId, invoiceNumber: invoiceNumber || undefined, items: items.map(it=>({ productId: it.productId, productName: it.productName, quantity: Number(it.quantity), unitPrice: Number(it.unitPrice) })), totalAmount: total };
-      const res = await createPurchase(activeCompanyId, payload as any);
+      await createPurchase(activeCompanyId, payload as unknown);
       addNotification('تم إنشاء أمر الشراء', 'success');
       setSupplierId(''); setInvoiceNumber(''); setItems([]);
-    } catch (err: any) {
-      addNotification(err?.message || 'فشل إنشاء أمر الشراء', 'error');
+    } catch (err: unknown) {
+      addNotification(mapFirestoreError(err), 'error');
     } finally { setSubmitting(false); }
   };
 

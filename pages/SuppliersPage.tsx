@@ -9,20 +9,21 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { getSuppliers, saveSupplier, deleteSupplier, saveIncomingReceipt } from '../services/dataService';
 import useProducts from '../hooks/useProducts';
+import { Product } from '../types';
 
 const SuppliersPage: React.FC = () => {
   const { activeCompanyId } = useAuth();
   const { addNotification } = useNotification();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<Record<string, unknown>[]>([]);
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<any | null>(null);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
   const [saving, setSaving] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
-  const [receiptItems, setReceiptItems] = useState<any[]>([]);
-  const { products, loading: productsLoading } = useProducts(activeCompanyId);
+  const [receiptItems, setReceiptItems] = useState<Record<string, unknown>[]>([]);
+  const { products } = useProducts(activeCompanyId);
   const [submittingReceipt, setSubmittingReceipt] = useState(false);
 
   const fetch = async () => {
@@ -31,8 +32,8 @@ const SuppliersPage: React.FC = () => {
     try {
       const res = await getSuppliers(activeCompanyId, { limit: 200 });
       setSuppliers(res.data || []);
-    } catch (err: any) {
-      addNotification(err?.message || 'Failed to load suppliers', 'error');
+    } catch (err: unknown) {
+      addNotification(String(((err as unknown) as { message?: unknown })?.message ?? 'Failed to load suppliers'), 'error');
       setSuppliers([]);
     } finally { setLoading(false); }
   };
@@ -44,13 +45,13 @@ const SuppliersPage: React.FC = () => {
     if (!activeCompanyId || !editing) return;
     setSaving(true);
     try {
-      await saveSupplier(activeCompanyId, editing);
+      await saveSupplier(activeCompanyId, editing as unknown as Record<string, unknown>);
       addNotification('Supplier saved', 'success');
       setFormOpen(false);
       setEditing(null);
       await fetch();
-    } catch (err: any) {
-      addNotification(err?.message || 'Failed to save supplier', 'error');
+    } catch (err: unknown) {
+      addNotification(String(((err as unknown) as { message?: unknown })?.message ?? 'Failed to save supplier'), 'error');
     } finally { setSaving(false); }
   };
 
@@ -60,38 +61,37 @@ const SuppliersPage: React.FC = () => {
       await deleteSupplier(activeCompanyId, id);
       addNotification('Supplier deleted', 'success');
       await fetch();
-    } catch (err: any) {
-      addNotification(err?.message || 'Failed to delete supplier', 'error');
+    } catch (err: unknown) {
+      addNotification(String(((err as unknown) as { message?: unknown })?.message ?? 'Failed to delete supplier'), 'error');
     }
   };
 
-  const openReceiptFor = (supplier: any) => {
-    setEditing(supplier);
-    setReceiptItems([]);
-    setShowReceiptModal(true);
-  };
+  
 
-  const addReceiptRow = (product?: any) => {
+  const addReceiptRow = (product?: Product) => {
     setReceiptItems(prev => [...prev, { productId: product?.id || '', productName: product?.name || '', quantityReceived: 1, note: '' }]);
   };
 
-  const updateReceiptRow = (index: number, changes: any) => setReceiptItems(prev => prev.map((it,i) => i===index?{...it,...changes}:it));
+  const updateReceiptRow = (index: number, changes: Partial<Record<string, unknown>>) => setReceiptItems(prev => prev.map((it,i) => i===index?{...it,...changes}:it));
 
   const submitReceipt = async () => {
     if (!activeCompanyId || !editing) return addNotification('בחר ספק', 'error');
     if (!receiptItems || receiptItems.length===0) return addNotification('أضف منتجًا واحدًا على الأقل', 'error');
     setSubmittingReceipt(true);
     try {
-      const idempotencyKey = (crypto && (crypto as any).randomUUID) ? (crypto as any).randomUUID() : String(Date.now());
-      const payload = { supplierId: editing.id, products: receiptItems.map((r:any)=>({ productId: r.productId, productName: r.productName, quantityReceived: Number(r.quantityReceived), note: r.note })), idempotencyKey };
-      await saveIncomingReceipt(activeCompanyId, payload as any);
+      const cryptoWithRandom = (typeof crypto !== 'undefined') ? (crypto as unknown as { randomUUID?: () => string }) : undefined;
+      const idempotencyKey = cryptoWithRandom?.randomUUID ? cryptoWithRandom.randomUUID() : String(Date.now());
+      const payload = { supplierId: (editing as Record<string, unknown>)['id'], products: receiptItems.map((r)=>({ productId: (r as Record<string, unknown>)['productId'], productName: (r as Record<string, unknown>)['productName'], quantityReceived: Number((r as Record<string, unknown>)['quantityReceived']), note: (r as Record<string, unknown>)['note'] })), idempotencyKey };
+      await saveIncomingReceipt(activeCompanyId, payload as unknown as Record<string, unknown>);
       addNotification('تم حفظ السند وتحديث المخزون', 'success');
       setShowReceiptModal(false);
       setReceiptItems([]);
       await fetch();
-    } catch (err: any) {
-      if (err?.code === 'duplicate-receipt') addNotification('تم إرسال هذا السند من قبل', 'error');
-      else addNotification(err?.message || 'فشل حفظ السند', 'error');
+    } catch (err: unknown) {
+      const code = ((err as unknown) as { code?: unknown })?.code;
+      const msg = String(((err as unknown) as { message?: unknown })?.message ?? 'فشل حفظ السند');
+      if (code === 'duplicate-receipt') addNotification('تم إرسال هذا السند من قبل', 'error');
+      else addNotification(msg, 'error');
     } finally { setSubmittingReceipt(false); }
   };
 

@@ -53,8 +53,8 @@ const ProductList: React.FC = () => {
   const [sortBy, setSortBy] = useState<'name_asc' | 'name_desc' | 'price_asc' | 'price_desc'>('name_asc');
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
-  const [nextCursor, setNextCursor] = useState<any | null>(null);
-  const [prevCursors, setPrevCursors] = useState<any[]>([]);
+  const [nextCursor, setNextCursor] = useState<unknown | null>(null);
+  const [prevCursors, setPrevCursors] = useState<unknown[]>([]);
   const [isLastPage, setIsLastPage] = useState(false);
 
   const { settings, loading: settingsLoading } = useSettings();
@@ -63,25 +63,33 @@ const ProductList: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editedProduct, setEditedProduct] = useState<Partial<Product> | null>(null);
 
-  const fetchProducts = useCallback(async (cursor?: any, direction: 'next' | 'prev' = 'next') => {
+  const fetchProducts = useCallback(async (cursor?: unknown, direction: 'next' | 'prev' = 'next') => {
       if (!activeCompanyId) return;
       setLoading(true);
       try {
         const result = await getProducts(activeCompanyId, {
-            limit: PAGE_SIZE,
-            startAfter: cursor,
+          limit: PAGE_SIZE,
+          startAfter: cursor,
         });
 
-        setProducts(result.data);
-        setNextCursor(result.nextCursor);
-        setIsLastPage(!result.nextCursor || result.data.length < PAGE_SIZE);
+        // `getProducts` may return either PaginatedData<T> or a plain T[] depending on implementation.
+        if (Array.isArray(result)) {
+          setProducts(result);
+          setNextCursor(null);
+          setIsLastPage(result.length < PAGE_SIZE);
+        } else {
+          const paginated = result as { data?: Product[]; nextCursor?: unknown };
+          setProducts(paginated.data || []);
+          setNextCursor(paginated.nextCursor || null);
+          setIsLastPage(!paginated.nextCursor || (paginated.data || []).length < PAGE_SIZE);
+        }
 
         if (direction === 'next') {
             if (cursor) setPrevCursors(prev => [...prev, cursor]);
         } else {
             setPrevCursors(prev => prev.slice(0, prev.length - 1));
         }
-      } catch (error: any) {
+        } catch (error: unknown) {
           addNotification(mapFirestoreError(error), "error");
           setProducts([]);
       } finally {
@@ -123,8 +131,8 @@ const ProductList: React.FC = () => {
             } else {
                 addNotification('فشل حذف المنتج.', 'error');
             }
-        } catch (error: any) {
-            addNotification(mapFirestoreError(error), 'error');
+          } catch (error: unknown) {
+            addNotification(mapFirestoreError(error), "error");
         }
     }
     setProductToDelete(null);
@@ -164,7 +172,7 @@ const ProductList: React.FC = () => {
                 clearProductCache(activeCompanyId);
                 addNotification('تمت إضافة المنتج بنجاح', 'success');
                 fetchProducts(prevCursors[prevCursors.length - 1] || undefined);
-              } catch (err: any) {
+              } catch (err: unknown) {
                 addNotification(mapFirestoreError(err), 'error');
               }
             }} />
@@ -181,7 +189,7 @@ const ProductList: React.FC = () => {
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full md:w-64"
           />
-          <select value={sortBy} onChange={e => setSortBy(e.target.value as any)} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700">
+          <select value={sortBy} onChange={e => { const v = e.target.value as 'name_asc'|'name_desc'|'price_asc'|'price_desc'; setSortBy(v); }} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700">
             <option value="name_asc">الاسم (أ-ي)</option>
             <option value="name_desc">الاسم (ي-أ)</option>
             <option value="price_asc">السعر (من الأقل)</option>
@@ -214,7 +222,7 @@ const ProductList: React.FC = () => {
                 {editingId === product.id ? (
                   <>
                     <td className="px-6 py-4 whitespace-nowrap font-medium">
-                      <Input value={(editedProduct?.name ?? product.name) as any} onChange={e => setEditedProduct(p => ({ ...(p||{}), name: e.target.value }))} />
+                      <Input value={String(editedProduct?.name ?? product.name)} onChange={e => setEditedProduct(p => ({ ...(p||{}), name: e.target.value }))} />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <Input value={String(editedProduct?.price ?? product.price)} onChange={e => setEditedProduct(p => ({ ...(p||{}), price: parseFloat(e.target.value || '0') }))} /> {settings?.currency}
@@ -229,13 +237,13 @@ const ProductList: React.FC = () => {
                             if (!activeCompanyId || !editedProduct) return;
                             try {
                               const toSave = { id: product.id, name: editedProduct.name ?? product.name, price: Number(editedProduct.price ?? product.price), stock: Number(editedProduct.stock ?? product.stock) } as Product;
-                              await saveProduct(activeCompanyId, toSave as any);
+                              await saveProduct(activeCompanyId, toSave);
                               try { clearProductCache(activeCompanyId); } catch (e) { /* ignore cache clear errors */ }
                               addNotification('تم حفظ المنتج بنجاح.', 'success');
                               setEditingId(null);
                               setEditedProduct(null);
                               await fetchProducts(prevCursors[prevCursors.length - 1] || undefined);
-                            } catch (err: any) {
+                            } catch (err: unknown) {
                               addNotification(mapFirestoreError(err), 'error');
                             }
                           }}>حفظ</Button>

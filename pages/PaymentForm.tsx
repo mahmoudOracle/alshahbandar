@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Customer, Invoice, Payment, InvoiceStatus } from '../types';
+import { Customer, Invoice, InvoiceStatus } from '../types';
 import { getInvoices, savePayment } from '../services/dataService';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
@@ -69,7 +69,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, onPaymentSaved, onC
         console.warn('🟡 [PAYMENT] savePayment returned falsy', result);
         addNotification('فشل حفظ الدفعة.', 'error');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('🔴 [PAYMENT] savePayment error', error);
       addNotification(mapFirestoreError(error), 'error');
     } finally {

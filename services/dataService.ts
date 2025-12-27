@@ -25,7 +25,7 @@ export const getDataSourceType = (): string => dataSourceType;
 // It throws a clear error if any service function is called prematurely.
 // Simple in-memory read cache to reduce repeated reads and improve perceived performance
 const READ_CACHE_TTL = 15 * 1000; // 15 seconds
-const readCache = new Map<string, { ts: number; data: any }>();
+const readCache = new Map<string, { ts: number; data: unknown }>();
 
 const cacheKey = (fn: string | symbol, args: unknown[]) => {
     try {
@@ -46,12 +46,12 @@ const safeService = new Proxy({}, {
                 throw new Error(`Data service has not been initialized. Ensure setDataServiceImpl() is called at startup.`);
             }
 
-            const svcAny = service as any;
-            if (typeof svcAny[prop] !== 'function') {
-                const errorMsg = `Service function "${String(prop)}" does not exist.`;
-                console.error(errorMsg);
-                return Promise.reject(new Error(errorMsg));
-            }
+                const svc = service as unknown as Record<string, (...args: unknown[]) => unknown>;
+                if (typeof svc[String(prop)] !== 'function') {
+                    const errorMsg = `Service function "${String(prop)}" does not exist.`;
+                    console.error(errorMsg);
+                    return Promise.reject(new Error(errorMsg));
+                }
 
             // Serve from cache for some read-only functions
             if (READ_CACHE_FUNCS.has(String(prop))) {
@@ -61,12 +61,12 @@ const safeService = new Proxy({}, {
                 if (cached && (now - cached.ts) < READ_CACHE_TTL) {
                     return cached.data;
                 }
-                const res = await svcAny[prop](...args);
+                const res = await (svc[String(prop)](...args) as unknown);
                 readCache.set(key, { ts: now, data: res });
                 return res;
             }
 
-            return svcAny[prop](...args);
+            return svc[String(prop)](...args);
         };
     }
 }) as ServiceModule;
@@ -106,6 +106,10 @@ export const {
     getInvoices,
     getInvoiceById,
     saveInvoice,
+    // Draft persistence
+    saveDraft,
+    getDraft,
+    deleteDraft,
     duplicateLastInvoice,
     duplicateInvoice,
     deleteInvoice,
@@ -146,6 +150,9 @@ export const {
     generateInvoicesFromRecurring,
     getSettings,
     saveSettings,
+    // Reports
+    getSalesSummary,
+    exportSalesCsv,
     // Customer Invitations
     createCustomerInvitation,
     acceptInvitation,

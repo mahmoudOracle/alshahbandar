@@ -52,8 +52,8 @@ const CustomerList: React.FC = () => {
   const [showInactive, setShowInactive] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [nextCursor, setNextCursor] = useState<any | null>(null);
-  const [prevCursors, setPrevCursors] = useState<any[]>([]);
+  const [nextCursor, setNextCursor] = useState<unknown | null>(null);
+  const [prevCursors, setPrevCursors] = useState<unknown[]>([]);
   const [isLastPage, setIsLastPage] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name_asc' | 'name_desc' | 'recent'>('name_asc');
@@ -61,7 +61,7 @@ const CustomerList: React.FC = () => {
   const { addNotification } = useNotification();
   const navigate = useNavigate();
 
-  const fetchData = useCallback(async (cursor?: any, direction: 'next' | 'prev' = 'next') => {
+  const fetchData = useCallback(async (cursor?: unknown, direction: 'next' | 'prev' = 'next') => {
     if (!activeCompanyId) return;
     setLoading(true);
     try {
@@ -79,8 +79,8 @@ const CustomerList: React.FC = () => {
         } else {
             setPrevCursors(prev => prev.slice(0, prev.length - 1));
         }
-    } catch (error: any) {
-        addNotification(mapFirestoreError(error), "error");
+    } catch (error: unknown) {
+      addNotification(mapFirestoreError(error), "error");
         setCustomers([]);
     } finally {
         setLoading(false);
@@ -108,7 +108,7 @@ const CustomerList: React.FC = () => {
     }
     if (sortBy === 'name_asc') list = list.sort((a,b) => (a.name||'').localeCompare(b.name||'', 'ar'));
     if (sortBy === 'name_desc') list = list.sort((a,b) => (b.name||'').localeCompare(a.name||'', 'ar'));
-    if (sortBy === 'recent') list = list.sort((a,b) => (b.createdAt? Date.parse(b.createdAt as any) : 0) - (a.createdAt? Date.parse(a.createdAt as any) : 0));
+    if (sortBy === 'recent') list = list.sort((a,b) => (b.createdAt ? Date.parse(String(b.createdAt)) : 0) - (a.createdAt ? Date.parse(String(a.createdAt)) : 0));
     return list;
   }, [customers, showInactive, searchTerm, sortBy]);
 
@@ -152,7 +152,7 @@ const CustomerList: React.FC = () => {
           </label>
         </div>
         <div className="flex items-center gap-2 w-full md:w-auto">
-          <select value={sortBy} onChange={e => setSortBy(e.target.value as any)} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700">
+          <select value={sortBy} onChange={e => { const v = e.target.value as 'name_asc'|'name_desc'|'recent'; setSortBy(v); }} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700">
             <option value="name_asc">الاسم (أ-ي)</option>
             <option value="name_desc">الاسم (ي-أ)</option>
             <option value="recent">الأحدث</option>

@@ -22,7 +22,6 @@ function isCashAccount(accountId: string) {
 }
 
 function classifyEntry(entry: JournalEntry, cashLineIndex: number) {
-  const cashLine = entry.lines[cashLineIndex];
   const others = entry.lines.filter((_, i) => i !== cashLineIndex);
   const otherAccounts = others.map(l => l.accountId || '').join(' ');
   const ref = String(entry.referenceType || '').toLowerCase();
@@ -106,7 +105,7 @@ export const getCashFlow = async (companyId: string, startISO: string, endISO: s
   // Process payments fallback (some payments may not have journal entries with clear lines)
   for (const p of payments) {
     // Expect payment.amount and date and possibly invoiceId
-    const amt = (p as any).amount || 0;
+    const amt = Number(((p as Record<string, unknown>)['amount']) ?? 0);
     // Heuristic: a payment record is a customer payment => operating inflow
     operatingIn += amt;
   }

@@ -43,8 +43,10 @@ const CustomerForm: React.FC = () => {
             setLoading(true);
             getCustomerById(activeCompanyId, id).then(customerData => {
                 if (customerData) {
-                    const {id: _id, createdAt: _ca, ...data} = customerData;
-                    setCustomer(data);
+                    const data = { ...customerData } as Record<string, unknown>;
+                    delete (data as Record<string, unknown>)['id'];
+                    delete (data as Record<string, unknown>)['createdAt'];
+                    setCustomer(data as unknown as Omit<Customer, 'id' | 'createdAt'>);
                 } else {
                     addNotification('لم يتم العثور على العميل.', 'error');
                 }
@@ -95,9 +97,8 @@ const CustomerForm: React.FC = () => {
         setSaving(true);
         console.log('🟢 [CUSTOMER] Saving customer', { companyId: activeCompanyId, id: id || null, customer });
         try {
-            const result = id 
-                ? await saveCustomer(activeCompanyId, { ...customer, id } as Customer)
-                : await saveCustomer(activeCompanyId, customer);
+            const payload = id ? ({ ...customer, id } as Customer) : (customer as Customer);
+            const result = await saveCustomer(activeCompanyId, payload);
                 
             if (result) {
                 console.log('🟢 [CUSTOMER] Customer saved', result);
@@ -107,7 +108,7 @@ const CustomerForm: React.FC = () => {
                 console.warn('🟡 [CUSTOMER] saveCustomer returned falsy', result);
                 addNotification('فشل حفظ العميل.', 'error');
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('🔴 [CUSTOMER] saveCustomer error', error);
             addNotification(mapFirestoreError(error), 'error');
         } finally {

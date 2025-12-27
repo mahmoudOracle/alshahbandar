@@ -37,15 +37,16 @@ const NewCustomerInvitationPage: React.FC = () => {
             setEmail('');
             setCompanyName('');
             setNotes('');
-        } catch (error: any) {
-            console.error(error);
+        } catch (error: unknown) {
+            console.error(error instanceof Error ? error.message : String(error));
             let errorMessage = 'An unexpected error occurred. Please try again.';
-            if (error.code === 'functions/failed-precondition') {
+            const code = (error as Record<string, unknown>)?.code as string | undefined;
+            if (code === 'functions/failed-precondition') {
                  errorMessage = 'Email service is not configured on the backend. Please contact your administrator.';
-            } else if (error.code === 'internal') {
+            } else if (code === 'internal') {
                 errorMessage = 'A server error occurred while sending the invitation. Please check the function logs or contact support.';
-            } else if (error.message) {
-                errorMessage = `Failed to send invitation: ${error.message}`;
+            } else if ((error as Record<string, unknown>)?.message) {
+                errorMessage = `Failed to send invitation: ${(error as Record<string, unknown>).message}`;
             }
             addNotification(errorMessage, 'error');
         } finally {

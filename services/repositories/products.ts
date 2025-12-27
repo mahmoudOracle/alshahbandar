@@ -6,7 +6,7 @@ interface QueryOptions {
   limit?: number;
   orderBy?: string;
   orderDirection?: 'asc' | 'desc';
-  filters?: [string, any][];
+  filters?: [string, unknown][];
 }
 
 // Simple in-memory cache per tenant to reduce repeated reads during a session.
@@ -32,7 +32,7 @@ export const getProducts = async (tenantId: string, options: QueryOptions = {}):
 
   const q = query(collection(db, 'companies', tenantId, 'products'), ...constraints);
   const snap = await getDocs(q);
-  const data = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Product));
+  const data = snap.docs.map(d => ({ id: d.id, ...(d.data() as unknown as Record<string, unknown>) } as Product));
 
   productCache.set(cacheKey, { ts: Date.now(), data });
   return data;

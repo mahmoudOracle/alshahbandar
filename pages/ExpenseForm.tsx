@@ -56,7 +56,7 @@ const ExpenseForm: React.FC = () => {
             ]);
             setCategories(catsRes.data || []);
             setVendors(vensRes.data || []);
-        } catch (error: any) {
+        } catch (error: unknown) {
             addNotification(mapFirestoreError(error), 'error');
         }
     }
@@ -99,7 +99,7 @@ const ExpenseForm: React.FC = () => {
             } else {
                 addNotification('فشل في إضافة الفئة.', 'error');
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             addNotification(mapFirestoreError(error), 'error');
         }
     }
@@ -117,7 +117,7 @@ const ExpenseForm: React.FC = () => {
             } else {
                 addNotification('فشل في إضافة المورد.', 'error');
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             addNotification(mapFirestoreError(error), 'error');
         }
     }
@@ -156,7 +156,7 @@ const ExpenseForm: React.FC = () => {
             } else {
                 addNotification('فشل حفظ المصروف.', 'error');
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             addNotification(mapFirestoreError(error), 'error');
         }
         setSaving(false);

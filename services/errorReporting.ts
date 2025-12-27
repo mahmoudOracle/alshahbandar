@@ -17,7 +17,7 @@ export async function initSentry(dsn?: string, options?: Record<string, unknown>
     try {
         const Sentry = await import('@sentry/browser');
         // @ts-expect-error Sentry shape depends on package version
-        Sentry.init({ dsn, ...(options as any) });
+        Sentry.init({ dsn, ...(options as unknown as Record<string, unknown>) });
         _sentry = Sentry;
         _sentryInitialized = true;
     } catch (e) {
@@ -29,16 +29,17 @@ export async function initSentry(dsn?: string, options?: Record<string, unknown>
 
 export const reportError = (payload: ErrorPayload) => {
     try {
-        const anyWin = (globalThis as any);
-        if (anyWin && typeof anyWin.__ERROR_REPORTER__ === 'function') {
-            anyWin.__ERROR_REPORTER__(payload);
+        const win = globalThis as unknown as { __ERROR_REPORTER__?: (p: ErrorPayload) => void };
+        const reporter = win.__ERROR_REPORTER__;
+        if (typeof reporter === 'function') {
+            reporter(payload);
             return;
         }
 
         if (_sentryInitialized && _sentry) {
             try {
-                const s = _sentry as any;
-                if (typeof s.captureException === 'function') {
+                const s = _sentry as { captureException?: (err: unknown, ctx?: unknown) => void } | null;
+                if (s && typeof s.captureException === 'function') {
                     s.captureException(payload.error, { extra: { info: payload.info, context: payload.context } });
                     return;
                 }

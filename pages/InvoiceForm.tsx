@@ -25,11 +25,11 @@ type State = Omit<Invoice, 'id' | 'subtotal' | 'total'>;
 
 type Action =
   | { type: 'SET_INITIAL_INVOICE'; payload: State }
-  | { type: 'UPDATE_FIELD'; payload: { field: keyof State; value: any } }
+  | { type: 'UPDATE_FIELD'; payload: { field: keyof State; value: unknown } }
   | { type: 'SET_CUSTOMER'; payload: { customer: Customer } }
   | { type: 'SET_PAYMENT_TYPE'; payload: { paymentType: PaymentType } }
   | { type: 'SET_DATE'; payload: { date: string } }
-  | { type: 'UPDATE_ITEM'; payload: { index: number; field: keyof InvoiceItem; value: any; products: Product[] } }
+  | { type: 'UPDATE_ITEM'; payload: { index: number; field: keyof InvoiceItem; value: unknown; products: Product[] } }
   | { type: 'ADD_ITEM' }
   | { type: 'REMOVE_ITEM'; payload: { index: number } };
 
@@ -51,7 +51,7 @@ function invoiceFormReducer(state: State, action: Action): State {
     case 'SET_INITIAL_INVOICE':
       return action.payload;
     case 'UPDATE_FIELD':
-      return { ...state, [action.payload.field]: action.payload.value };
+      return { ...state, [action.payload.field]: action.payload.value as unknown as State[keyof State] };
     case 'SET_CUSTOMER':
       return { ...state, customerId: action.payload.customer.id, customerName: action.payload.customer.name };
     case 'SET_PAYMENT_TYPE': {
@@ -86,7 +86,8 @@ function invoiceFormReducer(state: State, action: Action): State {
           item.price = product.price;
         }
       } else {
-        (item as any)[field] = value;
+        // assign with safe narrowing
+        (item as Record<string, unknown>)[String(field)] = value as unknown as InvoiceItem[keyof InvoiceItem];
       }
       
       newItems[index] = item;
@@ -116,6 +117,9 @@ const InvoiceForm: React.FC = () => {
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [quickAddTargetIndex, setQuickAddTargetIndex] = useState<number | null>(null);
   const { settings, loading: settingsLoading } = useSettings();
+  const [draftAvailable, setDraftAvailable] = useState(false);
+  const [draftData, setDraftData] = useState<unknown | null>(null);
+  const draftKey = `draft:invoice:${activeCompanyId}:${id || 'new'}`;
 
   useEffect(() => {
     if (!canWrite && id) { // Allow viewing existing invoices
@@ -140,13 +144,15 @@ const InvoiceForm: React.FC = () => {
 
         if (id) {
             const invoiceRes = await getInvoiceById(activeCompanyId, id);
-      if(invoiceRes) {
+      if (invoiceRes) {
         // Keep taxRate and taxAmount if present
-        const { id: _id, subtotal: _subtotal, total: _total, ...invoiceData } = invoiceRes as any;
+        const asObj = invoiceRes as unknown as Record<string, unknown>;
+        const { id: _id, subtotal: _subtotal, total: _total, ...invoiceData } = asObj;
+        void _id; void _subtotal; void _total;
         dispatch({ type: 'SET_INITIAL_INVOICE', payload: invoiceData as State });
-            } else {
-               addNotification('Invoice not found', 'error');
-            }
+      } else {
+        addNotification('Invoice not found', 'error');
+      }
         }
         // Restore draft for new invoices
         if (!id) {
@@ -154,12 +160,12 @@ const InvoiceForm: React.FC = () => {
             const draftKey = `draft:invoice:${activeCompanyId}:new`;
             const draft = loadDraft(draftKey);
             if (draft) {
-              dispatch({ type: 'SET_INITIAL_INVOICE', payload: { ...invoice, ...(draft as any) } as State });
-              addNotification('تم استعادة مسودة الفاتورة.', 'info');
+              setDraftAvailable(true);
+              setDraftData(draft as unknown);
             }
-          } catch (e) {}
+          } catch (e) { void e; }
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         addNotification(mapFirestoreError(error), 'error');
       } finally {
         setLoading(false);
@@ -188,20 +194,14 @@ const InvoiceForm: React.FC = () => {
     }
   };
   
-  const handleCustomerSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const customerId = e.target.value;
-      const customer = customers.find(c => c.id === customerId);
-      if (customer) {
-          dispatch({ type: 'SET_CUSTOMER', payload: { customer } });
-      }
-  }
+    // removed unused handler `handleCustomerSelect` (use `handleCustomerSearchSelect` instead)
 
   const handleCustomerSearchSelect = (customerId: string) => {
     const customer = customers.find(c => c.id === customerId);
     if (customer) dispatch({ type: 'SET_CUSTOMER', payload: { customer } });
   }
 
-  const handleItemChange = (index: number, field: keyof InvoiceItem, value: any) => {
+  const handleItemChange = (index: number, field: keyof InvoiceItem, value: unknown) => {
     dispatch({ type: 'UPDATE_ITEM', payload: { index, field, value, products } });
   };
 
@@ -230,6 +230,25 @@ const InvoiceForm: React.FC = () => {
       return Object.keys(newErrors).length === 0;
   }
 
+  const handleRestoreDraft = () => {
+    if (!draftData) return;
+    dispatch({ type: 'SET_INITIAL_INVOICE', payload: { ...invoice, ...(draftData as Record<string, unknown>) } });
+    setDraftAvailable(false);
+    setDraftData(null);
+    addNotification('تم استعادة المسودة.', 'info');
+  };
+
+  const handleDiscardDraft = () => {
+    try {
+      clearDraft(draftKey);
+    } catch (e) {
+      // ignore
+    }
+    setDraftAvailable(false);
+    setDraftData(null);
+    addNotification('تم حذف المسودة.', 'info');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canWrite) {
@@ -237,8 +256,8 @@ const InvoiceForm: React.FC = () => {
       return;
     }
     if (!validateForm()) {
-        addNotification('يرجى ملء جميع الحقول المطلوبة بشكل صحيح.', 'error');
-        return;
+      addNotification('يرجى ملء جميع الحقول المطلوبة بشكل صحيح.', 'error');
+      return;
     }
     if (!activeCompanyId) {
         addNotification('Authentication error. Cannot save invoice.', 'error');
@@ -257,8 +276,8 @@ const InvoiceForm: React.FC = () => {
          console.warn('🟡 [INVOICE] saveInvoice returned falsy', result);
          addNotification('فشل حفظ الفاتورة.', 'error');
       }
-    } catch (error: any) {
-      console.error('🔴 [INVOICE] saveInvoice error', error);
+    } catch (error: unknown) {
+      console.error('🔴 [INVOICE] saveInvoice error', error instanceof Error ? error.message : String(error));
       addNotification(mapFirestoreError(error), 'error');
     } finally {
       setSaving(false);
@@ -270,6 +289,17 @@ const InvoiceForm: React.FC = () => {
   return (
     <form onSubmit={handleSubmit}>
       <Card>
+        {draftAvailable && (
+          <div className="mb-4 p-3 border-l-4 border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 rounded">
+            <div className="flex justify-between items-center">
+              <div>مسودة محفوظة موجودة لهذه الفاتورة. هل تريد استعادتها؟</div>
+              <div className="flex gap-2">
+                <Button type="button" onClick={handleRestoreDraft}>استعادة المسودة</Button>
+                <Button type="button" variant="ghost" onClick={handleDiscardDraft}>حذف المسودة</Button>
+              </div>
+            </div>
+          </div>
+        )}
         <fieldset disabled={!canWrite} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <SearchableSelect label="العميل" required value={invoice.customerId} onChange={handleCustomerSearchSelect} error={errors.customerId}
@@ -330,7 +360,7 @@ const InvoiceForm: React.FC = () => {
             }
             {errors.items && <p className="text-sm text-danger-600 mt-1">{errors.items}</p>}
             {/* Quick Add product panel (inline) */}
-            {quickAddVisible && (
+                {quickAddVisible && (
               <div className="mt-4">
                 <QuickAddProduct onAdd={async (p) => {
                   if (!activeCompanyId) return;
@@ -340,18 +370,19 @@ const InvoiceForm: React.FC = () => {
                       price: p.price,
                       stock: p.stock,
                       createdAt: (new Date()).toISOString()
-                    } as any);
+                    } as unknown as Record<string, unknown>);
                     // clear repo cache and refresh local list
                     try { clearProductCache(activeCompanyId); } catch (e) { /* ignore */ }
                     const refreshed = await getProducts(activeCompanyId);
-                    setProducts(refreshed.data || [...products, saved]);
+                    setProducts(((refreshed as unknown) as { data?: Product[] }).data || [...products, (saved as unknown) as Product]);
                     // auto-select into the target item if present
                     if (quickAddTargetIndex !== null) {
                       handleItemChange(quickAddTargetIndex, 'productId', saved.id);
                     }
                     addNotification('تم إضافة المنتج بنجاح.', 'success');
-                  } catch (err: any) {
-                    addNotification(err?.message || 'فشل إضافة المنتج.', 'error');
+                    } catch (err: unknown) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    addNotification(msg || 'فشل إضافة المنتج.', 'error');
                   } finally {
                     setQuickAddVisible(false);
                     setQuickAddTargetIndex(null);

@@ -50,8 +50,9 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
             await saveSettingsService(activeCompanyId, hardcodedDefaultSettings);
             setSettings({ ...hardcodedDefaultSettings, source: 'firestore' });
         }
-      } catch (err: any) {
-        console.warn("Could not load settings from Firestore. Error:", { message: err.message, code: err.code });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn("Could not load settings from Firestore. Error:", msg);
         addNotification("تعذّر تحميل الإعدادات من قاعدة البيانات.", "error");
         setSettings(hardcodedDefaultSettings);
       } finally {

@@ -56,7 +56,7 @@ const SettingsPage: React.FC = () => {
     const handleTaxChange = (index: number, field: keyof Tax, value: string | number) => {
         if (!settings) return;
         const newTaxes = [...settings.taxes];
-        (newTaxes[index] as any)[field] = value;
+        (newTaxes[index] as unknown as Record<string, unknown>)[field] = value;
         setSettings({ ...settings, taxes: newTaxes });
     };
 
@@ -81,8 +81,8 @@ const SettingsPage: React.FC = () => {
         try {
             await updateSettings(settings);
             addNotification('تم حفظ الإعدادات بنجاح!', 'success');
-        } catch (error: any) {
-            addNotification(error.message || 'Failed to save settings', 'error');
+        } catch (error: unknown) {
+            addNotification(String(((error as unknown) as { message?: unknown })?.message ?? 'Failed to save settings'), 'error');
         } finally {
             setSaving(false);
         }

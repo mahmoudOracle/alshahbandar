@@ -61,12 +61,13 @@ const RegisterPage: React.FC = () => {
             const user = await registerWithEmail(email, password);
 
             // Force refresh ID token to ensure Firestore security rules see the latest auth token
-            try {
-                if (user && typeof (user as any).getIdToken === 'function') {
-                    console.log('[DEBUG][Register] Refreshing ID token for new user');
-                    await (user as any).getIdToken(true);
-                }
-            } catch (tokenErr) {
+                try {
+                    const getIdToken = (user as { getIdToken?: (force?: boolean) => Promise<string> })?.getIdToken;
+                    if (getIdToken && typeof getIdToken === 'function') {
+                        console.log('[DEBUG][Register] Refreshing ID token for new user');
+                        await getIdToken(true);
+                    }
+                } catch (tokenErr: unknown) {
                 console.warn('[DEBUG][Register] Failed to refresh ID token; proceeding anyway', tokenErr);
             }
 
@@ -90,14 +91,15 @@ const RegisterPage: React.FC = () => {
                         console.log('🟡 [Register] createOwnerCompanyCallable returned', callablePayload);
                         addNotification('تم إنشاء الحساب لكن حدث تحذير أثناء إنشاء الشركة؛ تواصل مع الدعم.', 'warning');
                     }
-                } catch (callErr) {
+                    } catch (callErr: unknown) {
                     // Callable may not be deployed in dev — fallback to client-side write with a small delay
                     console.warn('[Register] createOwnerCompanyCallable failed, falling back to client write', callErr);
 
                     // Ensure token propagation: refresh token and wait briefly
-                    try {
-                        if (user && typeof (user as any).getIdToken === 'function') {
-                            await (user as any).getIdToken(true);
+                        try {
+                        const refresh = (user as { getIdToken?: (force?: boolean) => Promise<string> })?.getIdToken;
+                        if (refresh && typeof refresh === 'function') {
+                            await refresh(true);
                         }
                     } catch (tokenErr) {
                         console.warn('[Register] Token refresh failed before fallback write', tokenErr);
@@ -108,13 +110,13 @@ const RegisterPage: React.FC = () => {
                     try {
                         const payload = await createCompanyWithOwner(user.uid, email.trim(), {
                             companyName: companyName.trim(),
+                            companyAddress: companyAddress.trim(),
                             ownerName: `${ownerFirstName.trim()} ${ownerLastName.trim()}`,
                             phone: ownerMobile.trim() || '',
                             country: country.trim(),
                             city: city.trim(),
                             businessType: '',
-                            companyAddress: companyAddress.trim(),
-                        } as any);
+                        });
                         if (payload && payload.companyId) {
                             console.log('🟢 [Register] Company created successfully (client write)', payload.companyId);
                             addNotification('تم إنشاء الحساب والشركة بنجاح! بانتظار موافقة المسؤول.', 'success');
@@ -122,10 +124,10 @@ const RegisterPage: React.FC = () => {
                             console.warn('🟡 [Register] createCompanyWithOwner did not return companyId', payload);
                             addNotification('تم إنشاء الحساب لكن حدث تحذير أثناء إنشاء الشركة؛ تواصل مع الدعم.', 'warning');
                         }
-                    } catch (createErr) {
+                    } catch (createErr: unknown) {
                         console.error('🔴 [Register] Failed to create company document for uid (client write):', user.uid, createErr);
                         // Provide actionable message for permission errors
-                        if ((createErr as any)?.code === 'permission-denied') {
+                        if ((createErr as { code?: string })?.code === 'permission-denied') {
                             addNotification('لا يمكن إنشاء بيانات الشركة بسبب قيود قواعد الأمان. تأكد من إعداد قواعد Firestore أو قم بنشر الوظائف السحابية المطلوبة.', 'error');
                         } else {
                             addNotification('فشل إنشاء بيانات الشركة. حاول مرة أخرى أو تواصل مع الدعم.', 'error');
@@ -133,11 +135,11 @@ const RegisterPage: React.FC = () => {
                         // Do not throw to avoid leaving user in unknown state; user account exists regardless
                     }
                 }
-            } catch (err) {
+            } catch (err: unknown) {
                 console.error('🔴 [Register] Unexpected error during company creation flow', err);
                 addNotification('حدث خطأ غير متوقع أثناء إنشاء الشركة. تواصل مع الدعم.', 'error');
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             let message = 'فشل إنشاء الحساب. حدث خطأ غير متوقع.';
             if (error instanceof FirebaseError) {
                 console.error('[DEBUG][Register] FirebaseError code:', error.code, 'message:', error.message);
@@ -166,7 +168,7 @@ const RegisterPage: React.FC = () => {
                 }
             } else {
                 console.error('[DEBUG][Register] Error during registration:', error);
-                message = error?.message || message;
+                message = (error as { message?: string })?.message || message;
             }
             addNotification(message, 'error');
         } finally {

@@ -1,6 +1,7 @@
-export function mapFirestoreError(e: any): string {
-  const code = String(e?.code || '').toLowerCase();
-  const msg = String(e?.message || '');
+export function mapFirestoreError(e: unknown): string {
+  const obj = (e as Record<string, unknown>) || {};
+  const code = String(obj?.code ?? '').toLowerCase();
+  const msg = String(obj?.message ?? '');
   
   // Handle Cloud Function errors first
   if (code.startsWith('functions/')) {

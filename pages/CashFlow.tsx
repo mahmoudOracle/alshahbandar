@@ -15,7 +15,7 @@ const CashFlow: React.FC = () => {
   });
 
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     const fetch = async () => {
@@ -24,8 +24,9 @@ const CashFlow: React.FC = () => {
       try {
         const res = await getCashFlow(activeCompanyId, dateRange.start, dateRange.end);
         setResult(res);
-      } catch (err: any) {
-        addNotification(err?.message || 'فشل في تحميل التقرير', 'error');
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err || 'فشل في تحميل التقرير');
+        addNotification(msg, 'error');
       }
       setLoading(false);
     };
@@ -53,28 +54,28 @@ const CashFlow: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 bg-white dark:bg-gray-900 border rounded">
               <h3 className="font-semibold">التدفقات التشغيلية</h3>
-              <p>الواردات: <strong>{result.operatingIn.toFixed(2)} {settings?.currency}</strong></p>
-              <p>المصروفات: <strong>-{result.operatingOut.toFixed(2)} {settings?.currency}</strong></p>
+              <p>الواردات: <strong>{Number(result.operatingIn ?? 0).toFixed(2)} {settings?.currency}</strong></p>
+              <p>المصروفات: <strong>-{Number(result.operatingOut ?? 0).toFixed(2)} {settings?.currency}</strong></p>
             </div>
 
             <div className="p-4 bg-white dark:bg-gray-900 border rounded">
               <h3 className="font-semibold">التدفقات الاستثمارية</h3>
-              <p>المبيعات/تحويلات: <strong>{result.investingIn.toFixed(2)} {settings?.currency}</strong></p>
-              <p>المشتريات: <strong>-{result.investingOut.toFixed(2)} {settings?.currency}</strong></p>
+              <p>المبيعات/تحويلات: <strong>{Number(result.investingIn ?? 0).toFixed(2)} {settings?.currency}</strong></p>
+              <p>المشتريات: <strong>-{Number(result.investingOut ?? 0).toFixed(2)} {settings?.currency}</strong></p>
             </div>
 
             <div className="p-4 bg-white dark:bg-gray-900 border rounded">
               <h3 className="font-semibold">التدفقات التمويلية</h3>
-              <p>إضافات المالك: <strong>{result.financingIn.toFixed(2)} {settings?.currency}</strong></p>
-              <p>سحوبات/قروض: <strong>-{result.financingOut.toFixed(2)} {settings?.currency}</strong></p>
+              <p>إضافات المالك: <strong>{Number(result.financingIn ?? 0).toFixed(2)} {settings?.currency}</strong></p>
+              <p>سحوبات/قروض: <strong>-{Number(result.financingOut ?? 0).toFixed(2)} {settings?.currency}</strong></p>
             </div>
 
             <div className="md:col-span-3 p-4 bg-white dark:bg-gray-900 border rounded">
               <h3 className="font-semibold">ملخص</h3>
-              <p>رصيد افتتاحي: <strong>{result.openingCash.toFixed(2)} {settings?.currency}</strong></p>
-              <p>صافي التدفق النقدي: <strong>{result.netCashFlow.toFixed(2)} {settings?.currency}</strong></p>
-              <p>رصيد اختتامي: <strong>{result.closingCash.toFixed(2)} {settings?.currency}</strong> {result.closingCash < 0 && <span className="text-yellow-600">⚠️ رصيد سلبي</span>}</p>
-              {result.unclassifiedCount > 0 && <p className="text-sm text-red-600">تحذير: هناك {result.unclassifiedCount} معاملة غير مصنفة. راجع قيود اليومية.</p>}
+              <p>رصيد افتتاحي: <strong>{Number(result.openingCash ?? 0).toFixed(2)} {settings?.currency}</strong></p>
+              <p>صافي التدفق النقدي: <strong>{Number(result.netCashFlow ?? 0).toFixed(2)} {settings?.currency}</strong></p>
+              <p>رصيد اختتامي: <strong>{Number(result.closingCash ?? 0).toFixed(2)} {settings?.currency}</strong> {Number(result.closingCash ?? 0) < 0 && <span className="text-yellow-600">⚠️ رصيد سلبي</span>}</p>
+              {Number(result.unclassifiedCount ?? 0) > 0 && <p className="text-sm text-red-600">تحذير: هناك {Number(result.unclassifiedCount ?? 0)} معاملة غير مصنفة. راجع قيود اليومية.</p>}
             </div>
           </div>
         ) : (

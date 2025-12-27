@@ -64,7 +64,8 @@ const RecurringInvoiceForm: React.FC = () => {
                 if (id) {
                     const data = await getRecurringInvoiceById(activeCompanyId, id);
                     if (data) {
-                        const { id: _id, ...rest } = data;
+                        const rest = { ...data } as Omit<RecurringInvoice, 'id'>;
+                        delete (rest as Record<string, unknown>)['id'];
                         setRecInvoice(rest);
                     } else {
                         addNotification('الفاتورة المتكررة غير موجودة.', 'error');
@@ -83,12 +84,12 @@ const RecurringInvoiceForm: React.FC = () => {
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
 
-        let finalValue: any = value;
+        let finalValue: unknown = value;
         if (type === 'checkbox') {
             finalValue = (e.target as HTMLInputElement).checked;
         }
         if (type === 'number') {
-            const parsed = parseFloat(value);
+            const parsed = parseFloat(String(value));
             finalValue = Number.isFinite(parsed) ? parsed : 0;
         }
 
@@ -109,12 +110,12 @@ const RecurringInvoiceForm: React.FC = () => {
         }
     };
 
-    const handleItemChange = (index: number, field: keyof InvoiceItem, value: any) => {
+    const handleItemChange = (index: number, field: keyof InvoiceItem, value: unknown) => {
         const newItems = [...recInvoice.items];
         const item = { ...newItems[index] };
 
         if (field === 'productId') {
-            const product = products.find(p => p.id === value);
+            const product = products.find(p => p.id === String(value));
             if (product) {
                 item.productId = product.id;
                 item.productName = product.name;
@@ -125,10 +126,10 @@ const RecurringInvoiceForm: React.FC = () => {
                 item.price = 0;
             }
         } else if (field === 'quantity' || field === 'price') {
-            const parsed = Number(value);
-            (item as any)[field] = Number.isFinite(parsed) ? parsed : 0;
+            const parsed = Number(String(value));
+            (item as unknown as Record<string, unknown>)[field] = Number.isFinite(parsed) ? parsed : 0;
         } else {
-            (item as any)[field] = value;
+            (item as unknown as Record<string, unknown>)[field] = value as unknown as string;
         }
 
         newItems[index] = item;
@@ -183,7 +184,7 @@ const RecurringInvoiceForm: React.FC = () => {
         try {
             console.debug('[RecurringInvoice] saving', { id, company: activeCompanyId });
             const payload = id ? { ...recInvoice, id } : recInvoice;
-            const result = await saveRecurringInvoice(activeCompanyId, payload as any);
+            const result = await saveRecurringInvoice(activeCompanyId, payload);
 
             if (result) {
                 addNotification('تم حفظ الفاتورة المتكررة بنجاح!', 'success');

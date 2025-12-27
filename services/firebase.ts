@@ -41,15 +41,16 @@ try {
     db = getFirestore(app);
     functions = getFunctions(app);
     storage = getStorage(app);
+    const metaEnv = (import.meta as unknown as { env?: Record<string, string> }).env;
     // Connect to local emulators when requested via Vite env var
     try {
-        const useEmulators = (import.meta as any).env?.VITE_USE_FIREBASE_EMULATORS === 'true';
+        const useEmulators = metaEnv?.VITE_USE_FIREBASE_EMULATORS === 'true';
         if (useEmulators) {
-            const host = (import.meta as any).env?.VITE_FIREBASE_EMULATOR_HOST || 'localhost';
-            const firestorePort = Number((import.meta as any).env?.VITE_FIRESTORE_EMULATOR_PORT || 8080);
-            const authPort = Number((import.meta as any).env?.VITE_AUTH_EMULATOR_PORT || 9099);
-            const functionsPort = Number((import.meta as any).env?.VITE_FUNCTIONS_EMULATOR_PORT || 5001);
-                const storagePort = Number((import.meta as any).env?.VITE_STORAGE_EMULATOR_PORT || 9199);
+            const host = metaEnv?.VITE_FIREBASE_EMULATOR_HOST || 'localhost';
+            const firestorePort = Number(metaEnv?.VITE_FIRESTORE_EMULATOR_PORT || 8080);
+            const authPort = Number(metaEnv?.VITE_AUTH_EMULATOR_PORT || 9099);
+            const functionsPort = Number(metaEnv?.VITE_FUNCTIONS_EMULATOR_PORT || 5001);
+                const storagePort = Number(metaEnv?.VITE_STORAGE_EMULATOR_PORT || 9199);
             connectFirestoreEmulator(db, host, firestorePort);
             connectAuthEmulator(auth, `http://${host}:${authPort}`, { disableWarnings: true });
             connectFunctionsEmulator(functions, host, functionsPort);

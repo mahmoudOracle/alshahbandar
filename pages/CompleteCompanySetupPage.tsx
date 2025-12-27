@@ -23,26 +23,27 @@ const CompleteCompanySetupPage: React.FC = () => {
     useEffect(() => {
         const load = async () => {
             if (!user) return;
-            try {
-                const profile: any = await dataService.getUserProfile(user.uid);
+                try {
+                const profile = await dataService.getUserProfile(user.uid) as { companyId?: string } | null;
                 if (!profile || !profile.companyId) {
                     addNotification('لم يتم ربط حسابك بشركة. لا يوجد شيء لإكماله.', 'error');
                     return;
                 }
                 setCompanyId(profile.companyId);
                 // Prefer cached company from AuthContext if available
-                const company: any = (activeCompany && activeCompany.id === profile.companyId) ? activeCompany : await dataService.getCompany(profile.companyId);
+                const company: unknown = (activeCompany && (activeCompany as unknown as Record<string, unknown>).id === profile.companyId) ? activeCompany : await dataService.getCompany(profile.companyId);
                 if (!company) {
                     addNotification('لم يتم العثور على بيانات الشركة.', 'error');
                     return;
                 }
-                setCompanyName(company.companyName || '');
-                setCountry(company.country || '');
-                setCity(company.city || '');
-                setPhone(company.phone || '');
-                setBusinessType(company.businessType || '');
+                const compObj = company as Record<string, unknown>;
+                setCompanyName(String(compObj.companyName || ''));
+                setCountry(String(compObj.country || ''));
+                setCity(String(compObj.city || ''));
+                setPhone(String(compObj.phone || ''));
+                setBusinessType(String(compObj.businessType || ''));
             } catch (err) {
-                console.error(err);
+                console.error(err instanceof Error ? err.message : String(err));
             }
         };
         load();

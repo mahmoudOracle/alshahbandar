@@ -5,7 +5,7 @@ import * as authService from '../services/authService';
 import * as dataService from '../services/dataService';
 import { getUserProfile, getCompany, getCompanyMembershipByUid } from '../services/firestoreService';
 import { FullPageSpinner } from '../components/Spinner';
-import { useNotification } from '../contexts/NotificationContext';
+// Notification context not required in this module
 import { DEBUG_MODE } from '../config';
 import { validateUserDataIsolation, cleanupSessionData } from '../services/dataTenantUtils';
 
@@ -17,7 +17,7 @@ interface AuthContextType {
     isPlatformAdmin: boolean;
     companyMemberships: CompanyMembership[];
     activeCompanyId: string | null;
-    activeCompany: any | null;
+    activeCompany: unknown | null;
     activeRole: UserRole | null;
     setActiveCompanyId: (companyId: string | null) => void;
     signOutUser: () => Promise<void>;
@@ -35,8 +35,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [authLoading, setAuthLoading] = useState(true);
     const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
     const [companyMemberships, setCompanyMemberships] = useState<CompanyMembership[]>([]);
-    const [activeCompany, setActiveCompany] = useState<any | null>(null);
-    const companyCacheRef = React.useRef<Map<string, any>>(new Map());
+    const [activeCompany, setActiveCompany] = useState<unknown | null>(null);
+    const companyCacheRef = React.useRef<Map<string, unknown>>(new Map());
     const [activeCompanyId, setActiveCompanyIdState] = useState<string | null>(() => {
         try {
             return localStorage.getItem(ACTIVE_COMPANY_ID_KEY);
@@ -44,7 +44,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
     const [onboardingError, setOnboardingError] = useState<string | null>(null);
 
-    const notify = useNotification();
+    // notification context is available via useNotification when needed
 
     const setActiveCompanyId = useCallback((companyId: string | null) => {
         // Validate company ID format before setting
@@ -124,11 +124,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 // Use cache if available
                 let company = companyCacheRef.current.get(companyId) || null;
 
-                // Fetch company and membership in parallel
-                const [companySnap, membership] = await Promise.all([
-                    company ? Promise.resolve(company) : getCompany(companyId).catch((err) => { throw err; }),
-                    getCompanyMembershipByUid(companyId, user.uid).catch(() => null),
-                ]);
+                    // Fetch company and membership in parallel
+                    const [companySnap, membership] = await Promise.all([
+                        company ? Promise.resolve(company) : getCompany(companyId).catch((err) => { throw err; }),
+                        getCompanyMembershipByUid(companyId, user.uid).catch(() => null),
+                    ]);
 
                 company = companySnap;
                 if (!company) {
@@ -176,14 +176,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 setActiveCompany(company);
                 setOnboardingError(null);
                 setAuthLoading(false);
-            } catch (err: any) {
+            } catch (err: unknown) {
                 console.error('🔴 [AUTH] Error during auth processing:', err);
-                if (DEBUG_MODE) console.error('🔴 [AUTH] error details:', err?.message || err);
-                const msg = String(err?.message || '').toLowerCase();
-                if (err?.code === 'client-offline' || /client offline|failed to reach firestore|could not reach cloud firestore|net::err_connection_closed/.test(msg)) {
+                if (DEBUG_MODE) console.error('🔴 [AUTH] error details:', err);
+                const msg = ((): string => {
+                    if (typeof err === 'object' && err !== null && 'message' in err) {
+                        try { return String((err as { message?: unknown }).message || ''); } catch { return String(err); }
+                    }
+                    return String(err ?? '');
+                })().toLowerCase();
+
+                const code = (typeof err === 'object' && err !== null && 'code' in err) ? String((err as { code?: unknown }).code) : '';
+
+                if (code === 'client-offline' || /client offline|failed to reach firestore|could not reach cloud firestore|net::err_connection_closed/.test(msg)) {
                     console.error('🔴 [AUTH] Network/offline detected while accessing Firestore', err);
                     setOnboardingError('تعذر الاتصال بخوادمنا. تحقق من اتصال الإنترنت وحاول مرة أخرى.');
-                } else if (err?.code === 'permission-denied' || /permission/i.test(err?.message || '')) {
+                } else if (code === 'permission-denied' || /permission/i.test(msg)) {
                     setOnboardingError('لا تملك صلاحية الوصول إلى بيانات الشركة. تواصل مع الدعم.');
                 } else {
                     setOnboardingError('حدث خطأ أثناء تحميل بيانات المصادقة. حاول إعادة تسجيل الدخول.');
@@ -213,7 +221,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
         let timeoutId: ReturnType<typeof setTimeout>;
-        let activityCheckInterval: ReturnType<typeof setInterval>;
 
         const resetTimeout = () => {
             clearTimeout(timeoutId);

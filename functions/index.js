@@ -102,6 +102,100 @@ exports.createCompanyAsAdmin = functions.https.onCall(async (data, context) => {
     }
 });
 
+// Sales summary callable: returns aggregated totals for a company within optional date range
+exports.getSalesSummary = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+    const { companyId, from, to } = data || {};
+    if (!companyId) throw new functions.https.HttpsError('invalid-argument', 'companyId is required');
+
+    try {
+        // Authorization: ensure caller is member of the company or platform admin
+        const platformAdminRef = db.collection('platformAdmins').doc(context.auth.uid);
+        const platformAdminDoc = await platformAdminRef.get();
+        let authorized = false;
+        if (platformAdminDoc.exists) authorized = true;
+        if (!authorized) {
+            const memberRef = db.collection('companies').doc(companyId).collection('users').doc(context.auth.uid);
+            const memberDoc = await memberRef.get();
+            if (memberDoc.exists) authorized = true;
+        }
+        if (!authorized) throw new functions.https.HttpsError('permission-denied', 'Not authorized');
+
+        let invoicesQuery = db.collection('companies').doc(companyId).collection('invoices');
+        if (from) invoicesQuery = invoicesQuery.where('date', '>=', admin.firestore.Timestamp.fromDate(new Date(from)));
+        if (to) invoicesQuery = invoicesQuery.where('date', '<=', admin.firestore.Timestamp.fromDate(new Date(to)));
+
+        const snapshots = await invoicesQuery.limit(500).get();
+        let totalSales = 0;
+        let invoiceCount = 0;
+        snapshots.forEach(docSnap => {
+            const d = docSnap.data();
+            const t = Number(d.total) || 0;
+            totalSales += t;
+            invoiceCount += 1;
+        });
+
+        return { totalSales, invoiceCount };
+    } catch (err) {
+        console.error('[getSalesSummary] failed', err);
+        throw new functions.https.HttpsError('internal', 'Failed to compute sales summary');
+    }
+});
+
+// Export sales CSV: produce a CSV file for the requested date range and store in Cloud Storage.
+exports.exportSalesCsv = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+    const { companyId, from, to } = data || {};
+    if (!companyId) throw new functions.https.HttpsError('invalid-argument', 'companyId is required');
+
+    try {
+        // Authorization: company member or platform admin
+        const platformAdminRef = db.collection('platformAdmins').doc(context.auth.uid);
+        const platformAdminDoc = await platformAdminRef.get();
+        let authorized = false;
+        if (platformAdminDoc.exists) authorized = true;
+        if (!authorized) {
+            const memberRef = db.collection('companies').doc(companyId).collection('users').doc(context.auth.uid);
+            const memberDoc = await memberRef.get();
+            if (memberDoc.exists) authorized = true;
+        }
+        if (!authorized) throw new functions.https.HttpsError('permission-denied', 'Not authorized');
+
+        let invoicesQuery = db.collection('companies').doc(companyId).collection('invoices');
+        if (from) invoicesQuery = invoicesQuery.where('date', '>=', admin.firestore.Timestamp.fromDate(new Date(from)));
+        if (to) invoicesQuery = invoicesQuery.where('date', '<=', admin.firestore.Timestamp.fromDate(new Date(to)));
+
+        // For large exports this should be paginated; we limit to 5000 for now
+        const snapshots = await invoicesQuery.limit(5000).get();
+        const rows = [];
+        rows.push(['invoiceId','date','customerId','total']);
+        snapshots.forEach(snap => {
+            const d = snap.data();
+            rows.push([snap.id, d.date ? d.date.toDate().toISOString() : '', d.customerId || '', String(d.total || '')]);
+        });
+
+        const csv = rows.map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+
+        // Save to Cloud Storage
+        const bucket = admin.storage().bucket();
+        const filename = `reports/${companyId}/sales_${Date.now()}.csv`;
+        const file = bucket.file(filename);
+        await file.save(csv, { contentType: 'text/csv' });
+
+        // Make the file readable for a short time via signed URL
+        try {
+            const [url] = await file.getSignedUrl({ action: 'read', expires: Date.now() + 1000 * 60 * 60 });
+            return { success: true, url, path: filename };
+        } catch (err) {
+            // Fallback: return path (user can fetch via admin console or presigned setup)
+            return { success: true, path: filename };
+        }
+    } catch (err) {
+        console.error('[exportSalesCsv] failed', err);
+        throw new functions.https.HttpsError('internal', 'Export failed');
+    }
+});
+
 // Simple callable to check whether the caller is a platform admin.
 // The client uses this to hide/show platform admin UI. Providing this
 // callable avoids CORS/preflight errors that happen when the client

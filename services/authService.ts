@@ -4,8 +4,7 @@ import {
     onAuthStateChanged,
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
-    signOut,
-    updateProfile
+    signOut
 } from 'firebase/auth';
 import { auth } from './firebase';
 import { DEBUG_MODE } from '../config';
@@ -28,8 +27,9 @@ export const signInWithEmail = async (email: string, password: string): Promise<
         const result = await signInWithEmailAndPassword(auth, email, password);
         if (DEBUG_MODE) console.log('🟢 [AUTH] Login success:', { uid: result.user.uid, email: result.user.email });
         return result.user;
-    } catch (err: any) {
-        if (DEBUG_MODE) console.error('🔴 [AUTH] Login failure:', { email, error: err?.message || err });
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (DEBUG_MODE) console.error('🔴 [AUTH] Login failure:', { email, error: msg });
         throw err;
     }
 };
@@ -39,8 +39,9 @@ export const registerWithEmail = async (email: string, password: string): Promis
         const result = await createUserWithEmailAndPassword(auth, email, password);
         if (DEBUG_MODE) console.log('🟢 [AUTH] Register success:', { uid: result.user.uid, email: result.user.email });
         return result.user;
-    } catch (err: any) {
-        if (DEBUG_MODE) console.error('🔴 [AUTH] Register failure:', { email, error: err?.message || err });
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (DEBUG_MODE) console.error('🔴 [AUTH] Register failure:', { email, error: msg });
         throw err;
     }
 };

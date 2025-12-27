@@ -10,14 +10,14 @@ describe('DateInput', () => {
     const day = getByPlaceholderText('DD') as HTMLInputElement;
 
     // simulate paste
-    fireEvent.paste(day, { clipboardData: { getData: () => '12/03/2025' } } as any);
+    fireEvent.paste(day, { clipboardData: { getData: () => '12/03/2025' } } as unknown);
 
     // trigger blur to force commit and allow microtask
     fireEvent.blur(day);
     await Promise.resolve();
 
     expect(handle).toHaveBeenCalled();
-    const calls = handle.mock.calls as any[];
+    const calls = handle.mock.calls as unknown[];
     const last = calls[calls.length - 1][0];
     expect(last.target.value).toBe('2025-03-12');
   });
@@ -38,7 +38,7 @@ describe('DateInput', () => {
     await Promise.resolve();
 
     expect(handle).toHaveBeenCalled();
-    const calls = handle.mock.calls as any[];
+    const calls = handle.mock.calls as unknown[];
     const last = calls[calls.length - 1][0];
     expect(last.target.value).toBe('2023-11-05');
   });

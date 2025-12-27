@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { getCompanies, updateCompanyStatus } from '../../services/dataService';
+import { getCompanies } from '../../services/dataService';
 import { Company, PaginatedData } from '../../types';
 import { Card } from '../../components/ui/Card';
 import ApproveCompanyModal from './components/ApproveCompanyModal';
@@ -9,7 +9,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import TableSkeleton from '../../components/TableSkeleton';
-import { useNotification } from '../../contexts/NotificationContext';
+ 
 import { PlusIcon, BuildingOffice2Icon, ChevronLeftIcon, ChevronRightIcon, ArrowLeftOnRectangleIcon } from '@heroicons/react/24/outline';
 import CreateCompanyModal from './components/CreateCompanyModal';
 import CompanyDetailPanel from './components/CompanyDetailPanel';
@@ -29,9 +29,9 @@ const PlatformCompaniesPage: React.FC = () => {
     const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
 
     const [currentPage, setCurrentPage] = useState(1);
-    const [cursors, setCursors] = useState<any[]>([undefined]);
+    const [cursors, setCursors] = useState<unknown[]>([undefined]);
 
-    const { addNotification } = useNotification();
+    
     const { firebaseUser, signOutUser } = useAuth();
 
     const fetchCompanies = useCallback(async (page: number) => {
@@ -109,19 +109,7 @@ const PlatformCompaniesPage: React.FC = () => {
         );
     }, [companiesData.data, searchTerm]);
     
-    const totalCompanies = 0; // These would require extra reads, keep simple for now
-    const activeCompanies = 0;
     
-    const summaryStats = useMemo(() => {
-        // This is a client-side calculation based on the current page, not a total count.
-        // For total counts, a separate backend function or count query would be needed.
-        const active = companiesData.data.filter(c => (c as any).status === 'approved').length;
-        return {
-            total: companiesData.data.length,
-            active: active,
-            inactive: companiesData.data.length - active
-        };
-    }, [companiesData.data]);
 
 
     return (
@@ -163,7 +151,7 @@ const PlatformCompaniesPage: React.FC = () => {
                     />
                     <Select
                         value={filter}
-                        onChange={e => setFilter(e.target.value as any)}
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilter(e.target.value as 'all' | 'active' | 'inactive')}
                         options={[
                             { value: 'all', label: 'كل الحالات' },
                             { value: 'active', label: 'نشطة' },
@@ -202,9 +190,14 @@ const PlatformCompaniesPage: React.FC = () => {
                                             <td className="px-6 py-4 whitespace-nowrap font-medium">{company.companyName}</td>
                                             <td className="px-6 py-4 whitespace-nowrap">{company.email}</td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <Badge variant={(company as any).status === 'approved' ? 'success' : 'default'}>
-                                                    {(company as any).status === 'approved' ? 'معتمدة' : ((company as any).status === 'pending' ? 'قيد المراجعة' : 'مرفوضة')}
-                                                </Badge>
+                                                {(() => {
+                                                    const status = ((company as unknown) as Record<string, unknown>)['status'] as string | undefined;
+                                                    return (
+                                                        <Badge variant={status === 'approved' ? 'success' : 'default'}>
+                                                            {status === 'approved' ? 'معتمدة' : (status === 'pending' ? 'قيد المراجعة' : 'مرفوضة')}
+                                                        </Badge>
+                                                    );
+                                                })()}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 {company.createdAt?.toDate ? company.createdAt.toDate().toLocaleDateString('ar-EG') : 'N/A'}
@@ -213,7 +206,7 @@ const PlatformCompaniesPage: React.FC = () => {
                                                 <div className="flex items-center gap-2">
                                                     <Button variant="ghost" size="sm" onClick={() => setSelectedCompany(company)}>عرض التفاصيل</Button>
                                                     <Button variant="secondary" size="sm" onClick={() => openApprovalModal(company)}>
-                                                        {(company as any).status === 'approved' ? 'رفض' : 'موافقة'}
+                                                        {(((company as unknown) as Record<string, unknown>)['status'] as string | undefined) === 'approved' ? 'رفض' : 'موافقة'}
                                                     </Button>
                                                 </div>
                                             </td>
@@ -228,15 +221,16 @@ const PlatformCompaniesPage: React.FC = () => {
                                 <Card key={company.id} padding="sm">
                                     <div className="flex justify-between items-start mb-2">
                                         <h3 className="font-bold text-lg">{company.companyName}</h3>
-                                        <Badge variant={(company as any).status === 'approved' ? 'success' : 'default'}>
-                                            {(company as any).status === 'approved' ? 'معتمدة' : ((company as any).status === 'pending' ? 'قيد المراجعة' : 'مرفوضة')}
-                                        </Badge>
+                                        {(() => {
+                                            const status = ((company as unknown) as Record<string, unknown>)['status'] as string | undefined;
+                                            return (<Badge variant={status === 'approved' ? 'success' : 'default'}>{status === 'approved' ? 'معتمدة' : (status === 'pending' ? 'قيد المراجعة' : 'مرفوضة')}</Badge>);
+                                        })()}
                                     </div>
                                     <p className="text-sm text-gray-500">{company.email}</p>
                                     <div className="flex gap-2 mt-3 border-t border-gray-200 dark:border-gray-700 pt-3">
                                         <Button variant="secondary" size="sm" className="flex-1" onClick={() => setSelectedCompany(company)}>تفاصيل</Button>
-                                        <Button variant="ghost" size="sm" className="flex-1" onClick={() => openApprovalModal(company)}>
-                                            {(company as any).status === 'approved' ? 'رفض' : 'موافقة'}
+                                            <Button variant="ghost" size="sm" className="flex-1" onClick={() => openApprovalModal(company)}>
+                                            {(((company as unknown) as Record<string, unknown>)['status'] as string | undefined) === 'approved' ? 'رفض' : 'موافقة'}
                                         </Button>
                                     </div>
                                 </Card>

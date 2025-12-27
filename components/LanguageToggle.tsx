@@ -1,7 +1,7 @@
 import React from 'react';
 import { useSettings } from '../contexts/SettingsContext';
 import { Button } from './ui/Button';
-import { t } from '../services/i18n';
+// i18n helper imported where needed; not required here
 
 const LanguageToggle: React.FC = () => {
   const { settings, updateSettings } = useSettings();

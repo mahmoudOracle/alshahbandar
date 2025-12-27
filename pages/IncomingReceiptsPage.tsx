@@ -6,15 +6,18 @@ import TableSkeleton from '../components/TableSkeleton';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { getSuppliers, getProducts, saveIncomingReceipt } from '../services/dataService';
+import { Supplier, Product } from '../types';
+import { mapFirestoreError } from '../services/firebaseErrors';
 
 const IncomingReceiptsPage: React.FC = () => {
   const { activeCompanyId, user } = useAuth();
   const { addNotification } = useNotification();
   const [loading, setLoading] = useState(true);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string | undefined>();
-  const [items, setItems] = useState<any[]>([]);
+  type ReceiptItem = { productId: string; productName: string; quantityReceived: number; note?: string };
+  const [items, setItems] = useState<ReceiptItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [productSearch, setProductSearch] = useState('');
 
@@ -26,8 +29,8 @@ const IncomingReceiptsPage: React.FC = () => {
       setSuppliers(supRes.data || []);
       const prodRes = await getProducts(activeCompanyId, { limit: 500 });
       setProducts(prodRes.data || []);
-    } catch (err: any) {
-      addNotification(err?.message || 'Failed to load data', 'error');
+    } catch (err: unknown) {
+      addNotification(mapFirestoreError(err), 'error');
     } finally { setLoading(false); }
   };
 
@@ -35,12 +38,14 @@ const IncomingReceiptsPage: React.FC = () => {
 
   const filteredProducts = useMemo(() => products.filter(p => (p.name || '').toLowerCase().includes(productSearch.toLowerCase())), [products, productSearch]);
 
-  const addItem = (product?: any) => {
-    setItems(prev => [...prev, { productId: product?.id || '', productName: product?.name || '', quantityReceived: 1, note: '' }]);
+  const addItem = (product?: unknown) => {
+    const prod = product;
+    setItems(prev => [...prev, { productId: prod?.id || '', productName: String(prod?.name || ''), quantityReceived: 1, note: '' }]);
   };
 
-  const updateItem = (index: number, changes: any) => {
-    setItems(prev => prev.map((it, i) => i === index ? { ...it, ...changes } : it));
+  const updateItem = (index: number, changes: unknown) => {
+    const changesTyped = changes as Partial<ReceiptItem>;
+    setItems(prev => prev.map((it, i) => i === index ? { ...it, ...changesTyped } : it));
   };
 
   const removeItem = (index: number) => setItems(prev => prev.filter((_, i) => i !== index));
@@ -56,12 +61,12 @@ const IncomingReceiptsPage: React.FC = () => {
         products: items.map(it => ({ productId: it.productId, productName: it.productName, quantityReceived: Number(it.quantityReceived), note: it.note })),
         receivedBy: user?.uid,
       };
-      await saveIncomingReceipt(activeCompanyId, payload as any);
+      await saveIncomingReceipt(activeCompanyId, payload as unknown);
       addNotification('Receipt saved and stock updated', 'success');
       setSelectedSupplierId(undefined);
       setItems([]);
-    } catch (err: any) {
-      addNotification(err?.message || 'Failed to save receipt', 'error');
+    } catch (err: unknown) {
+      addNotification(mapFirestoreError(err), 'error');
     } finally { setSubmitting(false); }
   };
 

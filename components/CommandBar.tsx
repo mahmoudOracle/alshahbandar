@@ -1,13 +1,13 @@
 
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-    HomeIcon, DocumentTextIcon, UsersIcon, ArchiveBoxIcon, Cog6ToothIcon, DocumentPlusIcon, 
-    ArrowPathIcon, CurrencyDollarIcon, ChartPieIcon, DocumentDuplicateIcon, MagnifyingGlassIcon 
+    HomeIcon, DocumentTextIcon, UsersIcon, ArchiveBoxIcon, DocumentPlusIcon, 
+    CurrencyDollarIcon, MagnifyingGlassIcon 
 } from '@heroicons/react/24/outline';
 import { getInvoices, getCustomers, getExpenses } from '../services/dataService';
-import { Invoice, Customer, Expense } from '../types';
+// types intentionally omitted where unused
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import { Spinner } from './Spinner';
 

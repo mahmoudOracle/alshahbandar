@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Company } from '../../../types';
-import { createCompany, getDataSourceType } from '../../../services/dataService';
+import { createCompany } from '../../../services/dataService';
 import { useNotification } from '../../../contexts/NotificationContext';
 import { Modal } from '../../../components/ui/Modal';
 import { Button } from '../../../components/ui/Button';
@@ -82,9 +82,10 @@ const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({ isOpen, onClose
             console.log("[DEBUG][CreateCompany] Firestore write success", newCompany);
             onCompanyCreated(newCompany);
             resetForm();
-        } catch (error: any) {
-            console.error("[DEBUG][CreateCompany] Firestore write error", error);
-            if (error.code === 'already-exists') {
+        } catch (error: unknown) {
+            console.error("[DEBUG][CreateCompany] Firestore write error", error instanceof Error ? error.message : String(error));
+            const code = (error as Record<string, unknown>)?.code as string | undefined;
+            if (code === 'already-exists') {
                 setErrors(prev => ({ ...prev, companyId: 'معرف الشركة هذا مستخدم بالفعل.' }));
             } else {
                 addNotification(mapFirestoreError(error), 'error');

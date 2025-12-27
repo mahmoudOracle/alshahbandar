@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getRecurringInvoices, deleteRecurringInvoice } from '../services/dataService';
-import { RecurringInvoice, Frequency } from '../types';
+import { RecurringInvoice } from '../types';
 import { PlusIcon, PencilIcon, TrashIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import TableSkeleton from '../components/TableSkeleton';
 import EmptyState from '../components/EmptyState';

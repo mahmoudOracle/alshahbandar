@@ -4,7 +4,7 @@ import * as dataService from '../../services/dataService';
 import { useNotification } from '../../contexts/NotificationContext';
 
 const AdminAuditPage: React.FC = () => {
-    const [actions, setActions] = useState<any[]>([]);
+    const [actions, setActions] = useState<Record<string, unknown>[]>([]);
     const [loading, setLoading] = useState(false);
     const { addNotification } = useNotification();
 
@@ -40,15 +40,20 @@ const AdminAuditPage: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y">
-                            {actions.map(a => (
-                                <tr key={a.id}>
-                                    <td className="px-4 py-2">{a.createdAt?.toDate ? a.createdAt.toDate().toLocaleString() : ''}</td>
-                                    <td className="px-4 py-2">{a.adminUid}</td>
-                                    <td className="px-4 py-2">{a.action}</td>
-                                    <td className="px-4 py-2">{a.companyId}</td>
-                                    <td className="px-4 py-2">{a.note}</td>
-                                </tr>
-                            ))}
+                            {actions.map(a => {
+                                const rec = a as Record<string, unknown>;
+                                const createdAtVal = rec['createdAt'];
+                                const createdAtText = createdAtVal && (createdAtVal as { toDate?: () => Date }).toDate ? (createdAtVal as { toDate: () => Date }).toDate().toLocaleString() : '';
+                                return (
+                                    <tr key={String(rec['id'])}>
+                                        <td className="px-4 py-2">{createdAtText}</td>
+                                        <td className="px-4 py-2">{String(rec['adminUid'] ?? '')}</td>
+                                        <td className="px-4 py-2">{String(rec['action'] ?? '')}</td>
+                                        <td className="px-4 py-2">{String(rec['companyId'] ?? '')}</td>
+                                        <td className="px-4 py-2">{String(rec['note'] ?? '')}</td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                     {loading && <div className="p-4">جارٍ التحميل...</div>}

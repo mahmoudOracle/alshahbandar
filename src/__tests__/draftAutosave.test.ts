@@ -3,7 +3,7 @@ import { saveDraft, loadDraft, clearDraft, debounceSaveDraft } from '../utils/dr
 describe('draftAutosave util', () => {
   const key = 'test:draft:key';
   afterEach(() => {
-    try { localStorage.removeItem(key); } catch (e) {}
+    try { localStorage.removeItem(key); } catch (e) { void e; }
   });
 
   test('save and load draft', () => {

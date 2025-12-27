@@ -44,8 +44,9 @@ const Dashboard: React.FC = () => {
         setPayments(paymentsRes.data || []);
         setExpenses(expensesRes.data || []);
         setProducts(productsRes.data || []);
-      } catch (error: any) {
-        console.error("Failed to fetch dashboard data:", { message: error.message, code: error.code });
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error("Failed to fetch dashboard data:", { message: msg });
         addNotification("فشل تحميل بيانات الملخص.", "error");
       } finally {
         setLoading(false);
@@ -115,7 +116,7 @@ const Dashboard: React.FC = () => {
   }, [payments, expenses]);
 
 
-  const [Recharts, setRecharts] = useState<any | null>(null);
+  const [Recharts, setRecharts] = useState<unknown | null>(null);
 
   useEffect(() => {
     let mounted = true;

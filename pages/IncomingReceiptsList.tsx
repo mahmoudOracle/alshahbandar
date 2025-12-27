@@ -8,7 +8,7 @@ import { useLocation } from 'react-router-dom';
 const IncomingReceiptsList: React.FC = () => {
   const { activeCompanyId } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [receipts, setReceipts] = useState<any[]>([]);
+  const [receipts, setReceipts] = useState<Record<string, unknown>[]>([]);
   const location = useLocation();
   const [supplierName, setSupplierName] = useState('');
 
@@ -54,14 +54,22 @@ const IncomingReceiptsList: React.FC = () => {
             <th className="px-4 py-2 text-right">التاريخ</th>
           </tr></thead>
           <tbody>
-            {receipts.map(r => (
-              <tr key={r.id} className="hover:bg-gray-50">
-                <td className="px-4 py-2"><a href={`#/receipts/${r.id}`} className="text-primary-600">{r.receiptId || r.id}</a></td>
-                <td className="px-4 py-2">{r.supplierName}</td>
-                <td className="px-4 py-2">{(r.products || []).length}</td>
-                <td className="px-4 py-2">{r.receivedAt ? new Date(r.receivedAt.seconds * 1000).toLocaleString() : '-'}</td>
-              </tr>
-            ))}
+            {receipts.map(r => {
+              const item = r as Record<string, unknown>;
+              const id = item['id'] as string | undefined;
+              const receiptId = (item['receiptId'] as string) || id;
+              const supplierNameVal = item['supplierName'] as string | undefined;
+              const products = item['products'] as unknown[] | undefined;
+              const receivedAt = item['receivedAt'] as Record<string, unknown> | undefined;
+              return (
+                <tr key={id} className="hover:bg-gray-50">
+                  <td className="px-4 py-2"><a href={`#/receipts/${id}`} className="text-primary-600">{receiptId}</a></td>
+                  <td className="px-4 py-2">{supplierNameVal}</td>
+                  <td className="px-4 py-2">{(products || []).length}</td>
+                  <td className="px-4 py-2">{receivedAt ? new Date(((receivedAt['seconds'] as unknown) as number) * 1000).toLocaleString() : '-'}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

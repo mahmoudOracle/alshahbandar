@@ -6,7 +6,6 @@ admin.initializeApp();
 const db = admin.firestore();
 
 const OWNER_EMAIL = 'hoodaalwamry@gmail.com';
-const OWNER_UID = null; // Fill this with the user's UID if known
 
 async function grantOwnerPermissions() {
   // Find user by email

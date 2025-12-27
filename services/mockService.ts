@@ -4,7 +4,7 @@
 import {
   Customer, Product, Invoice, Payment, Settings, Expense, Quote, RecurringInvoice,
   UserRole, StoredExpenseCategory, StoredVendor, InvoiceStatus,
-  PaymentType, QuoteStatus, Frequency, PaginatedData, CompanyUser, CompanyInvitation, CompanyMembership
+    PaymentType, PaginatedData, CompanyUser, CompanyInvitation, CompanyMembership
 } from '../types';
 import { User } from 'firebase/auth';
 
@@ -97,7 +97,7 @@ export const seedData = async (companyId: string) => {
 
 // --- Mock Service Implementation ---
 
-export function initialize(firebaseConfig: any) {
+export function initialize(_firebaseConfig: unknown) {
     // This is a no-op for the mock service but is required for type compatibility.
 }
 
@@ -107,8 +107,9 @@ const findAndClone = <T extends {id: string}>(repo: T[], id: string): T | undefi
 };
 
 const saveAndClone = <T extends {id?: string}>(repo: T[], item: Omit<T, 'id'> | T): T => {
-    if ('id' in item && item.id) {
-        const index = repo.findIndex(x => (x as any).id === item.id);
+    if ('id' in item && (item as {id?: string}).id) {
+        const id = (item as {id?: string}).id as string;
+        const index = repo.findIndex(x => (x as {id?: string}).id === id);
         if (index > -1) {
             repo[index] = deepClone(item as T);
             return repo[index];
@@ -128,7 +129,7 @@ const deleteById = <T extends {id: string}>(repo: T[], id: string): boolean => {
     return false;
 };
 
-const paginate = <T>(items: T[], options: { limit?: number; startAfter?: number } = {}): PaginatedData<T> => {
+const paginate = <T>(items: T[], _options: { limit?: number; startAfter?: number } = {}): PaginatedData<T> => {
     const sortedItems = [...items].reverse();
     return { data: deepClone(sortedItems) };
 };
@@ -154,27 +155,27 @@ export const getCompanyMemberships = async (uid: string): Promise<CompanyMembers
     return [];
 };
 
-export const resolveFirstLogin = async (user: User): Promise<{ success: boolean; message?: string }> => {
+export const resolveFirstLogin = async (_user: User): Promise<{ success: boolean; message?: string }> => {
     await delay(100);
     // No-op for mock, but return a compatible shape. Tests/dev environment can override if needed.
     return { success: false };
 };
 
 // --- USER MANAGEMENT (MOCK) ---
-export const getCompanyUsers = async (companyId: string): Promise<CompanyUser[]> => { await delay(100); return deepClone(companyUsers); };
-export const getPendingInvitations = async (companyId: string): Promise<CompanyInvitation[]> => { await delay(100); return deepClone(invitations); };
-export const inviteUser = async (companyId: string, email: string, role: UserRole, invitedBy: { uid: string; email: string; }) => {
+export const getCompanyUsers = async (_companyId: string): Promise<CompanyUser[]> => { await delay(100); return deepClone(companyUsers); };
+export const getPendingInvitations = async (_companyId: string): Promise<CompanyInvitation[]> => { await delay(100); return deepClone(invitations); };
+export const inviteUser = async (_companyId: string, email: string, role: UserRole, invitedBy: { uid: string; email: string; }) => {
     await delay(150);
     const inv: CompanyInvitation = { id: `inv_${Date.now()}`, email, emailLower: (email || '').trim().toLowerCase(), role, invitedByUid: invitedBy.uid, invitedByEmail: invitedBy.email, createdAt: new Date(), used: false };
     return saveAndClone(invitations, inv);
 };
-export const deleteInvitation = async (companyId: string, invitationId: string) => { await delay(150); return deleteById(invitations, invitationId); };
-export const updateUserRole = async (companyId: string, userId: string, role: UserRole) => {
+export const deleteInvitation = async (_companyId: string, invitationId: string) => { await delay(150); return deleteById(invitations, invitationId); };
+export const updateUserRole = async (_companyId: string, userId: string, role: UserRole) => {
     await delay(150);
     const user = companyUsers.find(u => u.uid === userId);
     if (user) user.role = role;
 };
-export const removeUserFromCompany = async (companyId: string, userId: string) => { 
+export const removeUserFromCompany = async (_companyId: string, userId: string) => { 
     await delay(150);
     const index = companyUsers.findIndex(u => u.uid === userId);
     if (index > -1) {
@@ -186,22 +187,22 @@ export const removeUserFromCompany = async (companyId: string, userId: string) =
 
 
 // --- Data implementation ---
-export const getCustomers = async (companyId: string, options: any = {}): Promise<PaginatedData<Customer>> => { await delay(100); return paginate(customers, options); };
-export const getCustomerById = async (companyId: string, id: string): Promise<Customer | undefined> => { await delay(50); return findAndClone(customers, id); };
-export const saveCustomer = async (companyId: string, customer: Omit<Customer, 'id' | 'createdAt'> | Customer) => {
+export const getCustomers = async (_companyId: string, options: { limit?: number; startAfter?: number } = {}): Promise<PaginatedData<Customer>> => { await delay(100); return paginate(customers, options); };
+export const getCustomerById = async (_companyId: string, id: string): Promise<Customer | undefined> => { await delay(50); return findAndClone(customers, id); };
+export const saveCustomer = async (_companyId: string, customer: Omit<Customer, 'id' | 'createdAt'> | Customer) => {
     await delay(150);
     const saved = saveAndClone(customers, { ...customer, createdAt: new Date().toISOString() });
     return saved;
 };
 
-export const getProducts = async (companyId: string, options: any = {}): Promise<PaginatedData<Product>> => { await delay(100); return paginate(products, options); };
-export const getProductById = async (companyId: string, id: string): Promise<Product | undefined> => { await delay(50); return findAndClone(products, id); };
-export const saveProduct = async (companyId: string, product: Omit<Product, 'id'> | Product) => { await delay(150); return saveAndClone(products, product); };
-export const deleteProduct = async (companyId: string, id: string) => { await delay(150); return deleteById(products, id); };
+export const getProducts = async (_companyId: string, options: { limit?: number; startAfter?: number } = {}): Promise<PaginatedData<Product>> => { await delay(100); return paginate(products, options); };
+export const getProductById = async (_companyId: string, id: string): Promise<Product | undefined> => { await delay(50); return findAndClone(products, id); };
+export const saveProduct = async (_companyId: string, product: Omit<Product, 'id'> | Product) => { await delay(150); return saveAndClone(products, product); };
+export const deleteProduct = async (_companyId: string, id: string) => { await delay(150); return deleteById(products, id); };
 
-export const getInvoices = async (companyId: string, options: any = {}): Promise<PaginatedData<Invoice>> => { await delay(100); return paginate(invoices, options); };
-export const getInvoiceById = async (companyId: string, id: string): Promise<Invoice | undefined> => { await delay(50); return findAndClone(invoices, id); };
-export const saveInvoice = async (companyId: string, invoice: Omit<Invoice, 'id'> | Invoice) => {
+export const getInvoices = async (_companyId: string, options: { limit?: number; startAfter?: number } = {}): Promise<PaginatedData<Invoice>> => { await delay(100); return paginate(invoices, options); };
+export const getInvoiceById = async (_companyId: string, id: string): Promise<Invoice | undefined> => { await delay(50); return findAndClone(invoices, id); };
+export const saveInvoice = async (_companyId: string, invoice: Omit<Invoice, 'id'> | Invoice) => {
     await delay(150);
     if (!('id' in invoice) || !invoice.id) {
         lastInvoiceNumber++;
@@ -209,36 +210,36 @@ export const saveInvoice = async (companyId: string, invoice: Omit<Invoice, 'id'
     }
     return saveAndClone(invoices, invoice);
 };
-export const deleteInvoice = async (companyId: string, id: string) => { await delay(150); return deleteById(invoices, id); };
+export const deleteInvoice = async (_companyId: string, id: string) => { await delay(150); return deleteById(invoices, id); };
 
-export const getPayments = async (companyId: string, options: any = {}): Promise<PaginatedData<Payment>> => { await delay(100); return paginate(payments, options); };
-export const getPaymentsByCustomerId = async (companyId: string, customerId: string): Promise<PaginatedData<Payment>> => {
+export const getPayments = async (_companyId: string, options: { limit?: number; startAfter?: number } = {}): Promise<PaginatedData<Payment>> => { await delay(100); return paginate(payments, options); };
+export const getPaymentsByCustomerId = async (_companyId: string, customerId: string): Promise<PaginatedData<Payment>> => {
     await delay(100);
     const filtered = payments.filter(p => p.customerId === customerId);
     return { data: deepClone(filtered) };
 };
-export const savePayment = async (companyId: string, payment: Omit<Payment, 'id'> | Payment) => { await delay(150); return saveAndClone(payments, payment); };
+export const savePayment = async (_companyId: string, payment: Omit<Payment, 'id'> | Payment) => { await delay(150); return saveAndClone(payments, payment); };
 
-export const getSettings = async (companyId: string): Promise<Settings | null> => { await delay(50); return deepClone(settings); };
-export const saveSettings = async (companyId: string, newSettings: Settings) => {
+export const getSettings = async (_companyId: string): Promise<Settings | null> => { await delay(50); return deepClone(settings); };
+export const saveSettings = async (_companyId: string, newSettings: Settings) => {
     await delay(150);
     settings = deepClone(newSettings);
     return settings;
 };
 
-export const getExpenses = async (companyId: string, options: any = {}): Promise<PaginatedData<Expense>> => { await delay(100); return paginate(expenses, options); };
-export const getExpenseById = async (companyId: string, id: string): Promise<Expense | undefined> => { await delay(50); return findAndClone(expenses, id); };
-export const saveExpense = async (companyId: string, expense: Omit<Expense, 'id'> | Expense) => { await delay(150); return saveAndClone(expenses, expense); };
-export const deleteExpense = async (companyId: string, id: string) => { await delay(150); return deleteById(expenses, id); };
+export const getExpenses = async (_companyId: string, options: { limit?: number; startAfter?: number } = {}): Promise<PaginatedData<Expense>> => { await delay(100); return paginate(expenses, options); };
+export const getExpenseById = async (_companyId: string, id: string): Promise<Expense | undefined> => { await delay(50); return findAndClone(expenses, id); };
+export const saveExpense = async (_companyId: string, expense: Omit<Expense, 'id'> | Expense) => { await delay(150); return saveAndClone(expenses, expense); };
+export const deleteExpense = async (_companyId: string, id: string) => { await delay(150); return deleteById(expenses, id); };
 
-export const getExpenseCategories = async (companyId: string): Promise<PaginatedData<StoredExpenseCategory>> => { await delay(50); return { data: deepClone(expenseCategories) }; };
-export const saveExpenseCategory = async (companyId: string, category: Omit<StoredExpenseCategory, 'id'>) => { await delay(150); return saveAndClone(expenseCategories, category); };
-export const getVendors = async (companyId: string): Promise<PaginatedData<StoredVendor>> => { await delay(50); return { data: deepClone(vendors) }; };
-export const saveVendor = async (companyId: string, vendor: Omit<StoredVendor, 'id'>) => { await delay(150); return saveAndClone(vendors, vendor); };
+export const getExpenseCategories = async (_companyId: string): Promise<PaginatedData<StoredExpenseCategory>> => { await delay(50); return { data: deepClone(expenseCategories) }; };
+export const saveExpenseCategory = async (_companyId: string, category: Omit<StoredExpenseCategory, 'id'>) => { await delay(150); return saveAndClone(expenseCategories, category); };
+export const getVendors = async (_companyId: string): Promise<PaginatedData<StoredVendor>> => { await delay(50); return { data: deepClone(vendors) }; };
+export const saveVendor = async (_companyId: string, vendor: Omit<StoredVendor, 'id'>) => { await delay(150); return saveAndClone(vendors, vendor); };
 
-export const getQuotes = async (companyId: string, options: any = {}): Promise<PaginatedData<Quote>> => { await delay(100); return paginate(quotes, options); };
-export const getQuoteById = async (companyId: string, id: string): Promise<Quote | undefined> => { await delay(50); return findAndClone(quotes, id); };
-export const saveQuote = async (companyId: string, quote: Omit<Quote, 'id'> | Quote) => {
+export const getQuotes = async (_companyId: string, options: { limit?: number; startAfter?: number } = {}): Promise<PaginatedData<Quote>> => { await delay(100); return paginate(quotes, options); };
+export const getQuoteById = async (_companyId: string, id: string): Promise<Quote | undefined> => { await delay(50); return findAndClone(quotes, id); };
+export const saveQuote = async (_companyId: string, quote: Omit<Quote, 'id'> | Quote) => {
     await delay(150);
     if (!('id' in quote) || !quote.id) {
         lastQuoteNumber++;
@@ -247,12 +248,12 @@ export const saveQuote = async (companyId: string, quote: Omit<Quote, 'id'> | Qu
     return saveAndClone(quotes, quote);
 };
 
-export const getRecurringInvoices = async (companyId: string, options: any = {}): Promise<PaginatedData<RecurringInvoice>> => { await delay(100); return paginate(recurringInvoices, options); };
-export const getRecurringInvoiceById = async (companyId: string, id: string): Promise<RecurringInvoice | undefined> => { await delay(50); return findAndClone(recurringInvoices, id); };
-export const saveRecurringInvoice = async (companyId: string, rec: Omit<RecurringInvoice, 'id'> | RecurringInvoice) => { await delay(150); return saveAndClone(recurringInvoices, rec); };
-export const deleteRecurringInvoice = async (companyId: string, id: string) => { await delay(150); return deleteById(recurringInvoices, id); };
+export const getRecurringInvoices = async (_companyId: string, options: { limit?: number; startAfter?: number } = {}): Promise<PaginatedData<RecurringInvoice>> => { await delay(100); return paginate(recurringInvoices, options); };
+export const getRecurringInvoiceById = async (_companyId: string, id: string): Promise<RecurringInvoice | undefined> => { await delay(50); return findAndClone(recurringInvoices, id); };
+export const saveRecurringInvoice = async (_companyId: string, rec: Omit<RecurringInvoice, 'id'> | RecurringInvoice) => { await delay(150); return saveAndClone(recurringInvoices, rec); };
+export const deleteRecurringInvoice = async (_companyId: string, id: string) => { await delay(150); return deleteById(recurringInvoices, id); };
 
-export const createInvoiceFromQuote = async (companyId: string, quoteId: string) => {
+export const createInvoiceFromQuote = async (_companyId: string, quoteId: string) => {
     await delay(200);
     const quote = findAndClone(quotes, quoteId);
     if (!quote) throw new Error("Quote not found");
@@ -272,17 +273,17 @@ export const createInvoiceFromQuote = async (companyId: string, quoteId: string)
         status: InvoiceStatus.Due,
     };
 
-    return saveInvoice(companyId, newInvoiceData);
+    return saveInvoice(_companyId, newInvoiceData);
 };
 
-export const generateInvoicesFromRecurring = async (companyId: string) => {
+export const generateInvoicesFromRecurring = async (_companyId: string) => {
     await delay(200);
     return [];
 };
 
 // Dev Actions
-export const populateDummyData = async (companyId: string) => { isSeeded = false; await seedData(companyId); return true; };
-export const deleteAllCompanyData = async (companyId: string) => {
+export const populateDummyData = async (_companyId: string) => { isSeeded = false; await seedData(_companyId); return true; };
+export const deleteAllCompanyData = async (_companyId: string) => {
     customers = [];
     products = [];
     invoices = [];

@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getCompanyUsers, inviteUser, updateUserRole, removeUserFromCompany, getPendingInvitations, deleteInvitation } from '../services/dataService';
 import { useNotification } from '../contexts/NotificationContext';
 import { TrashIcon, PaperAirplaneIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
-import { useSettings } from '../contexts/SettingsContext';
+// settings not currently used here
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
@@ -19,7 +19,6 @@ const roleMap: Record<UserRole, string> = {
 
 const UserManagement: React.FC = () => {
     const { activeCompanyId, firebaseUser } = useAuth();
-    const { settings } = useSettings();
     const [users, setUsers] = useState<CompanyUser[]>([]);
     const [pendingInvitations, setPendingInvitations] = useState<CompanyInvitation[]>([]);
     const [invitationsLoading, setInvitationsLoading] = useState(false);
@@ -45,7 +44,7 @@ const UserManagement: React.FC = () => {
             } catch (invErr) {
                 // Don't fail the whole users panel if invitations callable fails.
                 console.warn('[UserManagement] Failed to load invitations, continuing with users only', invErr);
-                const msg = (invErr as any)?.message || String(invErr);
+                const msg = invErr instanceof Error ? invErr.message : String(invErr);
                 setInvitationsError(msg);
                 setPendingInvitations([]);
                 addNotification('تعذر تحميل الدعوات المعلقة. تواصل مع الدعم إذا لزم الأمر.', 'warning');
@@ -68,9 +67,9 @@ const UserManagement: React.FC = () => {
         try {
             const invitationsData = await getPendingInvitations(activeCompanyId);
             setPendingInvitations(invitationsData || []);
-        } catch (err) {
+        } catch (err: unknown) {
             console.warn('[UserManagement] retryLoadInvitations failed', err);
-            const msg = (err as any)?.message || String(err);
+            const msg = err instanceof Error ? err.message : String(err || '');
             setInvitationsError(msg);
             addNotification('تعذر تحميل الدعوات المعلقة. تواصل مع الدعم إذا لزم الأمر.', 'warning');
         } finally {

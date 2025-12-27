@@ -14,10 +14,10 @@ type State = Omit<Quote, 'id' | 'subtotal' | 'total' | 'taxAmount'>;
 
 type Action =
   | { type: 'SET_INITIAL_QUOTE'; payload: State }
-  | { type: 'UPDATE_FIELD'; payload: { field: keyof State; value: any } }
+  | { type: 'UPDATE_FIELD'; payload: { field: keyof State; value: unknown } }
   | { type: 'SET_CUSTOMER'; payload: { customer: Customer } }
   | { type: 'SET_TAX'; payload: { taxRate: number } }
-  | { type: 'UPDATE_ITEM'; payload: { index: number; field: keyof QuoteItem; value: any; products: Product[] } }
+  | { type: 'UPDATE_ITEM'; payload: { index: number; field: keyof QuoteItem; value: unknown; products: Product[] } }
   | { type: 'ADD_ITEM' }
   | { type: 'REMOVE_ITEM'; payload: { index: number } };
 
@@ -65,7 +65,7 @@ function quoteFormReducer(state: State, action: Action): State {
           item.price = product.price;
         }
       } else {
-        (item as any)[field] = value;
+        (item as Record<string, unknown>)[field as string] = value as unknown;
       }
       
       newItems[index] = item;
@@ -109,13 +109,17 @@ const QuoteForm: React.FC = () => {
         if (id) {
           const existingQuote = await getQuoteById(activeCompanyId, id);
           if (existingQuote) {
-              const { id: _id, subtotal: _sub, total: _t, taxAmount: _ta, ...quoteData } = existingQuote;
-              dispatch({ type: 'SET_INITIAL_QUOTE', payload: quoteData });
+              const quoteData = { ...existingQuote } as Record<string, unknown>;
+              delete quoteData.id;
+              delete quoteData.subtotal;
+              delete quoteData.total;
+              delete quoteData.taxAmount;
+              dispatch({ type: 'SET_INITIAL_QUOTE', payload: quoteData as State });
           }
         }
-      } catch (error: any) {
-        addNotification(mapFirestoreError(error), 'error');
-      }
+      } catch (error: unknown) {
+          addNotification(mapFirestoreError(error), 'error');
+        }
       setLoading(false);
     };
     fetchData();
@@ -138,7 +142,7 @@ const QuoteForm: React.FC = () => {
       }
   }
 
-  const handleItemChange = (index: number, field: keyof QuoteItem, value: any) => {
+  const handleItemChange = (index: number, field: keyof QuoteItem, value: unknown) => {
     dispatch({ type: 'UPDATE_ITEM', payload: { index, field, value, products } });
   };
 

@@ -5,9 +5,9 @@ import { db } from '../services/firebase';
 
 export default function DevDebugPage() {
   const { user, companyId } = useAuth();
-  const [userDoc, setUserDoc] = useState<any>(null);
-  const [companyDoc, setCompanyDoc] = useState<any>(null);
-  const [membershipDoc, setMembershipDoc] = useState<any>(null);
+  const [userDoc, setUserDoc] = useState<unknown | null>(null);
+  const [companyDoc, setCompanyDoc] = useState<unknown | null>(null);
+  const [membershipDoc, setMembershipDoc] = useState<unknown | null>(null);
   const [creating, setCreating] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [creatingProfile, setCreatingProfile] = useState(false);
@@ -32,15 +32,16 @@ export default function DevDebugPage() {
         const mRef = doc(db, 'companies', companyId, 'users', uid);
         const mSnap = await getDoc(mRef);
         setMembershipDoc(mSnap.exists() ? mSnap.data() : null);
-      } catch (e: any) {
-        setError(e?.message || String(e));
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : String(e));
       }
     };
     load();
   }, [user, companyId]);
 
   // Hide page when running in production
-  const isProd = (import.meta as any).env && (import.meta as any).env.PROD;
+  const meta = import.meta as unknown as { env?: Record<string, unknown> };
+  const isProd = Boolean(meta.env && meta.env.PROD);
   if (isProd) return <div className="p-6">Dev debug is disabled in production.</div>;
 
   return (
@@ -65,7 +66,7 @@ export default function DevDebugPage() {
         <pre className="bg-gray-100 p-3 rounded">{JSON.stringify(membershipDoc, null, 2)}</pre>
       </div>
 
-      {!( (import.meta as any).env && (import.meta as any).env.PROD ) && user && companyId && (
+      {!isProd && user && companyId && (
         <div className="mt-4">
           <h3 className="font-semibold mb-2">Dev Actions</h3>
           <p className="text-sm text-gray-600 mb-2">Create a membership document for the current user under the company (dev-only).</p>
@@ -83,9 +84,9 @@ export default function DevDebugPage() {
                   await setDoc(mRef, { uid: user.uid, role: 'owner', email: user.email || null, joinedAt: serverTimestamp() }, { merge: true });
                   setMembershipDoc({ uid: user.uid, role: 'owner', email: user.email || null, joinedAt: new Date().toISOString() });
                   setSuccess('Membership document created successfully.');
-                } catch (e: any) {
-                  setError(e?.message || String(e));
-                }
+                } catch (e: unknown) {
+                      setError(e instanceof Error ? e.message : String(e));
+                    }
                 setCreating(false);
               }}
               className="btn-primary bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
@@ -105,8 +106,8 @@ export default function DevDebugPage() {
                   await setDoc(uRef, { uid: user.uid, name: user.displayName || user.email || null, email: user.email || null, emailLower: (user.email || '')?.toLowerCase(), companyId, role: 'company_owner', createdAt: serverTimestamp() }, { merge: true });
                   setUserDoc({ uid: user.uid, name: user.displayName || user.email || null, email: user.email || null, companyId, role: 'company_owner', createdAt: new Date().toISOString() });
                   setSuccess('Top-level user profile created/updated successfully.');
-                } catch (e: any) {
-                  setError(e?.message || String(e));
+                } catch (e: unknown) {
+                  setError(e instanceof Error ? e.message : String(e));
                 }
                 setCreatingProfile(false);
               }}
@@ -127,8 +128,8 @@ export default function DevDebugPage() {
                   await setDoc(cRef, { status: 'approved', updatedAt: serverTimestamp() }, { merge: true });
                   setCompanyDoc({ ...(companyDoc || {}), status: 'approved', updatedAt: new Date().toISOString() });
                   setSuccess('Company status set to approved.');
-                } catch (e: any) {
-                  setError(e?.message || String(e));
+                } catch (e: unknown) {
+                  setError(e instanceof Error ? e.message : String(e));
                 }
                 setApprovingCompany(false);
               }}

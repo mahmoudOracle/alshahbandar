@@ -16,29 +16,28 @@ import { User } from 'firebase/auth';
 import { 
     Invoice, Customer, Product, Payment, Settings, Expense, Quote, RecurringInvoice, 
     InvoiceStatus, PaymentType, QuoteStatus, Frequency, UserRole, StoredExpenseCategory, StoredVendor, PaginatedData,
-    CompanyMembership, CompanyUser, CompanyInvitation, Company
-    , Supplier, IncomingReceipt, IncomingReceiptProduct
+    CompanyMembership, CompanyUser, CompanyInvitation, Company, IncomingReceipt
 } from '../types';
-import { db, functions, auth } from './firebase';
+import { db, functions } from './firebase';
 import * as productsRepo from './repositories/products';
 import { serverTimestamp } from 'firebase/firestore';
 import { DEBUG_MODE } from '../config';
 
 // --- Retry & Network Helpers ---
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
-const isTransientNetworkError = (err: any) => {
-    const msg = String(err?.message || '').toLowerCase();
+const isTransientNetworkError = (err: unknown) => {
+    const msg = String((err as {message?: unknown })?.message || '').toLowerCase();
     return (
         /client is offline/.test(msg) ||
         /could not reach cloud firestore backend/.test(msg) ||
         /net::err_connection_closed/.test(msg) ||
         /webchannelconnection/.test(msg) ||
-        err?.code === 'unavailable'
+        (err as {code?: unknown})?.code === 'unavailable'
     );
 };
 
 async function withRetry<T>(fn: () => Promise<T>, attempts = 3, baseDelay = 400): Promise<T> {
-    let lastErr: any = null;
+    let lastErr: unknown = null;
     for (let i = 0; i < attempts; i++) {
         try {
             return await fn();
@@ -52,7 +51,7 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 3, baseDelay = 400)
     }
     // Attach a marker for upstream handling
     if (isTransientNetworkError(lastErr)) {
-        const offlineErr: any = new Error('Failed to reach Firestore backend (client offline)');
+        const offlineErr = new Error('Failed to reach Firestore backend (client offline)') as Error & { code?: string; original?: unknown };
         offlineErr.code = 'client-offline';
         offlineErr.original = lastErr;
         throw offlineErr;
@@ -76,9 +75,10 @@ export const getCompanies = async (options: PlatformQueryOptions = {}): Promise<
     try {
         console.log('[DEBUG][AUTHZ] Calling getAdminCompanies with', { limit: queryLimit, status });
         const res = await fn({ limit: queryLimit, status });
-        const payload = res.data as any;
-        if (!payload || !payload.data) return { data: [], nextCursor: undefined };
-        const data: Company[] = payload.data.map((d: any) => ({ id: d.id, ...d }));
+        const payload = res.data as unknown;
+        if (!payload || !(payload as Record<string, unknown>)['data']) return { data: [], nextCursor: undefined };
+        const list = (payload as Record<string, unknown>)['data'] as unknown[];
+        const data: Company[] = list.map((d) => ({ id: (d as Record<string, unknown>)['id'] as string, ...(d as Record<string, unknown>) } as Company));
         return { data, nextCursor: undefined };
     } catch (err) {
         console.error('[DEBUG][AUTHZ] getAdminCompanies failed', err);
@@ -94,17 +94,18 @@ export const createCompany = async (companyData: Omit<Company, 'id' | 'ownerUid'
 
         // For consistency, we can return the company object as the client expects.
         // This is optimistic, but the function throws on failure.
-        const createdCompany: any = {
-            ...companyData,
-            ownerEmailLower: (companyData as any).ownerEmail ? (companyData as any).ownerEmail.toLowerCase() : undefined,
+        const ownerEmailLower = ((companyData as unknown) as Record<string, unknown>)['ownerEmail'] ? String(((companyData as unknown) as Record<string, unknown>)['ownerEmail']).toLowerCase() : undefined;
+        const createdCompany: Record<string, unknown> = {
+            ...(companyData as unknown as Record<string, unknown>),
+            ownerEmailLower,
             ownerUid: null,
             isActive: true,
             plan: 'free',
-            createdAt: Timestamp.now(), // This is an approximation
-            updatedAt: Timestamp.now(), // This is an approximation
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
         };
         console.log("[DEBUG][CreateCompany] Cloud function executed successfully.");
-        return createdCompany;
+        return createdCompany as unknown as Company;
 
     } catch (error) {
         console.error("[DEBUG][CreateCompany] Cloud function failed:", error);
@@ -118,7 +119,7 @@ export const updateCompanyStatus = async (companyId: string, isActive: boolean):
     try {
         console.log('[DEBUG][AUTHZ] Direct updateCompanyStatus', { companyId, isActive });
         const status = isActive ? 'approved' : 'rejected';
-        await updateCompanyStatusDirect(companyId, status as any);
+        await updateCompanyStatusDirect(companyId, status as 'approved' | 'rejected');
         console.log('[DEBUG][AUTHZ] updateCompanyStatus success', companyId);
     } catch (err) {
         console.error('[DEBUG][AUTHZ] updateCompanyStatus failed', err);
@@ -126,13 +127,14 @@ export const updateCompanyStatus = async (companyId: string, isActive: boolean):
     }
 };
 
-export const getCompanyCounts = async (companyId: string): Promise<any> => {
+export const getCompanyCounts = async (companyId: string): Promise<Record<string, number>> => {
     const fn = httpsCallable(functions, 'getCompanyCounts');
     try {
         console.log('[DEBUG][AUTHZ] Calling getCompanyCounts for', companyId);
         const res = await fn({ companyId });
-        const payload = res.data as any;
-        return payload.counts || { userCount: 0, invoiceCount: 0 };
+        const payload = res.data as unknown;
+        const counts = (payload as Record<string, unknown>)['counts'] as Record<string, number> | undefined;
+        return counts || { userCount: 0, invoiceCount: 0 };
     } catch (err) {
         console.error('[DEBUG][AUTHZ] getCompanyCounts failed', err);
         throw err;
@@ -172,7 +174,7 @@ interface QueryOptions {
     orderBy?: string;
     orderDirection?: 'asc' | 'desc';
     startAfter?: QueryDocumentSnapshot;
-    filters?: [string, "==", any][];
+    filters?: [string, "==", unknown][];
 }
 
 
@@ -262,7 +264,8 @@ const deleteData = async (companyId: string, collectionName: string, id: string,
         const fn = httpsCallable(functions, 'safeDeleteDocument');
         const res = await fn({ companyId, collectionName, id, reason: 'deleted_via_ui' });
         // Callable returns { success: true }
-        if (res && (res as any).data && (res as any).data.success) return true;
+        const callPayload = (res && (res as unknown as Record<string, unknown>)['data']) ? (res as unknown as Record<string, unknown>)['data'] : null;
+        if (callPayload && ((callPayload as Record<string, unknown>)['success'])) return true;
     } catch (err) {
         console.warn('[FIRESTORE] safeDeleteDocument callable failed, falling back to client delete', err?.message || err);
     }
@@ -280,10 +283,10 @@ export const checkIfPlatformAdmin = async (uid: string): Promise<boolean> => {
         try {
             const fn = httpsCallable(functions, 'isPlatformAdmin');
             const res = await fn({ uid });
-            const payload = (res && (res as any).data) ? (res as any).data : null;
-            if (payload && typeof payload.isAdmin === 'boolean') {
-                if (DEBUG_MODE) console.log('[DEBUG][AUTHZ] isPlatformAdmin (callable) result for', uid, payload.isAdmin);
-                return payload.isAdmin;
+            const payload = (res && (res as unknown as Record<string, unknown>)['data']) ? (res as unknown as Record<string, unknown>)['data'] : null;
+            if (payload && typeof (payload as Record<string, unknown>)['isAdmin'] === 'boolean') {
+                if (DEBUG_MODE) console.log('[DEBUG][AUTHZ] isPlatformAdmin (callable) result for', uid, (payload as Record<string, unknown>)['isAdmin']);
+                return Boolean((payload as Record<string, unknown>)['isAdmin']);
             }
         } catch (callErr) {
             if (DEBUG_MODE) console.warn('[DEBUG][AUTHZ] isPlatformAdmin callable not available or failed; falling back to client read', callErr?.message || callErr);
@@ -320,12 +323,13 @@ export const getCompanyMemberships = async (uid: string): Promise<CompanyMembers
 
     const uniqueCompanyIds = Array.from(new Set(companyIds));
     const companySnaps = await Promise.all(uniqueCompanyIds.map(id => withRetry(() => getDoc(doc(db, 'companies', id))).catch(() => null)));
-    const companyMap = new Map<string, any>();
+    const companyMap = new Map<string, unknown>();
     for (let i = 0; i < uniqueCompanyIds.length; i++) {
         const id = uniqueCompanyIds[i];
-        const snap = companySnaps[i] as any;
-        if (snap && snap.exists && snap.exists()) {
-            companyMap.set(id, snap.data());
+        const snap = companySnaps[i] as unknown;
+        const snapLike = snap as { exists?: () => boolean; data?: () => unknown };
+        if (snap && typeof snapLike.exists === 'function' && snapLike.exists()) {
+            companyMap.set(id, (snapLike.data && snapLike.data()) || undefined);
             if (DEBUG_MODE) console.log(`🟢 [FIRESTORE] Found company doc for companyId=${id}`, { id, data: snap.data() });
         } else {
             if (DEBUG_MODE) console.warn(`🟡 [FIRESTORE] Company doc not found for companyId=${id} while resolving memberships`);
@@ -373,19 +377,19 @@ export const createCompanyWithOwner = async (
         const companyId = companyRef.id;
 
         const companyData = {
-            companyName: data.companyName.trim(),
-            companyAddress: (data as any).companyAddress ? (data as any).companyAddress.trim() : '',
-            ownerName: data.ownerName.trim(),
-            phone: data.phone.trim(),
+            companyName: String((data as Record<string, unknown>)['companyName'] || '').trim(),
+            companyAddress: String((data as Record<string, unknown>)['companyAddress'] || '').trim(),
+            ownerName: String((data as Record<string, unknown>)['ownerName'] || '').trim(),
+            phone: String((data as Record<string, unknown>)['phone'] || '').trim(),
             email: email.trim(),
             emailLower: email.trim().toLowerCase(),
-            country: data.country.trim(),
-            city: data.city.trim(),
-            businessType: (data.businessType || '').trim(),
+            country: String((data as Record<string, unknown>)['country'] || '').trim(),
+            city: String((data as Record<string, unknown>)['city'] || '').trim(),
+            businessType: String((data as Record<string, unknown>)['businessType'] || '').trim(),
             status: 'pending',
             ownerUid: uid,
             createdAt: serverTimestamp(),
-        } as any;
+        };
 
         const userProfileRef = doc(db, 'users', uid);
         const membershipRef = doc(db, 'companies', companyId, 'users', uid);
@@ -433,8 +437,8 @@ export const getCompany = async (companyId: string): Promise<Company | null> => 
     if (DEBUG_MODE) console.log(`🔍 [FIRESTORE] Reading companies/${companyId}`);
     const snap = await withRetry(() => getDoc(ref));
     if (snap.exists()) {
-        if (DEBUG_MODE) console.log('🟢 [FIRESTORE] Company document found:', { companyId, data: snap.data() });
-        return ({ id: snap.id, ...(snap.data() as any) } as Company);
+    if (DEBUG_MODE) console.log('🟢 [FIRESTORE] Company document found:', { companyId, data: snap.data() });
+    return ({ id: snap.id, ...(snap.data() as unknown as Record<string, unknown>) } as Company);
     }
     if (DEBUG_MODE) console.warn('🟡 [FIRESTORE] Company document not found:', companyId);
     return null;
@@ -443,12 +447,12 @@ export const getCompany = async (companyId: string): Promise<Company | null> => 
 export const updateCompanyStatusDirect = async (companyId: string, status: 'pending' | 'approved' | 'rejected') => {
     const ref = doc(db, 'companies', companyId);
     if (DEBUG_MODE) console.log(`🔍 [FIRESTORE] updateCompanyStatusDirect: ${companyId} -> ${status}`);
-    await updateDoc(ref, { status: status, updatedAt: serverTimestamp() } as any);
+    await updateDoc(ref, { status: status, updatedAt: serverTimestamp() });
 };
 
 export const updateCompanyDetails = async (companyId: string, fields: Partial<Company>) => {
     const ref = doc(db, 'companies', companyId);
-    await updateDoc(ref, { ...fields, updatedAt: serverTimestamp() } as any);
+    await updateDoc(ref, { ...fields, updatedAt: serverTimestamp() });
 };
 
 export const logAdminAction = async (payload: { adminUid: string; companyId: string; action: string; note?: string; }) => {
@@ -465,20 +469,20 @@ export const logAdminAction = async (payload: { adminUid: string; companyId: str
 export const getAdminActions = async (limit: number = 50): Promise<any[]> => {
     const q = query(collection(db, 'adminActions'), orderBy('createdAt', 'desc'), firestoreLimit(limit));
     const snaps = await getDocs(q);
-    return snaps.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+    return snaps.docs.map(d => ({ id: d.id, ...(d.data() as unknown as Record<string, unknown>) }));
 };
 
-export const resolveFirstLogin = async (user: User): Promise<{ success: boolean; message?: string }> => {
+export const resolveFirstLogin = async (_user: User): Promise<{ success: boolean; message?: string }> => {
     try {
         const fn = httpsCallable(functions, 'resolveFirstLogin');
         console.log('[DEBUG][OwnerLink] Calling server callable resolveFirstLogin');
         const res = await fn({});
-        const payload = (res && (res as any).data) ? (res as any).data : {};
+        const payload = (res && (res as unknown as Record<string, unknown>)['data']) ? (res as unknown as Record<string, unknown>)['data'] : {};
         if (payload.success) return { success: true };
         return { success: false, message: payload.message || 'no-invitations' };
     } catch (err) {
         console.error('[DEBUG][OwnerLink] resolveFirstLogin callable failed', err);
-        return { success: false, message: (err as any).message || 'callable-failed' };
+        return { success: false, message: String(((err as unknown) as { message?: unknown })?.message ?? 'callable-failed') };
     }
 };
 
@@ -513,14 +517,14 @@ export const getPendingInvitations = async (companyId: string): Promise<CompanyI
     try {
         // Use retry wrapper for transient network issues
         const res = await withRetry(() => fn({ companyId }));
-        const payload = (res && (res as any).data) ? (res as any).data : {};
+        const payload = (res && ((res as unknown) as Record<string, unknown>)['data']) ? ((res as unknown) as Record<string, unknown>)['data'] : {};
         return (payload.invites || []) as CompanyInvitation[];
     } catch (err) {
         console.error('[DEBUG][Invite] getCompanyInvitations failed', err);
         // Provide a clearer error code when the callable is not deployed or functions not reachable
-        const msg = String((err as any)?.message || '').toLowerCase();
-        if (msg.includes('not found') || msg.includes('unimplemented') || (err as any)?.code === 'not-found') {
-            const e: any = new Error('Invitations callable not available');
+        const msg = String(((err as unknown) as { message?: unknown })?.message ?? '').toLowerCase();
+        if (msg.includes('not found') || msg.includes('unimplemented') || ((err as unknown) as { code?: unknown })?.code === 'not-found') {
+            const e = new Error('Invitations callable not available') as Error & { code?: string };
             e.code = 'callable-unavailable';
             throw e;
         }
@@ -534,8 +538,8 @@ export const inviteUser = async (companyId: string, email: string, role: UserRol
     try {
         console.log('[DEBUG][Invite] Calling createCompanyInvitation', { companyId, email, role });
         const res = await fn({ companyId, email, role, notes: null });
-        const payload = (res && (res as any).data) ? (res as any).data : {};
-        const inviteId = payload.inviteId || '';
+        const payload = (res && ((res as unknown) as Record<string, unknown>)['data']) ? ((res as unknown) as Record<string, unknown>)['data'] : {};
+        const inviteId = (payload && (payload as Record<string, unknown>)['inviteId']) ? String((payload as Record<string, unknown>)['inviteId']) : '';
         return { id: inviteId, email, emailLower: email.trim().toLowerCase(), role, invitedByUid: invitedBy.uid, invitedByEmail: invitedBy.email, createdAt: Timestamp.now(), used: false } as CompanyInvitation;
     } catch (err) {
         console.error('[DEBUG][Invite] createCompanyInvitation failed', err);
@@ -549,8 +553,8 @@ export const deleteInvitation = async (companyId: string, invitationId: string):
     try {
         console.log('[DEBUG][Invite] Calling deleteCompanyInvitation', { companyId, invitationId });
         const res = await fn({ inviteId: invitationId });
-        const payload = (res && (res as any).data) ? (res as any).data : {};
-        return payload.success === true;
+        const payload = (res && ((res as unknown) as Record<string, unknown>)['data']) ? ((res as unknown) as Record<string, unknown>)['data'] : {};
+        return (payload && (payload as Record<string, unknown>)['success'] === true) || false;
     } catch (err) {
         console.error('[DEBUG][Invite] deleteCompanyInvitation failed', err);
         throw err;
@@ -573,7 +577,7 @@ export const createOwnerCompanyCallable = async (data: { ownerFirstName: string;
     const fn = httpsCallable(functions, 'createOwnerCompany');
     try {
         const res = await fn(data);
-        const payload = (res && (res as any).data) ? (res as any).data : {};
+        const payload = (res && (res as unknown as Record<string, unknown>)['data']) ? (res as unknown as Record<string, unknown>)['data'] : {};
         return payload;
     } catch (err) {
         console.error('[DEBUG][createOwnerCompanyCallable] failed', err);
@@ -667,7 +671,7 @@ export const saveCustomer = (companyId: string, customer: Omit<Customer, 'id' | 
 
 export const getProducts = (companyId: string, options: QueryOptions = {}) => {
     // Delegate to the new tenant-aware products repository (includes simple caching)
-    return productsRepo.getProducts(companyId, options as any);
+    return productsRepo.getProducts(companyId, options as unknown as Record<string, unknown>);
 };
 export const getProductById = (companyId: string, id: string) => getById<Product>(companyId, 'products', id);
 export const saveProduct = (companyId: string, product: Omit<Product, 'id'> | Product) => saveData<Product>(companyId, 'products', product, 'products');
@@ -684,12 +688,12 @@ export const saveInvoice = async (companyId: string, invoice: Omit<Invoice, 'id'
     }
     // Compute subtotal and taxes
     invoiceToSave.subtotal = invoiceToSave.items.reduce((sum, item) => sum + item.quantity * item.price, 0);
-    const taxRate = typeof (invoiceToSave as any).taxRate === 'number' ? (invoiceToSave as any).taxRate : (invoiceToSave.taxRate ?? 0);
+    const taxRate = typeof (invoiceToSave as Record<string, unknown>)['taxRate'] === 'number' ? Number((invoiceToSave as Record<string, unknown>)['taxRate']) : (invoiceToSave.taxRate ?? 0);
     const taxAmount = Math.round((invoiceToSave.subtotal * (taxRate / 100)) * 100) / 100; // round to 2 decimals
     invoiceToSave.taxRate = taxRate;
     invoiceToSave.taxAmount = taxAmount;
     invoiceToSave.total = Math.round((invoiceToSave.subtotal + taxAmount) * 100) / 100;
-    console.log('[DEBUG][InvoiceSave]', { companyId, invoiceId: (invoiceToSave as any).id, subtotal: invoiceToSave.subtotal, taxRate: invoiceToSave.taxRate, taxAmount: invoiceToSave.taxAmount, total: invoiceToSave.total });
+    console.log('[DEBUG][InvoiceSave]', { companyId, invoiceId: (invoiceToSave as Record<string, unknown>)['id'], subtotal: invoiceToSave.subtotal, taxRate: invoiceToSave.taxRate, taxAmount: invoiceToSave.taxAmount, total: invoiceToSave.total });
 
     if ('id' in invoiceToSave && invoiceToSave.id) { // This is an update
         const oldInvoice = await getInvoiceById(companyId, invoiceToSave.id);
@@ -703,15 +707,15 @@ export const saveInvoice = async (companyId: string, invoice: Omit<Invoice, 'id'
 };
 
 export const duplicateLastInvoice = async (companyId: string): Promise<Invoice> => {
-    const res = await getInvoices(companyId, { limit: 1, orderBy: 'createdAt', orderDirection: 'desc' });
-    const last = (res && (res as any).data && (res as any).data.length) ? (res as any).data[0] as Invoice : null;
+    const res = await getInvoices(companyId, { limit: 1, orderBy: 'createdAt', orderDirection: 'desc' }) as unknown;
+    const last = ((res as PaginatedData<Invoice> | undefined)?.data && (res as PaginatedData<Invoice>).data.length) ? (res as PaginatedData<Invoice>).data[0] as Invoice : null;
     if (!last) throw new Error('No invoices available to duplicate');
-    const clone: any = { ...last };
-    delete clone.id;
-    delete clone.invoiceNumber;
-    delete clone.createdAt;
-    delete clone.updatedAt;
-    clone.date = Timestamp.now();
+    const cloneObj: Record<string, unknown> = { ...(last as unknown as Record<string, unknown>) };
+    delete cloneObj.id;
+    delete cloneObj.invoiceNumber;
+    delete cloneObj.createdAt;
+    delete cloneObj.updatedAt;
+    (cloneObj as Record<string, unknown>)['date'] = Timestamp.now();
     // Use existing saveInvoice which will assign a new invoice number and perform stock adjustments
     return saveInvoice(companyId, clone as Omit<Invoice, 'id'>);
 };
@@ -719,13 +723,13 @@ export const duplicateLastInvoice = async (companyId: string): Promise<Invoice> 
 export const duplicateInvoice = async (companyId: string, invoiceId: string): Promise<Invoice> => {
     const inv = await getInvoiceById(companyId, invoiceId);
     if (!inv) throw new Error('Invoice not found');
-    const clone: any = { ...inv };
-    delete clone.id;
-    delete clone.invoiceNumber;
-    delete clone.createdAt;
-    delete clone.updatedAt;
-    clone.date = Timestamp.now();
-    return saveInvoice(companyId, clone as Omit<Invoice, 'id'>);
+    const cloneObj: Record<string, unknown> = { ...(inv as unknown as Record<string, unknown>) };
+    delete cloneObj.id;
+    delete cloneObj.invoiceNumber;
+    delete cloneObj.createdAt;
+    delete cloneObj.updatedAt;
+    (cloneObj as Record<string, unknown>)['date'] = Timestamp.now();
+    return saveInvoice(companyId, cloneObj as unknown as Omit<Invoice, 'id'>);
 };
 
 export const deleteInvoice = async (companyId: string, id: string): Promise<boolean> => {
@@ -733,7 +737,8 @@ export const deleteInvoice = async (companyId: string, id: string): Promise<bool
     try {
         const fn = httpsCallable(functions, 'safeDeleteDocument');
         const res = await fn({ companyId, collectionName: 'invoices', id, reason: 'deleted_via_ui' });
-        return Boolean(res && (res as any).data && (res as any).data.success) || Boolean((res as any).data?.success) || true;
+        const payload = (res && ((res as unknown) as Record<string, unknown>)['data']) ? ((res as unknown) as Record<string, unknown>)['data'] : {};
+        return Boolean(payload && (payload as Record<string, unknown>)['success']) || false;
     } catch (err) {
         console.error('[FIRESTORE] safeDeleteDocument failed', err);
         // Fallback to client-side delete if callable not available, but still perform stock correction.
@@ -803,12 +808,55 @@ export const saveSupplier = async (companyId: string, supplier: Omit<any, 'id'> 
         supplierName: String(supplier.supplierName).trim(),
         supplierNameLower: nameLower,
         createdAt: supplier.createdAt || serverTimestamp(),
-    } as any;
+    } as unknown as Record<string, unknown>;
 
-    return saveData<any>(companyId, 'suppliers', toSave, 'products');
+    return saveData<Record<string, unknown>>(companyId, 'suppliers', toSave, 'products');
 }
 
 export const deleteSupplier = (companyId: string, id: string) => deleteData(companyId, 'suppliers', id, 'products');
+
+// --- Reports ---
+export const getSalesSummary = async (companyId: string): Promise<{ totalSales: number; invoiceCount: number } | null> => {
+    // Prefer server-side callable for performance and cost control.
+    try {
+        try {
+            const fn = httpsCallable(functions, 'getSalesSummary');
+            const res = await fn({ companyId });
+            const payload = res && ((res as unknown) as Record<string, unknown>)['data'] ? ((res as unknown) as Record<string, unknown>)['data'] : res;
+            if (payload && typeof payload.totalSales !== 'undefined') return payload;
+        } catch (callErr) {
+            // Callable may not be deployed in some environments; fall back to client-side aggregation
+            if (typeof callErr?.message === 'string') console.warn('[REPORTS] callable getSalesSummary not available, falling back:', callErr.message);
+        }
+
+        // Fallback: compute a basic summary by fetching recent invoices (limited to 500 for cost control).
+        const res = await getInvoices(companyId, { limit: 500, orderBy: 'date', orderDirection: 'desc' }) as unknown;
+        const invoices = (res && (res as PaginatedData<Invoice>).data) ? (res as PaginatedData<Invoice>).data : [];
+        const totalSales = invoices.reduce((s: number, inv: Invoice) => s + (Number(inv.total) || 0), 0);
+        return { totalSales, invoiceCount: invoices.length };
+    } catch (err) {
+        console.warn('[REPORTS] getSalesSummary failed', err);
+        return null;
+    }
+};
+
+export const exportSalesCsv = async (companyId: string, from?: string, to?: string): Promise<{ success: boolean; url?: string; path?: string } | null> => {
+    try {
+        // Prefer server callable
+        try {
+            const fn = httpsCallable(functions, 'exportSalesCsv');
+            const res = await fn({ companyId, from, to });
+            const payload = res && (res as any).data ? (res as any).data : res;
+            return payload;
+        } catch (callErr) {
+            console.warn('[REPORTS] exportSalesCsv callable not available', callErr?.message || callErr);
+            return null;
+        }
+    } catch (err) {
+        console.warn('[REPORTS] exportSalesCsv failed', err);
+        return null;
+    }
+};
 
 // --- Incoming Receipts (Supplier receiving) ---
 export const getIncomingReceipts = (companyId: string, options: QueryOptions = {}) => getData<IncomingReceipt>(companyId, 'incomingReceipts', { orderBy: 'receivedAt', ...options });
@@ -830,7 +878,7 @@ export const saveIncomingReceipt = async (companyId: string, receipt: Omit<Incom
 
     // Run transaction to create receipt and update product stocks atomically
     const receiptRef = doc(getCollectionRef(companyId, 'incomingReceipts'));
-    const idempotencyKey = (receipt as any).idempotencyKey;
+    const idempotencyKey = ((receipt as unknown) as Record<string, unknown>)['idempotencyKey'] as string | undefined;
     const keyRef = idempotencyKey ? doc(db, 'companies', companyId, 'incomingReceiptKeys', idempotencyKey) : null;
 
     try {
@@ -839,9 +887,8 @@ export const saveIncomingReceipt = async (companyId: string, receipt: Omit<Incom
             if (keyRef) {
                 const keySnap = await tx.get(keyRef);
                 if (keySnap.exists()) {
-                    // Return early by throwing a specific error (caller can map to duplicate)
-                    const existingReceiptId = keySnap.data()?.receiptId;
-                    const e: any = new Error('Duplicate submission');
+                    const existingReceiptId = ((keySnap.data() as unknown) as Record<string, unknown>)['receiptId'];
+                    const e = new Error('Duplicate submission') as Error & { code?: string; existingReceiptId?: unknown };
                     e.code = 'duplicate-receipt';
                     e.existingReceiptId = existingReceiptId;
                     throw e;
@@ -860,17 +907,17 @@ export const saveIncomingReceipt = async (companyId: string, receipt: Omit<Incom
                 if (!prodSnap.exists()) throw new Error(`Product not found: ${itm.productId}`);
                 const currentStock = prodSnap.data().stock || 0;
                 const newStock = currentStock + Math.abs(itm.quantityReceived);
-                tx.update(prodRef, { stock: newStock, updatedAt: Timestamp.now() } as any);
+                tx.update(prodRef, { stock: newStock, updatedAt: Timestamp.now() } as unknown as Record<string, unknown>);
                 console.log('🟢 Stock updated for product:', itm.productId);
             }
 
             // Create receipt document
             const payload = {
                 ...receipt,
-                supplierName: supSnap.data().supplierName || null,
+                supplierName: ((supSnap.data() as unknown) as Record<string, unknown>)['supplierName'] || null,
                 receivedAt: serverTimestamp(),
                 createdAt: serverTimestamp(),
-            } as any;
+            } as unknown as Record<string, unknown>;
 
             tx.set(receiptRef, payload);
 
@@ -889,6 +936,43 @@ export const saveIncomingReceipt = async (companyId: string, receipt: Omit<Incom
     }
 }
 
+// --- Drafts (client-side editable drafts backed by Firestore) ---
+export const saveDraft = async (companyId: string, key: string, payload: any): Promise<{ id: string; key: string }> => {
+    ensureWriteAllowed('invoices');
+    const docRef = doc(db, 'companies', companyId, 'drafts', key);
+    const toSave = {
+        key,
+        payload,
+        updatedAt: serverTimestamp()
+    } as unknown as Record<string, unknown>;
+    await setDoc(docRef, toSave, { merge: true });
+    return { id: key, key };
+};
+
+export const getDraft = async (companyId: string, key: string): Promise<unknown | null> => {
+    try {
+        const docRef = doc(db, 'companies', companyId, 'drafts', key);
+        const snap = await getDoc(docRef);
+        if (!snap.exists()) return null;
+        const data = snap.data() as unknown as Record<string, unknown>;
+        return data.payload ?? null;
+    } catch (err) {
+        console.warn('[FIRESTORE] getDraft failed', err);
+        return null;
+    }
+};
+
+export const deleteDraft = async (companyId: string, key: string): Promise<boolean> => {
+    try {
+        const docRef = doc(db, 'companies', companyId, 'drafts', key);
+        await deleteDoc(docRef);
+        return true;
+    } catch (err) {
+        console.warn('[FIRESTORE] deleteDraft failed', err);
+        return false;
+    }
+};
+
 // Edit existing receipt: compute deltas and apply atomically
 export const editIncomingReceipt = async (companyId: string, receiptId: string, updated: Omit<IncomingReceipt, 'id'> | IncomingReceipt): Promise<IncomingReceipt> => {
     ensureWriteAllowed('products');
@@ -900,7 +984,7 @@ export const editIncomingReceipt = async (companyId: string, receiptId: string, 
         await runTransaction(db, async (tx) => {
             const oldSnap = await tx.get(receiptRef);
             if (!oldSnap.exists()) throw new Error('Receipt not found');
-            const old = oldSnap.data() as any;
+            const old = oldSnap.data() as Record<string, unknown>;
 
             // Validate updated payload
             if (!updated.supplierId) throw new Error('Cannot save receipt without supplier');
@@ -928,12 +1012,12 @@ export const editIncomingReceipt = async (companyId: string, receiptId: string, 
                 const currentStock = prodSnap.data().stock || 0;
                 const newStock = currentStock + delta;
                 if (newStock < 0) throw new Error(`Insufficient stock for product ${pid}. Current: ${currentStock}, delta: ${delta}`);
-                tx.update(prodRef, { stock: newStock, updatedAt: Timestamp.now() } as any);
+                tx.update(prodRef, { stock: newStock, updatedAt: Timestamp.now() } as unknown as Record<string, unknown>);
                 console.log('🟢 Stock updated for product (edit):', pid, 'delta', delta);
             }
 
             // Update the receipt document
-            const payload = { ...updated, updatedAt: serverTimestamp() } as any;
+            const payload = { ...updated, updatedAt: serverTimestamp() } as unknown as Record<string, unknown>;
             tx.set(receiptRef, payload, { merge: true });
         });
 
@@ -987,10 +1071,10 @@ export const saveGoodsReceipt = async (companyId: string, receipt: { supplierId:
                 if (!pSnap.exists()) throw new Error(`Product not found: ${it.productId}`);
                 const currentStock = pSnap.data().stock || 0;
                 const newStock = currentStock + Number(it.quantity || 0);
-                tx.update(pRef, { stock: newStock, updatedAt: Timestamp.now() } as any);
+                tx.update(pRef, { stock: newStock, updatedAt: Timestamp.now() } as unknown as Record<string, unknown>);
             }
 
-            const payload = { supplierId: receipt.supplierId, supplierName: supSnap.data().name || null, items: receipt.items, receivedAt: serverTimestamp(), createdAt: serverTimestamp() } as any;
+            const payload = { supplierId: receipt.supplierId, supplierName: (supSnap.data() as Record<string, unknown>)['name'] || null, items: receipt.items, receivedAt: serverTimestamp(), createdAt: serverTimestamp() } as unknown as Record<string, unknown>;
             tx.set(receiptRef, payload);
 
             if (keyRef) {
@@ -1015,7 +1099,7 @@ export const createJournalEntry = async (companyId: string, entry: { date?: any;
     if (Math.abs(totalDebit - totalCredit) > 0.0001) throw new Error('Journal entry is not balanced');
 
     const ref = doc(getCollectionRef(companyId, 'journalEntries'));
-    const payload = { date: entry.date || serverTimestamp(), lines: entry.lines, referenceType: entry.referenceType || null, referenceId: entry.referenceId || null, description: entry.description || null, createdAt: serverTimestamp() } as any;
+    const payload = { date: entry.date || serverTimestamp(), lines: entry.lines, referenceType: entry.referenceType || null, referenceId: entry.referenceId || null, description: entry.description || null, createdAt: serverTimestamp() } as unknown as Record<string, unknown>;
     await setDoc(ref, payload);
     return { id: ref.id };
 };
@@ -1033,7 +1117,7 @@ export const createPurchase = async (companyId: string, purchase: { supplierId: 
             if (!supSnap.exists()) throw new Error('Supplier not found');
 
             // Create purchase doc
-            const payload = { supplierId: purchase.supplierId, supplierName: supSnap.data().name || purchase.supplierName || null, invoiceNumber: purchase.invoiceNumber || null, items: purchase.items, totalAmount: purchase.totalAmount || 0, paidAmount: 0, status: 'unpaid', createdAt: serverTimestamp() } as any;
+            const payload = { supplierId: purchase.supplierId, supplierName: (supSnap.data() as Record<string, unknown>)['name'] || purchase.supplierName || null, invoiceNumber: purchase.invoiceNumber || null, items: purchase.items, totalAmount: purchase.totalAmount || 0, paidAmount: 0, status: 'unpaid', createdAt: serverTimestamp() } as unknown as Record<string, unknown>;
             tx.set(purchaseRef, payload);
 
             // Update supplier balance (simple numeric balance field)
@@ -1266,7 +1350,7 @@ export const undeleteDocument = async (companyId: string, collectionName: string
     try {
         const fn = httpsCallable(functions, 'safeUndeleteDocument');
         const res = await fn({ companyId, collectionName, id });
-        return Boolean(res && (res as any).data && (res as any).data.success);
+        return Boolean(res && (res as unknown as Record<string, unknown>)['data'] && ((res as unknown as Record<string, unknown>)['data'] as Record<string, unknown>)['success']);
     } catch (err) {
         console.warn('[FIRESTORE] safeUndeleteDocument failed', err?.message || err);
         return false;
@@ -1274,4 +1358,4 @@ export const undeleteDocument = async (companyId: string, collectionName: string
 };
 
 // This function is not applicable in Firestore mode, it's for mocks.
-export const populateDummyData = (companyId: string): Promise<boolean> => Promise.resolve(false);
+export const populateDummyData = (_companyId: string): Promise<boolean> => Promise.resolve(false);

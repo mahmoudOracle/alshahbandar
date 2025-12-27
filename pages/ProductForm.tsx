@@ -66,7 +66,7 @@ const ProductForm: React.FC = () => {
                 if (productData) setProduct(productData);
                 else addNotification('لم يتم العثور على المنتج.', 'error');
                 setLoading(false);
-            }).catch(error => {
+            }).catch((error: unknown) => {
                 addNotification(mapFirestoreError(error), 'error');
                 setLoading(false);
             });
@@ -119,10 +119,10 @@ const ProductForm: React.FC = () => {
                 console.warn('🟡 [PRODUCT] saveProduct returned falsy', result);
                 addNotification('فشل حفظ المنتج.', 'error');
             }
-        } catch (error: any) {
-             console.error('🔴 [PRODUCT] saveProduct error', error);
-             addNotification(mapFirestoreError(error), 'error');
-        } finally {
+           } catch (error: unknown) {
+               console.error('🔴 [PRODUCT] saveProduct error', error instanceof Error ? error.message : String(error));
+               addNotification(mapFirestoreError(error), 'error');
+           } finally {
             setSaving(false);
         }
     };

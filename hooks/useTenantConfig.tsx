@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 export default function useTenantConfig() {
   const { activeCompanyId } = useAuth();
-  const [config, setConfig] = useState<any | null>(null);
+  const [config, setConfig] = useState<unknown | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -18,10 +18,10 @@ export default function useTenantConfig() {
         }
         const c = await getTenantConfig(activeCompanyId);
         if (!mounted) return;
-        setConfig(c);
+        setConfig(c as unknown);
         if (c && c.businessName) document.title = `${c.businessName} | الشاهبندر`; // keep fallback brand
       } catch (err) {
-        console.error('[useTenantConfig] error', err);
+        console.error('[useTenantConfig] error', err instanceof Error ? err.message : err);
       } finally {
         if (mounted) setLoading(false);
       }

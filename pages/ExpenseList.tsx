@@ -13,11 +13,11 @@ import { useAuth, useCanWrite } from '../contexts/AuthContext';
 // Dynamically load Recharts to reduce bundle size
 type ChartDatum = { name: string; value: number };
 function ExpenseChartLoader({ data, colors, currency }: { data: ChartDatum[]; colors: string[]; currency?: string }) {
-    const [R, setR] = useState<any | null>(null);
+    const [R, setR] = useState<unknown | null>(null);
     useEffect(() => {
         let mounted = true;
         import('recharts')
-            .then(mod => { if (mounted) setR(mod); })
+            .then(mod => { if (mounted) setR(mod as unknown); })
             .catch(() => {});
         return () => { mounted = false; };
     }, []);
@@ -126,15 +126,15 @@ const ExpenseList: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState<string | 'All'>('All');
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
 
-  const [nextCursor, setNextCursor] = useState<any | null>(null);
-  const [prevCursors, setPrevCursors] = useState<any[]>([]);
+    const [nextCursor, setNextCursor] = useState<unknown | null>(null);
+    const [prevCursors, setPrevCursors] = useState<unknown[]>([]);
   const [isLastPage, setIsLastPage] = useState(false);
 
   const { settings, loading: settingsLoading } = useSettings();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
 
-  const fetchExpenses = useCallback(async (cursor?: any, direction: 'next' | 'prev' = 'next') => {
+    const fetchExpenses = useCallback(async (cursor?: unknown, direction: 'next' | 'prev' = 'next') => {
       if (!activeCompanyId) return;
       setLoading(true);
       try {
@@ -152,7 +152,7 @@ const ExpenseList: React.FC = () => {
         } else {
             setPrevCursors(prev => prev.slice(0, prev.length - 1));
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
           addNotification(mapFirestoreError(error), "error");
           setExpenses([]);
       } finally {
@@ -196,7 +196,7 @@ const ExpenseList: React.FC = () => {
             } else {
                 addNotification('فشل حذف المصروف.', 'error');
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             addNotification(mapFirestoreError(error), 'error');
         }
     }

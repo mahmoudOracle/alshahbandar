@@ -44,7 +44,7 @@ export interface Customer {
   whatsappPhone: string;
   address: string;
   isActive: boolean;
-  createdAt: any; 
+  createdAt: unknown; 
 }
 
 export interface Product {
@@ -157,7 +157,7 @@ export interface PlatformAdmin {
     uid: string;
     name: string;
     email: string;
-    createdAt: any; // serverTimestamp
+  createdAt: unknown; // serverTimestamp
 }
 
 export interface Company {
@@ -170,8 +170,8 @@ export interface Company {
   city: string;
   businessType?: string;
   status: 'pending' | 'approved' | 'rejected';
-  createdAt: any; // serverTimestamp
-  updatedAt?: any;
+  createdAt: unknown; // serverTimestamp
+  updatedAt?: unknown;
 }
 
 export interface CompanyStats {
@@ -189,8 +189,8 @@ export interface CompanyUser {
     role: UserRole;
     status: 'active' | 'disabled';
     profileCompleted: boolean;
-    createdAt: any; // serverTimestamp
-    updatedAt: any; // serverTimestamp
+    createdAt: unknown; // serverTimestamp
+    updatedAt: unknown; // serverTimestamp
 }
 
 export interface CompanyInvitation {
@@ -200,10 +200,10 @@ export interface CompanyInvitation {
     role: UserRole;
     invitedByUid: string;
     invitedByEmail: string;
-    createdAt: any; // serverTimestamp
+    createdAt: unknown; // serverTimestamp
     used: boolean;
     usedByUid?: string;
-    usedAt?: any; // serverTimestamp
+    usedAt?: unknown; // serverTimestamp
 }
 
 // For AuthContext
@@ -217,8 +217,8 @@ export interface CompanyMembership {
 // Type for paginated data responses
 export interface PaginatedData<T> {
   data: T[];
-  nextCursor?: any;
-  prevCursor?: any;
+  nextCursor?: unknown;
+  prevCursor?: unknown;
 }
 
 // --- Inventory / Suppliers Types ---
@@ -231,7 +231,7 @@ export interface Supplier {
   email?: string;
   address?: string;
   notes?: string;
-  createdAt?: any;
+  createdAt?: unknown;
 }
 
 export interface IncomingReceiptProduct {
@@ -248,8 +248,8 @@ export interface IncomingReceipt {
   supplierName?: string;
   products: IncomingReceiptProduct[];
   receivedBy?: string;
-  receivedAt?: any;
-  createdAt?: any;
+  receivedAt?: unknown;
+  createdAt?: unknown;
   idempotencyKey?: string;
 }
 
@@ -262,10 +262,10 @@ export interface JournalLine {
 
 export interface JournalEntry {
   id: string;
-  date: string | any; // ISO string or Firestore Timestamp
+  date: string | unknown; // ISO string or Firestore Timestamp
   lines: JournalLine[];
   referenceType?: string | null;
   referenceId?: string | null;
   description?: string | null;
-  createdAt?: any;
+  createdAt?: unknown;
 }

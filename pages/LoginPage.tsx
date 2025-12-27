@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { signInWithEmail } from '../services/authService';
 import { useNotification } from '../contexts/NotificationContext';
 import { Button } from '../components/ui/Button';
@@ -14,7 +14,6 @@ const LoginPage: React.FC = () => {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState<boolean>(false);
     const { addNotification } = useNotification();
-    const navigate = useNavigate();
 
     const handleEmailSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -22,17 +21,18 @@ const LoginPage: React.FC = () => {
         try {
             await signInWithEmail(email, password);
              // AuthProvider will handle navigation
-        } catch (error: any) {
+        } catch (error: unknown) {
             let message = 'فشل تسجيل الدخول. يرجى التحقق من بريدك الإلكتروني وكلمة المرور.';
-            if (error.code === 'auth/invalid-email') {
+            const code = (error as Record<string, unknown>)?.code as string | undefined;
+            if (code === 'auth/invalid-email') {
                 message = 'صيغة البريد الإلكتروني المدخلة غير صحيحة.';
-            } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+            } else if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
                 message = 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
-            } else if (error.code === 'auth/user-disabled') {
+            } else if (code === 'auth/user-disabled') {
                 message = 'تم تعطيل هذا الحساب.';
             }
             addNotification(message, 'error');
-            console.error(error);
+            console.error(error instanceof Error ? error.message : String(error));
         } finally {
             setLoading(false);
         }

@@ -32,7 +32,7 @@ const InvoiceDetail: React.FC = () => {
             setCustomer(customerData || null);
         }
       } catch (error) {
-        addNotification(mapFirestoreError(error), 'error');
+          addNotification(mapFirestoreError(error), 'error');
       }
       setLoading(false);
     };
@@ -131,8 +131,8 @@ ${settings.businessName}
       } else {
         addNotification('فشل حذف الفاتورة.', 'error');
       }
-    } catch (err: any) {
-      addNotification(err.message || 'خطأ أثناء حذف الفاتورة.', 'error');
+    } catch (err: unknown) {
+      addNotification(mapFirestoreError(err) || 'خطأ أثناء حذف الفاتورة.', 'error');
     }
   };
 

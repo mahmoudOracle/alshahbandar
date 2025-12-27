@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { getIsolationStateSummary, validateUserDataIsolation } from '../services/dataTenantUtils';
+import { validateUserDataIsolation } from '../services/dataTenantUtils';
 import { DEBUG_MODE } from '../config';
 
 /**
@@ -15,8 +15,6 @@ export const DataIsolationDebug: React.FC = () => {
   const isolationCheck = firebaseUser && activeCompanyId
     ? validateUserDataIsolation(firebaseUser, activeCompanyId)
     : null;
-
-  const stateSummary = getIsolationStateSummary();
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-gray-900 text-gray-100 text-xs p-2 max-h-40 overflow-y-auto border-t border-gray-700 z-50">

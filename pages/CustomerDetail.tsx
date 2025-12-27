@@ -64,7 +64,7 @@ const CustomerDetail: React.FC = () => {
                     link.click();
                 }
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
             addNotification(mapFirestoreError(e), 'error');
         }
     };
@@ -81,7 +81,7 @@ const CustomerDetail: React.FC = () => {
             setCustomer(customerResult || null);
             setInvoices(allInvoicesResult.data || []);
             setPayments(paymentsResult.data || []);
-        } catch (error: any) {
+        } catch (error: unknown) {
             addNotification(mapFirestoreError(error), 'error');
         } finally {
             setLoading(false);

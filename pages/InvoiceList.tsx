@@ -93,8 +93,8 @@ const InvoiceList: React.FC = () => {
   const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
   const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'total_desc' | 'total_asc'>('date_desc');
   
-  const [nextCursor, setNextCursor] = useState<any | null>(null);
-  const [prevCursors, setPrevCursors] = useState<any[]>([]);
+  const [nextCursor, setNextCursor] = useState<unknown | null>(null);
+  const [prevCursors, setPrevCursors] = useState<unknown[]>([]);
   const [isLastPage, setIsLastPage] = useState(false);
   const [dupLoading, setDupLoading] = useState(false);
 
@@ -102,7 +102,7 @@ const InvoiceList: React.FC = () => {
   const { addNotification } = useNotification();
   const navigate = useNavigate();
   
-  const fetchInvoices = useCallback(async (cursor?: any, direction: 'next' | 'prev' = 'next') => {
+  const fetchInvoices = useCallback(async (cursor?: unknown, direction: 'next' | 'prev' = 'next') => {
     if (!activeCompanyId) return;
     setLoading(true);
 
@@ -123,9 +123,10 @@ const InvoiceList: React.FC = () => {
         } else {
             setPrevCursors(prev => prev.slice(0, prev.length - 1));
         }
-    } catch (error: any) {
-        addNotification(error.message || "Failed to load invoices.", "error");
-        setInvoices([]);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error || '');
+      addNotification(msg || "Failed to load invoices.", "error");
+      setInvoices([]);
     }
     setLoading(false);
   }, [activeCompanyId, addNotification]);
@@ -176,8 +177,9 @@ const InvoiceList: React.FC = () => {
       } else {
         addNotification('فشل حذف الفاتورة.', 'error');
       }
-    } catch (err: any) {
-      addNotification(err.message || 'خطأ أثناء حذف الفاتورة.', 'error');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err || 'خطأ أثناء حذف الفاتورة.');
+      addNotification(msg || 'خطأ أثناء حذف الفاتورة.', 'error');
     }
   };
 
@@ -192,8 +194,9 @@ const InvoiceList: React.FC = () => {
       });
       await fetchInvoices();
       navigate(`/invoices/edit/${newInv.id}`);
-    } catch (err: any) {
-      addNotification(err?.message || 'فشل تكرار الفاتورة.', 'error');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err || 'فشل تكرار الفاتورة.');
+      addNotification(msg || 'فشل تكرار الفاتورة.', 'error');
     } finally {
       setDupLoading(false);
     }
@@ -210,8 +213,9 @@ const InvoiceList: React.FC = () => {
       });
       await fetchInvoices();
       navigate(`/invoices/edit/${newInv.id}`);
-    } catch (err: any) {
-      addNotification(err?.message || 'فشل تكرار الفاتورة.', 'error');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err || 'فشل تكرار الفاتورة.');
+      addNotification(msg || 'فشل تكرار الفاتورة.', 'error');
     } finally {
       setDupLoading(false);
     }
@@ -247,8 +251,8 @@ const InvoiceList: React.FC = () => {
         <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4 flex-wrap">
             <Input type="text" placeholder="ابحث..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full md:w-auto"/>
             <Select
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value as any)}
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value as InvoiceStatus | 'All')}
                 options={[
                     { value: 'All', label: 'كل الحالات' },
                     { value: InvoiceStatus.Paid, label: 'مدفوعة' },
@@ -274,7 +278,7 @@ const InvoiceList: React.FC = () => {
                 setDateFilter(p => ({...p, end: iso}));
               }} className="w-full px-3 py-2 border rounded-md" />
             </div>
-              <select value={sortBy} onChange={e => setSortBy(e.target.value as any)} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700">
+              <select value={sortBy} onChange={e => { const v = e.target.value as 'date_desc'|'date_asc'|'total_desc'|'total_asc'; setSortBy(v); }} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700">
                 <option value="date_desc">الأحدث</option>
                 <option value="date_asc">الأقدم</option>
                 <option value="total_desc">الأعلى قيمة</option>
