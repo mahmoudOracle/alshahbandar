@@ -26,26 +26,30 @@ describe('PurchaseForm', () => {
   });
 
   it('renders and submits a purchase', async () => {
-    const { getByText, getByRole, getByDisplayValue } = render(<PurchaseForm />);
+    const { getByText, getByLabelText } = render(<PurchaseForm />);
 
     // Wait for lookups to load
     await waitFor(() => expect(getSuppliersMock).toHaveBeenCalled());
 
     // add a row and select product
     fireEvent.click(getByText('أضف صف'));
-    await waitFor(() => getByRole('combobox'));
-    const selects = document.querySelectorAll('select');
-    // first select is supplier, second is product in row
-    fireEvent.change(selects[0], { target: { value: 's1' } });
-    fireEvent.change(selects[1], { target: { value: 'p1' } });
+    await waitFor(() => getByLabelText('purchase-row-product-select-0'));
+
+    const supplierSelect = getByLabelText('purchase-supplier-select') as HTMLSelectElement;
+    const productSelect = getByLabelText('purchase-row-product-select-0') as HTMLSelectElement;
+
+    fireEvent.change(supplierSelect, { target: { value: 's1' } });
+    fireEvent.change(productSelect, { target: { value: 'p1' } });
 
     // set quantity and unit price
-    const inputs = document.querySelectorAll('input');
-    fireEvent.change(inputs[0], { target: { value: '2' } });
-    fireEvent.change(inputs[1], { target: { value: '9.5' } });
+    const qtyInput = getByLabelText('purchase-row-quantity-0') as HTMLInputElement;
+    const priceInput = getByLabelText('purchase-row-unitPrice-0') as HTMLInputElement;
+
+    fireEvent.change(qtyInput, { target: { value: '2' } });
+    fireEvent.change(priceInput, { target: { value: '9.5' } });
 
     // submit
-    fireEvent.click(getByText('إنشاء أمر الشراء'));
+    fireEvent.click(getByLabelText('create-purchase-submit'));
 
     await waitFor(() => expect(createPurchaseMock).toHaveBeenCalled());
     const callArgs = createPurchaseMock.mock.calls[0];
