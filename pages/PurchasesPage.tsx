@@ -71,7 +71,7 @@ const PurchasesPage: React.FC = () => {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold">أوامر الشراء</h2>
         <div className="flex gap-2">
-          <select className="p-2 border rounded" value={supplierId} onChange={e => setSupplierId(e.target.value)}>
+          <select aria-label="purchase-supplier-select" className="p-2 border rounded" value={supplierId} onChange={e => setSupplierId(e.target.value)}>
             <option value="">اختر موردًا</option>
             {suppliers.map(s => <option key={s.id} value={s.id}>{s.supplierName}</option>)}
           </select>
@@ -81,7 +81,7 @@ const PurchasesPage: React.FC = () => {
 
       <div className="mb-4">
         <div className="flex gap-2">
-          <select className="p-2 border rounded flex-1" onChange={e => { const prod = products.find(p=>p.id===e.target.value); if (e.target.value) addRow(prod); }}>
+          <select aria-label="product-add-select" className="p-2 border rounded flex-1" onChange={e => { const prod = products.find(p=>p.id===e.target.value); if (e.target.value) addRow(prod); }}>
             <option value="">أضف منتجًا</option>
             {products.map(p => <option key={p.id} value={p.id}>{p.name} - ({p.stock || 0})</option>)}
           </select>
@@ -105,13 +105,13 @@ const PurchasesPage: React.FC = () => {
               {items.map((it, idx) => (
                 <tr key={idx} className="hover:bg-gray-50">
                   <td className="px-4 py-2">
-                    <select className="w-full p-2 border rounded" value={it.productId} onChange={e => { const prod = products.find(p=>p.id===e.target.value); updateRow(idx, { productId: e.target.value, productName: prod?.name || '' }); }}>
+                    <select aria-label="purchase-row-product-select" className="w-full p-2 border rounded" value={it.productId} onChange={e => { const prod = products.find(p=>p.id===e.target.value); updateRow(idx, { productId: e.target.value, productName: prod?.name || '' }); }}>
                       <option value="">اختر منتجًا</option>
                       {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </td>
-                  <td className="px-4 py-2"><Input type="number" min={1} value={it.quantity} onChange={e => updateRow(idx, { quantity: Number(e.target.value) })} /></td>
-                  <td className="px-4 py-2"><Input type="number" min={0} value={it.unitPrice} onChange={e => updateRow(idx, { unitPrice: Number(e.target.value) })} /></td>
+                  <td className="px-4 py-2"><Input aria-label="purchase-row-quantity" type="number" min={1} value={it.quantity} onChange={e => updateRow(idx, { quantity: Number(e.target.value) })} /></td>
+                  <td className="px-4 py-2"><Input aria-label="purchase-row-unitPrice" type="number" min={0} value={it.unitPrice} onChange={e => updateRow(idx, { unitPrice: Number(e.target.value) })} /></td>
                   <td className="px-4 py-2">{(Number(it.quantity||0) * Number(it.unitPrice||0)).toFixed(2)}</td>
                   <td className="px-4 py-2"><Button variant="danger" size="sm" onClick={() => removeRow(idx)}>حذف</Button></td>
                 </tr>

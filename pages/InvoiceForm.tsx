@@ -84,6 +84,7 @@ function invoiceFormReducer(state: State, action: Action): State {
           item.productId = product.id;
           item.productName = product.name;
           item.price = product.price;
+          item.unitCost = typeof (product as any).averageCost === 'number' ? (product as any).averageCost : ((product as any).defaultCost || 0);
         }
       } else {
         // assign with safe narrowing
@@ -213,6 +214,9 @@ const InvoiceForm: React.FC = () => {
   const taxAmount = Math.round((subtotal * (taxRate / 100)) * 100) / 100;
   const total = Math.round((subtotal + taxAmount) * 100) / 100;
 
+  const costTotal = invoice.items.reduce((sum, item) => sum + (Number((item as any).unitCost) || 0) * (Number(item.quantity) || 0), 0);
+  const profit = Math.round((total - costTotal) * 100) / 100;
+
   const validateForm = (): boolean => {
       const newErrors: Record<string, string> = {};
       if (!invoice.customerId) newErrors.customerId = 'العميل مطلوب.';
@@ -328,9 +332,13 @@ const InvoiceForm: React.FC = () => {
                   <Input type="number" placeholder="الكمية" value={item.quantity} onChange={e => handleItemChange(index, 'quantity', parseInt(e.target.value))} onFocus={() => { setKeypadIndex(index); setKeypadValue(String(item.quantity || '')); setKeypadVisible(true); }} error={errors[`item_${index}_quantity`]} />
                 </div>
                 <div className="md:col-span-2">
+                    <div className="text-sm text-muted">تكلفة الوحدة:</div>
+                    <div className="font-medium">{(Number((item as any).unitCost) || 0).toFixed(2)} {settings?.currency}</div>
+                </div>
+                <div className="md:col-span-2">
                     <Input type="number" placeholder="السعر" value={item.price} onChange={e => handleItemChange(index, 'price', parseFloat(e.target.value))} error={errors[`item_${index}_price`]} />
                 </div>
-                <div className="md:col-span-3 text-lg font-medium text-right md:text-center">
+                <div className="md:col-span-1 text-lg font-medium text-right md:text-center">
                     <span className="md:hidden text-xs font-bold me-2">الإجمالي:</span>
                     {(item.quantity * item.price).toFixed(2)} {settings?.currency}
                 </div>
@@ -397,7 +405,9 @@ const InvoiceForm: React.FC = () => {
         <div className="flex flex-col md:flex-row justify-end items-start gap-6 mt-6">
           <div className="w-full md:w-1/3 space-y-2 text-lg">
             <div className="flex justify-between"><span>المجموع الفرعي:</span><span>{subtotal.toFixed(2)} {settings?.currency}</span></div>
+            <div className="flex justify-between"><span>تكلفة البضاعة المباعة (COGS):</span><span>{costTotal.toFixed(2)} {settings?.currency}</span></div>
             <div className="flex justify-between font-bold text-xl border-t dark:border-gray-700 pt-2 mt-2"><span>الإجمالي:</span><span>{total.toFixed(2)} {settings?.currency}</span></div>
+            <div className="flex justify-between text-sm"><span>الربح المتوقع:</span><span>{profit.toFixed(2)} {settings?.currency}</span></div>
           </div>
         </div>
         

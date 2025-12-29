@@ -18,6 +18,7 @@ export interface InvoiceItem {
   productName: string;
   quantity: number;
   price: number;
+  unitCost?: number; // snapshot of cost for profit calculation
 }
 
 export interface Invoice {
@@ -34,6 +35,9 @@ export interface Invoice {
   total: number;
   paymentType: PaymentType;
   status: InvoiceStatus;
+  paymentsSummary?: { paid: number; due: number };
+  costTotal?: number; // total cost (sum of unitCost * qty)
+  profit?: number; // total - costTotal
 }
 
 export interface Customer {
@@ -53,6 +57,11 @@ export interface Product {
   description: string;
   price: number;
   stock: number;
+  sku?: string;
+  unit?: string; // e.g., pcs, box
+  defaultCost?: number; // suggested purchase cost
+  averageCost?: number; // maintained by inventory logic
+  attributes?: Record<string, string>;
 }
 
 export interface Payment {
@@ -61,6 +70,65 @@ export interface Payment {
   customerId: string;
   amount: number;
   date: string; // ISO 8601 format
+}
+
+// --- Inventory / Ledger Types ---
+export interface InventoryItem {
+  id: string; // productId or productId_locationId
+  productId: string;
+  locationId?: string;
+  quantity: number;
+  reserved?: number;
+  averageCost?: number;
+  lastUpdated?: unknown;
+}
+
+export type StockSourceType = 'PURCHASE' | 'SALE' | 'ADJUSTMENT' | 'RETURN' | 'TRANSFER';
+
+export interface StockLedgerEntry {
+  id: string;
+  companyId?: string;
+  productId: string;
+  locationId?: string;
+  change: number; // positive for in, negative for out
+  qtyBefore: number;
+  qtyAfter: number;
+  unitCost?: number; // cost applied to this movement (for purchases / COGS)
+  sourceType: StockSourceType;
+  sourceId?: string; // reference to purchase/invoice/adjustment
+  userId?: string;
+  timestamp: unknown;
+  notes?: string;
+}
+
+export interface PurchaseItem {
+  productId: string;
+  sku?: string;
+  productName?: string;
+  quantity: number;
+  unitCost: number;
+  lineTotal?: number;
+}
+
+export interface Purchase {
+  id: string;
+  supplierId?: string;
+  supplierName?: string;
+  items: PurchaseItem[];
+  subtotal: number;
+  taxAmount?: number;
+  total: number;
+  currency?: string;
+  status?: 'RECEIVED' | 'PARTIAL' | 'ORDERED';
+  receivedAt?: unknown;
+  createdAt?: unknown;
+  userId?: string;
+  reference?: string;
+}
+
+export interface Counter {
+  id: string;
+  seq: number;
 }
 
 export interface Tax {

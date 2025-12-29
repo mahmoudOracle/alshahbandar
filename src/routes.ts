@@ -26,6 +26,7 @@ const DevDebugPage = lazy(() => import('@/pages/DevDebugPage'));
 const SuppliersPage = lazy(() => import('@/pages/SuppliersPage'));
 const PurchasesPage = lazy(() => import('@/pages/PurchasesPage'));
 const WarehousePage = lazy(() => import('@/pages/WarehousePage'));
+const InventoryAudit = lazy(() => import('@/pages/InventoryAudit'));
 const IncomingReceiptsList = lazy(() => import('@/pages/IncomingReceiptsList'));
 const ReceiptDetailPage = lazy(() => import('@/pages/ReceiptDetailPage'));
 
@@ -64,6 +65,7 @@ export const routes = [
   { path: "/receipts", component: IncomingReceiptsList, title: "سندات الاستلام" },
   { path: "/receipts/:id", component: ReceiptDetailPage, title: "تفاصيل السند" },
   { path: "/warehouse", component: WarehousePage, title: "المخزن" },
+  { path: "/inventory-audit", component: InventoryAudit, title: "سجل المخزون" },
   { path: "/admin/*", component: NotAuthorizedPage, title: "وصول غير مصرح به" },
   { path: "/dev/debug", component: DevDebugPage, title: "Dev Debug" },
 ];

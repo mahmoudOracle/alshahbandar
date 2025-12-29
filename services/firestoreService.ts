@@ -16,7 +16,8 @@ import { User } from 'firebase/auth';
 import { 
     Invoice, Customer, Product, Payment, Settings, Expense, Quote, RecurringInvoice, 
     InvoiceStatus, PaymentType, QuoteStatus, Frequency, UserRole, StoredExpenseCategory, StoredVendor, PaginatedData,
-    CompanyMembership, CompanyUser, CompanyInvitation, Company, IncomingReceipt
+    CompanyMembership, CompanyUser, CompanyInvitation, Company, IncomingReceipt,
+    InventoryItem, StockLedgerEntry, Purchase, PurchaseItem, Counter
 } from '../types';
 import { db, functions } from './firebase';
 import * as productsRepo from './repositories/products';
@@ -137,6 +138,54 @@ export const getCompanyCounts = async (companyId: string): Promise<Record<string
         return counts || { userCount: 0, invoiceCount: 0 };
     } catch (err) {
         console.error('[DEBUG][AUTHZ] getCompanyCounts failed', err);
+        throw err;
+    }
+};
+
+export const createInvoiceAtomic = async (companyId: string, invoice: Partial<Invoice>): Promise<any> => {
+    try {
+        const fn = httpsCallable(functions, 'createInvoiceAtomic');
+        const res = await fn({ companyId, invoice });
+        const payload = (res && (res as unknown as Record<string, unknown>)['data']) ? (res as unknown as Record<string, unknown>)['data'] : res;
+        return payload;
+    } catch (err) {
+        console.error('[FIRESTORE] createInvoiceAtomic failed', err);
+        throw err;
+    }
+};
+
+export const createPurchaseAtomic = async (companyId: string, purchase: Record<string, unknown>): Promise<any> => {
+    try {
+        const fn = httpsCallable(functions, 'createPurchaseAtomic');
+        const res = await fn({ companyId, purchase });
+        const payload = (res && (res as unknown as Record<string, unknown>)['data']) ? (res as unknown as Record<string, unknown>)['data'] : res;
+        return payload;
+    } catch (err) {
+        console.error('[FIRESTORE] createPurchaseAtomic failed', err);
+        throw err;
+    }
+};
+
+export const createGoodsReceiptAtomic = async (companyId: string, receipt: Record<string, unknown>): Promise<any> => {
+    try {
+        const fn = httpsCallable(functions, 'createGoodsReceiptAtomic');
+        const res = await fn({ companyId, receipt });
+        const payload = (res && (res as unknown as Record<string, unknown>)['data']) ? (res as unknown as Record<string, unknown>)['data'] : res;
+        return payload;
+    } catch (err) {
+        console.error('[FIRESTORE] createGoodsReceiptAtomic failed', err);
+        throw err;
+    }
+};
+
+export const createIncomingReceiptAtomic = async (companyId: string, receipt: Record<string, unknown>): Promise<any> => {
+    try {
+        const fn = httpsCallable(functions, 'createIncomingReceiptAtomic');
+        const res = await fn({ companyId, receipt });
+        const payload = (res && (res as unknown as Record<string, unknown>)['data']) ? (res as unknown as Record<string, unknown>)['data'] : res;
+        return payload;
+    } catch (err) {
+        console.error('[FIRESTORE] createIncomingReceiptAtomic failed', err);
         throw err;
     }
 };
@@ -600,36 +649,9 @@ export const saveSettings = async (companyId: string, settings: Omit<Settings, '
 };
 
 // --- DATA SERVICES (Bulletproofed) ---
-const updateStockAtomically = async (companyId: string, invoice: Invoice, operation: 'increase' | 'decrease') => {
-    ensureWriteAllowed('invoices'); // Internal stock updates are tied to invoice permissions
-    if (!invoice || !invoice.items || invoice.items.length === 0) return;
-
-    // Use per-product transactions to ensure we read-modify-write and prevent negative stock.
-    for (const item of invoice.items) {
-        if (!item.productId) continue;
-        const productRef = doc(db, 'companies', companyId, 'products', item.productId);
-        const delta = operation === 'decrease' ? -Math.abs(item.quantity) : Math.abs(item.quantity);
-        console.log('[DEBUG][Stock] productId', item.productId, 'delta', delta);
-
-        try {
-            await runTransaction(db, async (tx) => {
-                const prodSnap = await tx.get(productRef);
-                if (!prodSnap.exists()) {
-                    // Nothing to update
-                    return;
-                }
-                const currentStock = prodSnap.data().stock || 0;
-                const newStock = currentStock + delta;
-                if (newStock < 0) {
-                    throw new Error(`Insufficient stock for product ${item.productId}. Current: ${currentStock}, required change: ${delta}`);
-                }
-                tx.update(productRef, { stock: newStock, updatedAt: Timestamp.now() });
-            });
-        } catch (err) {
-            console.error('[DEBUG][Stock] Failed to update stock for product', item.productId, err);
-            throw err; // Propagate so caller can handle rollback or surface error
-        }
-    }
+const updateStockAtomically = async (_companyId: string, _invoice: Invoice, _operation: 'increase' | 'decrease') => {
+    // Disabled on client SDK: inventory and stockLedger writes must be performed by server-side callables
+    throw new Error('updateStockAtomically is disabled in the client SDK; use server-side atomic callables (createInvoiceAtomic / createPurchaseAtomic)');
 };
 
 const getNextDocumentNumber = async (companyId: string, type: 'invoice' | 'quote'): Promise<string> => {
@@ -669,7 +691,7 @@ export const saveCustomer = (companyId: string, customer: Omit<Customer, 'id' | 
     }
 };
 
-export const getProducts = (companyId: string, options: QueryOptions = {}) => {
+export const getProducts = (companyId: string, options: QueryOptions = {}): Promise<PaginatedData<Product>> => {
     // Delegate to the new tenant-aware products repository (includes simple caching)
     return productsRepo.getProducts(companyId, options as unknown as Record<string, unknown>);
 };
@@ -693,17 +715,40 @@ export const saveInvoice = async (companyId: string, invoice: Omit<Invoice, 'id'
     invoiceToSave.taxRate = taxRate;
     invoiceToSave.taxAmount = taxAmount;
     invoiceToSave.total = Math.round((invoiceToSave.subtotal + taxAmount) * 100) / 100;
-    console.log('[DEBUG][InvoiceSave]', { companyId, invoiceId: (invoiceToSave as Record<string, unknown>)['id'], subtotal: invoiceToSave.subtotal, taxRate: invoiceToSave.taxRate, taxAmount: invoiceToSave.taxAmount, total: invoiceToSave.total });
-
-    if ('id' in invoiceToSave && invoiceToSave.id) { // This is an update
-        const oldInvoice = await getInvoiceById(companyId, invoiceToSave.id);
-        if (oldInvoice) await updateStockAtomically(companyId, oldInvoice, 'increase');
+    // Ensure invoice items carry unitCost snapshot and compute cost/profit
+    let costTotal = 0;
+    for (const it of invoiceToSave.items) {
+        if (!it.productId) {
+            (it as Record<string, unknown>)['unitCost'] = 0;
+            continue;
+        }
+        try {
+            const prod = await getById<Product>(companyId, 'products', it.productId);
+            const unitCost = typeof (it as Record<string, unknown>)['unitCost'] === 'number' ? (it as Record<string, unknown>)['unitCost'] as number : (prod && typeof prod.averageCost === 'number' ? prod.averageCost as number : (prod && typeof prod.defaultCost === 'number' ? prod.defaultCost as number : 0));
+            (it as Record<string, unknown>)['unitCost'] = unitCost;
+            costTotal += unitCost * it.quantity;
+        } catch (err) {
+            (it as Record<string, unknown>)['unitCost'] = 0;
+        }
     }
-    
-    const savedInvoice = await saveData<Invoice>(companyId, 'invoices', invoiceToSave, 'invoices');
-    await updateStockAtomically(companyId, savedInvoice, 'decrease');
-    
-    return savedInvoice;
+    invoiceToSave.costTotal = Math.round((costTotal) * 100) / 100;
+    invoiceToSave.profit = Math.round((invoiceToSave.total - invoiceToSave.costTotal) * 100) / 100;
+    invoiceToSave.paymentsSummary = { paid: 0, due: invoiceToSave.total };
+    console.log('[DEBUG][InvoiceSave]', { companyId, invoiceId: (invoiceToSave as Record<string, unknown>)['id'], subtotal: invoiceToSave.subtotal, taxRate: invoiceToSave.taxRate, taxAmount: invoiceToSave.taxAmount, total: invoiceToSave.total });
+    // Prefer server-side atomic invoice creation to avoid client-side race conditions.
+    try {
+        const payload = await createInvoiceAtomic(companyId, invoiceToSave as Partial<Invoice>);
+        const invoiceId = payload && (payload.invoiceId || payload.id) ? (payload.invoiceId || payload.id) : undefined;
+        if (invoiceId) {
+            const saved = await getInvoiceById(companyId, String(invoiceId));
+            if (saved) return saved;
+        }
+        // If callable did not return an id or failed, require server-side atomic operation
+        throw new Error('createInvoiceAtomic callable required: cannot perform invoice creation client-side');
+    } catch (err) {
+        console.error('[FIRESTORE] createInvoiceAtomic failed or is unavailable; server-side callable is required for invoice creation', err?.message || err);
+        throw err;
+    }
 };
 
 export const duplicateLastInvoice = async (companyId: string): Promise<Invoice> => {
@@ -740,11 +785,8 @@ export const deleteInvoice = async (companyId: string, id: string): Promise<bool
         const payload = (res && ((res as unknown) as Record<string, unknown>)['data']) ? ((res as unknown) as Record<string, unknown>)['data'] : {};
         return Boolean(payload && (payload as Record<string, unknown>)['success']) || false;
     } catch (err) {
-        console.error('[FIRESTORE] safeDeleteDocument failed', err);
-        // Fallback to client-side delete if callable not available, but still perform stock correction.
-        const invoiceToDelete = await getInvoiceById(companyId, id);
-        if (invoiceToDelete) await updateStockAtomically(companyId, invoiceToDelete, 'increase');
-        return deleteData(companyId, 'invoices', id, 'invoices');
+        console.error('[FIRESTORE] safeDeleteDocument failed; server-side callable required to perform safe invoice delete', err);
+        throw new Error('safeDeleteDocument callable required: cannot perform invoice delete client-side');
     }
 };
 
@@ -764,9 +806,11 @@ export const savePayment = async (companyId: string, payment: Omit<Payment, 'id'
                 .filter(p => p.invoiceId === savedPayment.invoiceId)
                 .reduce((sum, p) => sum + p.amount, 0);
 
-            if (totalPaid >= invoice.total) {
-                await saveData<Invoice>(companyId, 'invoices', { ...invoice, status: InvoiceStatus.Paid }, 'invoices');
-            }
+            // Update paymentsSummary and status on the invoice document
+            const paid = totalPaid;
+            const due = Math.max(0, (invoice.total || 0) - paid);
+            const newStatus = paid >= (invoice.total || 0) ? InvoiceStatus.Paid : (paid > 0 ? InvoiceStatus.Due : invoice.status);
+            await saveData<Invoice>(companyId, 'invoices', { ...invoice, status: newStatus, paymentsSummary: { paid, due } }, 'invoices');
         }
     }
     return savedPayment;
@@ -859,8 +903,22 @@ export const exportSalesCsv = async (companyId: string, from?: string, to?: stri
 };
 
 // --- Incoming Receipts (Supplier receiving) ---
-export const getIncomingReceipts = (companyId: string, options: QueryOptions = {}) => getData<IncomingReceipt>(companyId, 'incomingReceipts', { orderBy: 'receivedAt', ...options });
-export const getIncomingReceiptById = (companyId: string, id: string) => getById<IncomingReceipt>(companyId, 'incomingReceipts', id);
+export const getIncomingReceipts = (companyId: string, options: QueryOptions = {}): Promise<PaginatedData<IncomingReceipt>> => getData<IncomingReceipt>(companyId, 'incomingReceipts', { orderBy: 'receivedAt', ...options });
+export const getIncomingReceiptById = (companyId: string, id: string): Promise<IncomingReceipt | undefined> => getById<IncomingReceipt>(companyId, 'incomingReceipts', id);
+
+// Inventory & Ledger reads
+export const getInventory = (companyId: string, options: QueryOptions = {}): Promise<PaginatedData<InventoryItem>> => {
+    return getData<InventoryItem>(companyId, 'inventory', { orderBy: 'productId', ...options });
+};
+
+export const getStockLedger = (companyId: string, options: QueryOptions = {}): Promise<PaginatedData<StockLedgerEntry>> => {
+    return getData<StockLedgerEntry>(companyId, 'stockLedger', { orderBy: 'createdAt', orderDirection: 'desc', ...options });
+};
+
+// Reports (daily summaries, etc.)
+export const getReports = (companyId: string, options: QueryOptions = {}): Promise<PaginatedData<Record<string, unknown>>> => {
+    return getData<Record<string, unknown>>(companyId, 'reports', { orderBy: 'date', orderDirection: 'desc', ...options });
+};
 
 export const saveIncomingReceipt = async (companyId: string, receipt: Omit<IncomingReceipt, 'id'> | IncomingReceipt): Promise<IncomingReceipt> => {
     ensureWriteAllowed('products');
@@ -881,58 +939,16 @@ export const saveIncomingReceipt = async (companyId: string, receipt: Omit<Incom
     const idempotencyKey = ((receipt as unknown) as Record<string, unknown>)['idempotencyKey'] as string | undefined;
     const keyRef = idempotencyKey ? doc(db, 'companies', companyId, 'incomingReceiptKeys', idempotencyKey) : null;
 
+    // Prefer server-side callable for atomic incoming receipt processing
     try {
-        await runTransaction(db, async (tx) => {
-            // If idempotency key provided, ensure it's not used
-            if (keyRef) {
-                const keySnap = await tx.get(keyRef);
-                if (keySnap.exists()) {
-                    const existingReceiptId = ((keySnap.data() as unknown) as Record<string, unknown>)['receiptId'];
-                    const e = new Error('Duplicate submission') as Error & { code?: string; existingReceiptId?: unknown };
-                    e.code = 'duplicate-receipt';
-                    e.existingReceiptId = existingReceiptId;
-                    throw e;
-                }
-            }
-
-            // Verify supplier exists
-            const supplierRef = doc(db, 'companies', companyId, 'suppliers', receipt.supplierId);
-            const supSnap = await tx.get(supplierRef);
-            if (!supSnap.exists()) throw new Error('Supplier not found');
-
-            // For each product, update stock
-            for (const itm of receipt.products) {
-                const prodRef = doc(db, 'companies', companyId, 'products', itm.productId);
-                const prodSnap = await tx.get(prodRef);
-                if (!prodSnap.exists()) throw new Error(`Product not found: ${itm.productId}`);
-                const currentStock = prodSnap.data().stock || 0;
-                const newStock = currentStock + Math.abs(itm.quantityReceived);
-                tx.update(prodRef, { stock: newStock, updatedAt: Timestamp.now() } as unknown as Record<string, unknown>);
-                console.log('🟢 Stock updated for product:', itm.productId);
-            }
-
-            // Create receipt document
-            const payload = {
-                ...receipt,
-                supplierName: ((supSnap.data() as unknown) as Record<string, unknown>)['supplierName'] || null,
-                receivedAt: serverTimestamp(),
-                createdAt: serverTimestamp(),
-            } as unknown as Record<string, unknown>;
-
-            tx.set(receiptRef, payload);
-
-            // Create idempotency key doc to mark this operation (if provided)
-            if (keyRef) {
-                tx.set(keyRef, { receiptId: receiptRef.id, createdAt: serverTimestamp() });
-            }
-        });
-
-        console.log('🟢 Transaction success: incoming receipt saved');
-        // Return the newly created receipt (optimistic fields)
-        return { id: receiptRef.id, ...receipt, receivedAt: Timestamp.now(), createdAt: Timestamp.now() } as IncomingReceipt;
-    } catch (error) {
-        console.error('🔴 Transaction failed:', error);
-        throw error;
+        const payload = await createIncomingReceiptAtomic(companyId, receipt as unknown as Record<string, unknown>);
+        const id = payload && ((payload.receiptId || payload.id) ? (payload.receiptId || payload.id) : undefined);
+        if (id) {
+            return { id, ...(receipt as IncomingReceipt), receivedAt: Timestamp.now(), createdAt: Timestamp.now() } as IncomingReceipt;
+        }
+    } catch (callErr) {
+        console.error('[FIRESTORE] createIncomingReceiptAtomic unavailable or failed; server-side callable is required to perform incoming receipts due to security rules', callErr?.message || callErr);
+        throw new Error('createIncomingReceiptAtomic callable required: cannot perform incoming receipt client-side');
     }
 }
 
@@ -1041,7 +1057,10 @@ export const saveQuote = async (companyId: string, quote: Omit<Quote, 'id'> | Qu
 };
 
 // --- Goods Receipts (alias to a company-scoped goodsReceipts collection)
-export const saveGoodsReceipt = async (companyId: string, receipt: { supplierId: string; items: { productId: string; productName?: string; quantity: number; }[], idempotencyKey?: string }): Promise<{ id: string }> => {
+export const saveGoodsReceipt = async (
+    companyId: string,
+    receipt: { supplierId: string; items: { productId: string; productName?: string; quantity: number; }[]; idempotencyKey?: string }
+): Promise<{ id: string; ledgerEntries?: StockLedgerEntry[] }> => {
     ensureWriteAllowed('products');
     if (!receipt || !receipt.supplierId) throw new Error('Cannot save goods receipt without supplier');
     if (!receipt.items || !Array.isArray(receipt.items) || receipt.items.length === 0) throw new Error('Receipt must include at least one item');
@@ -1049,43 +1068,14 @@ export const saveGoodsReceipt = async (companyId: string, receipt: { supplierId:
     const receiptRef = doc(getCollectionRef(companyId, 'goodsReceipts'));
     const keyRef = receipt.idempotencyKey ? doc(db, 'companies', companyId, 'goodsReceiptKeys', receipt.idempotencyKey) : null;
 
+    // Prefer server-side callable for atomic goods receipt processing
     try {
-        await runTransaction(db, async (tx) => {
-            if (keyRef) {
-                const kSnap = await tx.get(keyRef);
-                if (kSnap.exists()) {
-                    const e: any = new Error('Duplicate submission');
-                    e.code = 'duplicate-receipt';
-                    e.existingReceiptId = kSnap.data()?.receiptId;
-                    throw e;
-                }
-            }
-
-            const supRef = doc(db, 'companies', companyId, 'suppliers', receipt.supplierId);
-            const supSnap = await tx.get(supRef);
-            if (!supSnap.exists()) throw new Error('Supplier not found');
-
-            for (const it of receipt.items) {
-                const pRef = doc(db, 'companies', companyId, 'products', it.productId);
-                const pSnap = await tx.get(pRef);
-                if (!pSnap.exists()) throw new Error(`Product not found: ${it.productId}`);
-                const currentStock = pSnap.data().stock || 0;
-                const newStock = currentStock + Number(it.quantity || 0);
-                tx.update(pRef, { stock: newStock, updatedAt: Timestamp.now() } as unknown as Record<string, unknown>);
-            }
-
-            const payload = { supplierId: receipt.supplierId, supplierName: (supSnap.data() as Record<string, unknown>)['name'] || null, items: receipt.items, receivedAt: serverTimestamp(), createdAt: serverTimestamp() } as unknown as Record<string, unknown>;
-            tx.set(receiptRef, payload);
-
-            if (keyRef) {
-                tx.set(keyRef, { receiptId: receiptRef.id, createdAt: serverTimestamp() });
-            }
-        });
-
-        return { id: receiptRef.id };
-    } catch (err) {
-        console.error('🔴 saveGoodsReceipt transaction failed:', err);
-        throw err;
+        const payload = await createGoodsReceiptAtomic(companyId, receipt as unknown as Record<string, unknown>);
+        const id = payload && ((payload.id || payload.receiptId) ? (payload.id || payload.receiptId) : undefined);
+        if (id) return { id, ledgerEntries: (payload && (payload.ledgerEntries || payload.createdLedgerEntries)) || [] } as { id: string; ledgerEntries?: StockLedgerEntry[] };
+    } catch (callErr) {
+        console.error('[FIRESTORE] createGoodsReceiptAtomic unavailable or failed; server-side callable is required to perform goods receipts due to security rules', callErr?.message || callErr);
+        throw new Error('createGoodsReceiptAtomic callable required: cannot perform goods receipt client-side');
     }
 };
 
@@ -1105,39 +1095,21 @@ export const createJournalEntry = async (companyId: string, entry: { date?: any;
 };
 
 // --- Purchases: transactional creation + accounting + supplier balance update
-export const createPurchase = async (companyId: string, purchase: { supplierId: string; supplierName?: string; invoiceNumber?: string; items: { productId: string; productName?: string; quantity: number; unitPrice: number; }[], totalAmount: number }) => {
+export const createPurchase = async (
+    companyId: string,
+    purchase: { supplierId: string; supplierName?: string; invoiceNumber?: string; items: { productId: string; productName?: string; quantity: number; unitPrice: number; }[]; totalAmount: number }
+): Promise<{ id: string }> => {
     ensureWriteAllowed('expenses');
     if (!purchase || !purchase.supplierId) throw new Error('Purchase requires supplierId');
     const purchaseRef = doc(getCollectionRef(companyId, 'purchases'));
 
+    // Prefer server-side callable for atomic purchase creation to ensure ledger/inventory writes
     try {
-        await runTransaction(db, async (tx) => {
-            const supRef = doc(db, 'companies', companyId, 'suppliers', purchase.supplierId);
-            const supSnap = await tx.get(supRef);
-            if (!supSnap.exists()) throw new Error('Supplier not found');
-
-            // Create purchase doc
-            const payload = { supplierId: purchase.supplierId, supplierName: (supSnap.data() as Record<string, unknown>)['name'] || purchase.supplierName || null, invoiceNumber: purchase.invoiceNumber || null, items: purchase.items, totalAmount: purchase.totalAmount || 0, paidAmount: 0, status: 'unpaid', createdAt: serverTimestamp() } as unknown as Record<string, unknown>;
-            tx.set(purchaseRef, payload);
-
-            // Update supplier balance (simple numeric balance field)
-            const currentBal = supSnap.data().balance || 0;
-            const newBal = currentBal + (purchase.totalAmount || 0);
-            tx.update(supRef, { balance: newBal, updatedAt: serverTimestamp() });
-
-            // Create journal entry: Debit Purchases (or Inventory) and Credit Accounts Payable
-            const journalRef = doc(getCollectionRef(companyId, 'journalEntries'));
-            const lines = [
-                { accountId: 'Purchases', debit: purchase.totalAmount || 0, credit: 0 },
-                { accountId: 'Payables', debit: 0, credit: purchase.totalAmount || 0 },
-            ];
-            tx.set(journalRef, { date: serverTimestamp(), lines, referenceType: 'purchase', referenceId: purchaseRef.id, createdAt: serverTimestamp() });
-        });
-
-        return { id: purchaseRef.id };
+        const resp = await createPurchaseAtomic(companyId, purchase as unknown as Record<string, unknown>);
+        if (resp && (resp as any).purchaseId) return { id: (resp as any).purchaseId };
     } catch (err) {
-        console.error('🔴 createPurchase transaction failed:', err);
-        throw err;
+        console.error('[FIRESTORE] createPurchaseAtomic unavailable or failed; server-side callable is required to perform purchases due to security rules', err?.message || err);
+        throw new Error('createPurchaseAtomic callable required: cannot perform purchase creation client-side');
     }
 };
 

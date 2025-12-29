@@ -12,6 +12,7 @@
     "format": "prettier --write .",
     "test": "vitest",
     "test:watch": "vitest --watch",
+    "test:integration": "vitest --run src/__tests__/integration --environment=node",
     "test:coverage": "vitest --coverage",
     "test:e2e": "playwright test"
   },

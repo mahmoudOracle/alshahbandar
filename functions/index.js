@@ -102,6 +102,153 @@ exports.createCompanyAsAdmin = functions.https.onCall(async (data, context) => {
     }
 });
 
+// Create goods receipt atomically on the server: increases product stock, writes inventory snapshots,
+// appends stockLedger entries and writes goodsReceipt doc in a transaction.
+exports.createGoodsReceiptAtomic = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+    const { companyId, receipt } = data || {};
+    if (!companyId || !receipt || !Array.isArray(receipt.items) || receipt.items.length === 0) {
+        throw new functions.https.HttpsError('invalid-argument', 'companyId and receipt with items are required');
+    }
+
+    try {
+        // Authorization: platform admin OR company member with role owner/manager
+        const platformAdminRef = db.collection('platformAdmins').doc(context.auth.uid);
+        const platformAdminDoc = await platformAdminRef.get();
+        let authorized = false;
+        if (platformAdminDoc.exists) authorized = true;
+        if (!authorized) {
+            const memberRef = db.collection('companies').doc(companyId).collection('users').doc(context.auth.uid);
+            const memberDoc = await memberRef.get();
+            if (memberDoc.exists) {
+                const role = (memberDoc.data() || {}).role || '';
+                if (['owner', 'manager'].includes(role)) authorized = true;
+            }
+        }
+        if (!authorized) throw new functions.https.HttpsError('permission-denied', 'Not authorized');
+
+        const receiptRef = db.collection('companies').doc(companyId).collection('goodsReceipts').doc();
+
+        await db.runTransaction(async (tx) => {
+            const supRef = db.collection('companies').doc(companyId).collection('suppliers').doc(receipt.supplierId);
+            const supSnap = await tx.get(supRef);
+            if (!supSnap.exists) throw new functions.https.HttpsError('not-found', 'Supplier not found');
+
+            const createdLedgerEntries = [];
+            for (const it of receipt.items) {
+                const prodRef = db.collection('companies').doc(companyId).collection('products').doc(it.productId);
+                const prodSnap = await tx.get(prodRef);
+                if (!prodSnap.exists) throw new functions.https.HttpsError('not-found', `Product not found: ${it.productId}`);
+                const prodData = prodSnap.data() || {};
+                const currentStock = Number(prodData.stock || 0);
+                const qty = Number(it.quantity || 0);
+                const newStock = currentStock + qty;
+
+                tx.update(prodRef, { stock: newStock, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+
+                // Inventory snapshot
+                const invRef = db.collection('companies').doc(companyId).collection('inventory').doc(String(it.productId));
+                tx.set(invRef, { productId: String(it.productId), quantity: newStock, lastUpdated: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+
+                // Ledger entry
+                const ledgerRef = db.collection('companies').doc(companyId).collection('stockLedger').doc();
+                const ledgerPayload = {
+                    productId: String(it.productId),
+                    change: qty,
+                    qtyBefore: currentStock,
+                    qtyAfter: newStock,
+                    unitCost: null,
+                    sourceType: 'PURCHASE',
+                    referenceId: receiptRef.id,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    createdBy: context.auth.uid
+                };
+                tx.set(ledgerRef, ledgerPayload);
+                createdLedgerEntries.push({ id: ledgerRef.id, ...ledgerPayload });
+            }
+
+            const payload = { supplierId: receipt.supplierId, supplierName: (supSnap.data() || {}).name || null, items: receipt.items, receivedAt: admin.firestore.FieldValue.serverTimestamp(), createdAt: admin.firestore.FieldValue.serverTimestamp() };
+            tx.set(receiptRef, payload);
+        });
+
+        return { success: true, receiptId: receiptRef.id };
+    } catch (err) {
+        console.error('[createGoodsReceiptAtomic] failed', err);
+        if (err instanceof functions.https.HttpsError) throw err;
+        throw new functions.https.HttpsError('internal', 'Failed to create goods receipt atomically');
+    }
+});
+
+// Create incoming receipt atomically on the server: similar to goods receipt but writes into incomingReceipts
+exports.createIncomingReceiptAtomic = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+    const { companyId, receipt } = data || {};
+    if (!companyId || !receipt || !Array.isArray(receipt.products) || receipt.products.length === 0) {
+        throw new functions.https.HttpsError('invalid-argument', 'companyId and receipt with products are required');
+    }
+
+    try {
+        // Authorization check same as other atomics
+        const platformAdminRef = db.collection('platformAdmins').doc(context.auth.uid);
+        const platformAdminDoc = await platformAdminRef.get();
+        let authorized = false;
+        if (platformAdminDoc.exists) authorized = true;
+        if (!authorized) {
+            const memberRef = db.collection('companies').doc(companyId).collection('users').doc(context.auth.uid);
+            const memberDoc = await memberRef.get();
+            if (memberDoc.exists) {
+                const role = (memberDoc.data() || {}).role || '';
+                if (['owner', 'manager'].includes(role)) authorized = true;
+            }
+        }
+        if (!authorized) throw new functions.https.HttpsError('permission-denied', 'Not authorized');
+
+        const receiptRef = db.collection('companies').doc(companyId).collection('incomingReceipts').doc();
+
+        await db.runTransaction(async (tx) => {
+            const supRef = db.collection('companies').doc(companyId).collection('suppliers').doc(receipt.supplierId);
+            const supSnap = await tx.get(supRef);
+            if (!supSnap.exists) throw new functions.https.HttpsError('not-found', 'Supplier not found');
+
+            for (const itm of receipt.products) {
+                const prodRef = db.collection('companies').doc(companyId).collection('products').doc(itm.productId);
+                const prodSnap = await tx.get(prodRef);
+                if (!prodSnap.exists) throw new functions.https.HttpsError('not-found', `Product not found: ${itm.productId}`);
+                const currentStock = Number(prodSnap.data().stock || 0);
+                const newStock = currentStock + Math.abs(Number(itm.quantityReceived || 0));
+                tx.update(prodRef, { stock: newStock, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+
+                // Inventory snapshot
+                const invRef = db.collection('companies').doc(companyId).collection('inventory').doc(String(itm.productId));
+                tx.set(invRef, { productId: String(itm.productId), quantity: newStock, lastUpdated: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+
+                // Append ledger entry for incoming receipt
+                const ledgerRef = db.collection('companies').doc(companyId).collection('stockLedger').doc();
+                tx.set(ledgerRef, {
+                    productId: String(itm.productId),
+                    change: Math.abs(Number(itm.quantityReceived || 0)),
+                    qtyBefore: currentStock,
+                    qtyAfter: newStock,
+                    unitCost: null,
+                    sourceType: 'INCOMING_RECEIPT',
+                    referenceId: receiptRef.id,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    createdBy: context.auth.uid
+                });
+            }
+
+            const payload = { ...receipt, supplierName: (supSnap.data() || {}).name || null, receivedAt: admin.firestore.FieldValue.serverTimestamp(), createdAt: admin.firestore.FieldValue.serverTimestamp() };
+            tx.set(receiptRef, payload);
+        });
+
+        return { success: true, receiptId: receiptRef.id };
+    } catch (err) {
+        console.error('[createIncomingReceiptAtomic] failed', err);
+        if (err instanceof functions.https.HttpsError) throw err;
+        throw new functions.https.HttpsError('internal', 'Failed to create incoming receipt atomically');
+    }
+});
+
 // Sales summary callable: returns aggregated totals for a company within optional date range
 exports.getSalesSummary = functions.https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
@@ -721,6 +868,50 @@ exports.getCompanyCounts = functions.https.onCall(async (data, context) => {
     }
 });
 
+// Scheduled job: daily sales summary per company
+exports.scheduledDailySalesReport = functions.pubsub.schedule('every day 01:00').timeZone('UTC').onRun(async (context) => {
+    console.log('[scheduledDailySalesReport] started', { time: new Date().toISOString() });
+    try {
+        const companiesSnap = await db.collection('companies').get();
+        const results = [];
+        const yesterdayEnd = new Date();
+        yesterdayEnd.setUTCDate(yesterdayEnd.getUTCDate() - 1);
+        yesterdayEnd.setUTCHours(23,59,59,999);
+        const yesterdayStart = new Date(yesterdayEnd);
+        yesterdayStart.setUTCHours(0,0,0,0);
+
+        for (const compDoc of companiesSnap.docs) {
+            const companyId = compDoc.id;
+            const invoicesRef = db.collection('companies').doc(companyId).collection('invoices');
+            const q = invoicesRef.where('date', '>=', admin.firestore.Timestamp.fromDate(yesterdayStart)).where('date', '<=', admin.firestore.Timestamp.fromDate(yesterdayEnd));
+            const snap = await q.get();
+            let totalSales = 0;
+            let invoiceCount = 0;
+            snap.forEach(s => {
+                const data = s.data();
+                totalSales += Number(data.total) || 0;
+                invoiceCount += 1;
+            });
+
+            const reportRef = db.collection('companies').doc(companyId).collection('reports').doc(`dailySales_${yesterdayStart.toISOString().slice(0,10)}`);
+            const reportData = {
+                date: admin.firestore.Timestamp.fromDate(yesterdayStart),
+                totalSales,
+                invoiceCount,
+                generatedAt: admin.firestore.FieldValue.serverTimestamp()
+            };
+            await reportRef.set(reportData, { merge: true });
+            results.push({ companyId, totalSales, invoiceCount });
+        }
+
+        console.log('[scheduledDailySalesReport] completed', { count: results.length });
+        return { success: true, resultsCount: results.length };
+    } catch (err) {
+        console.error('[scheduledDailySalesReport] failed', err);
+        return { success: false, error: String(err) };
+    }
+});
+
 // Get company invitations (pending) for a given company. Only accessible to company owners/managers or platform admins.
 exports.getCompanyInvitations = functions.https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
@@ -798,6 +989,9 @@ exports.createOwnerCompany = functions.https.onCall(async (data, context) => {
         if (!context.auth) {
             throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
         }
+        
+        // No-op placeholder: keep behavior unchanged for existing function
+        // (function continues below in file)
 
         const uid = context.auth.uid;
         // Be defensive: token.email may not be present immediately after signup. Normalize safely.
@@ -893,5 +1087,215 @@ exports.createOwnerCompany = functions.https.onCall(async (data, context) => {
         } else {
             throw new functions.https.HttpsError('internal', 'Failed to create owner company');
         }
+    }
+});
+
+// Create an invoice atomically on the server: snapshots unitCost, updates stock,
+// appends stockLedger entries, and writes the invoice within a transaction.
+exports.createInvoiceAtomic = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+
+    const { companyId, invoice } = data || {};
+    if (!companyId || !invoice || !Array.isArray(invoice.items) || invoice.items.length === 0) {
+        throw new functions.https.HttpsError('invalid-argument', 'companyId and invoice with items are required');
+    }
+
+    try {
+        // Authorization: platform admin OR company member
+        const platformAdminRef = db.collection('platformAdmins').doc(context.auth.uid);
+        const platformAdminDoc = await platformAdminRef.get();
+        let authorized = false;
+        if (platformAdminDoc.exists) authorized = true;
+        if (!authorized) {
+            const memberRef = db.collection('companies').doc(companyId).collection('users').doc(context.auth.uid);
+            const memberDoc = await memberRef.get();
+            if (memberDoc.exists) authorized = true;
+        }
+        if (!authorized) throw new functions.https.HttpsError('permission-denied', 'Not authorized');
+
+        const invoiceRef = db.collection('companies').doc(companyId).collection('invoices').doc();
+
+        const result = await db.runTransaction(async (tx) => {
+            let costTotal = 0;
+            const itemsWithCost = [];
+
+            // Preload all product docs and validate stock
+            for (const item of invoice.items) {
+                if (!item.productId) throw new functions.https.HttpsError('invalid-argument', 'Each item must have a productId');
+                const prodRef = db.collection('companies').doc(companyId).collection('products').doc(String(item.productId));
+                const prodSnap = await tx.get(prodRef);
+                if (!prodSnap.exists) throw new functions.https.HttpsError('not-found', `Product ${item.productId} not found`);
+                const prod = prodSnap.data();
+
+                const quantity = Number(item.quantity) || 0;
+                if (quantity <= 0) throw new functions.https.HttpsError('invalid-argument', 'Item quantity must be > 0');
+
+                const available = Number(prod.stock) || 0;
+                if (available < quantity) {
+                    throw new functions.https.HttpsError('failed-precondition', `Insufficient stock for product ${item.productId}`);
+                }
+
+                const unitCost = (item.unitCost != null)
+                    ? Number(item.unitCost)
+                    : (Number(prod.averageCost) || Number(prod.defaultCost) || 0);
+
+                const lineCost = unitCost * quantity;
+                costTotal += lineCost;
+
+                itemsWithCost.push(Object.assign({}, item, { unitCost }));
+
+                // Update product stock
+                const newStock = available - quantity;
+                tx.update(prodRef, { stock: newStock, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+
+                // Update inventory snapshot (merge)
+                const invRef = db.collection('companies').doc(companyId).collection('inventory').doc(String(item.productId));
+                tx.set(invRef, {
+                    productId: String(item.productId),
+                    quantity: newStock,
+                    lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+
+                // Append stock ledger entry for the sale (write fields expected by security rules)
+                const ledgerRef = db.collection('companies').doc(companyId).collection('stockLedger').doc();
+                tx.set(ledgerRef, {
+                    productId: String(item.productId),
+                    change: -Math.abs(quantity),
+                    qtyBefore: available,
+                    qtyAfter: newStock,
+                    unitCost: unitCost == null ? null : Number(unitCost),
+                    sourceType: 'SALE',
+                    referenceCollection: 'invoices',
+                    referenceId: invoiceRef.id,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    createdBy: context.auth.uid
+                });
+            }
+
+            // Compute totals: prefer client-provided totals, but compute subtotal if missing
+            let subtotal = 0;
+            for (const it of itemsWithCost) {
+                const price = Number(it.unitPrice || it.price || 0);
+                subtotal += price * (Number(it.quantity) || 0);
+            }
+
+            const total = (invoice.total != null) ? Number(invoice.total) : subtotal;
+            const profit = Number(total) - costTotal;
+
+            const now = admin.firestore.FieldValue.serverTimestamp();
+            const invoiceToSave = Object.assign({}, invoice, {
+                items: itemsWithCost,
+                costTotal,
+                profit,
+                subtotal,
+                total,
+                paymentsSummary: invoice.paymentsSummary || { paid: 0, due: total },
+                status: (invoice.paymentsSummary && invoice.paymentsSummary.paid >= total) ? 'paid' : 'unpaid',
+                createdAt: now,
+                updatedAt: now
+            });
+
+            tx.set(invoiceRef, invoiceToSave);
+
+            return { invoiceId: invoiceRef.id };
+        });
+
+        return { success: true, ...result };
+    } catch (err) {
+        console.error('[createInvoiceAtomic] failed', err);
+        if (err instanceof functions.https.HttpsError) throw err;
+        throw new functions.https.HttpsError('internal', 'Failed to create invoice atomically');
+    }
+});
+
+// Create purchase atomically on the server: updates product stock, inventory snapshots,
+// appends stockLedger entries, updates supplier balance and writes purchase doc in a transaction.
+exports.createPurchaseAtomic = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+    const { companyId, purchase } = data || {};
+    if (!companyId || !purchase || !Array.isArray(purchase.items) || purchase.items.length === 0) {
+        throw new functions.https.HttpsError('invalid-argument', 'companyId and purchase with items are required');
+    }
+
+    try {
+        // Authorization: platform admin OR company member with role owner/manager
+        const platformAdminRef = db.collection('platformAdmins').doc(context.auth.uid);
+        const platformAdminDoc = await platformAdminRef.get();
+        let authorized = false;
+        if (platformAdminDoc.exists) authorized = true;
+        if (!authorized) {
+            const memberRef = db.collection('companies').doc(companyId).collection('users').doc(context.auth.uid);
+            const memberDoc = await memberRef.get();
+            if (memberDoc.exists) {
+                const role = (memberDoc.data() || {}).role || '';
+                if (['owner', 'manager'].includes(role)) authorized = true;
+            }
+        }
+        if (!authorized) throw new functions.https.HttpsError('permission-denied', 'Not authorized');
+
+        const purchaseRef = db.collection('companies').doc(companyId).collection('purchases').doc();
+
+        await db.runTransaction(async (tx) => {
+            const supRef = db.collection('companies').doc(companyId).collection('suppliers').doc(purchase.supplierId);
+            const supSnap = await tx.get(supRef);
+            if (!supSnap.exists) throw new functions.https.HttpsError('not-found', 'Supplier not found');
+
+            // Create purchase doc
+            const payload = { supplierId: purchase.supplierId, supplierName: supSnap.data().name || null, invoiceNumber: purchase.invoiceNumber || null, items: purchase.items, totalAmount: purchase.totalAmount || 0, paidAmount: 0, status: 'unpaid', createdAt: admin.firestore.FieldValue.serverTimestamp() };
+            tx.set(purchaseRef, payload);
+
+            for (const it of purchase.items) {
+                const prodRef = db.collection('companies').doc(companyId).collection('products').doc(it.productId);
+                const prodSnap = await tx.get(prodRef);
+                if (!prodSnap.exists) throw new functions.https.HttpsError('not-found', `Product not found: ${it.productId}`);
+                const prodData = prodSnap.data() || {};
+                const currentStock = Number(prodData.stock || 0);
+                const qty = Number(it.quantity || 0);
+                const newStock = currentStock + qty;
+
+                // Recompute average cost
+                const prevAvg = typeof prodData.averageCost === 'number' ? prodData.averageCost : (typeof prodData.defaultCost === 'number' ? prodData.defaultCost : 0);
+                const unitPrice = typeof it.unitPrice === 'number' ? it.unitPrice : null;
+                const newAvg = unitPrice !== null && (currentStock + qty) > 0 ? Math.round((((prevAvg * currentStock) + (unitPrice * qty)) / (currentStock + qty)) * 100) / 100 : prevAvg;
+
+                const prodUpdate = { stock: newStock, updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+                if (unitPrice !== null) prodUpdate.averageCost = newAvg;
+                tx.update(prodRef, prodUpdate);
+
+                // Inventory snapshot
+                const invRef = db.collection('companies').doc(companyId).collection('inventory').doc(it.productId);
+                tx.set(invRef, { productId: it.productId, quantity: newStock, lastUpdated: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+
+                // Ledger entry
+                const ledgerRef = db.collection('companies').doc(companyId).collection('stockLedger').doc();
+                tx.set(ledgerRef, {
+                    productId: it.productId,
+                    change: qty,
+                    qtyBefore: currentStock,
+                    qtyAfter: newStock,
+                    unitCost: unitPrice,
+                    sourceType: 'PURCHASE',
+                    referenceId: purchaseRef.id,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    createdBy: context.auth.uid
+                });
+            }
+
+            // Update supplier balance
+            const currentBal = supSnap.data().balance || 0;
+            const newBal = currentBal + (purchase.totalAmount || 0);
+            tx.update(supRef, { balance: newBal, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+
+            // Accounting journal entry
+            const journalRef = db.collection('companies').doc(companyId).collection('journalEntries').doc();
+            const lines = [ { accountId: 'Purchases', debit: purchase.totalAmount || 0, credit: 0 }, { accountId: 'Payables', debit: 0, credit: purchase.totalAmount || 0 } ];
+            tx.set(journalRef, { date: admin.firestore.FieldValue.serverTimestamp(), lines, referenceType: 'purchase', referenceId: purchaseRef.id, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+        });
+
+        return { success: true, purchaseId: purchaseRef.id };
+    } catch (err) {
+        console.error('[createPurchaseAtomic] failed', err);
+        if (err instanceof functions.https.HttpsError) throw err;
+        throw new functions.https.HttpsError('internal', 'Failed to create purchase atomically');
     }
 });

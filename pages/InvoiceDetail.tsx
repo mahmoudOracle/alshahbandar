@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getInvoiceById, getCustomerById, deleteInvoice, undeleteDocument } from '../services/dataService';
+import PaymentForm from './PaymentForm';
 import { Invoice, InvoiceStatus, Customer } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
@@ -14,6 +15,7 @@ const InvoiceDetail: React.FC = () => {
   const canWrite = useCanWrite('invoices');
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
   const { settings, loading: settingsLoading } = useSettings();
   const [loading, setLoading] = useState(true);
   const invoiceRef = useRef<HTMLDivElement>(null);
@@ -214,6 +216,12 @@ ${settings.businessName}
               <span className="font-semibold text-gray-700 dark:text-gray-300">المجموع الفرعي:</span>
               <span>{invoice.subtotal.toFixed(2)} {settings.currency}</span>
             </div>
+            {invoice.paymentsSummary && (
+              <div className="flex justify-between py-2">
+                <span className="font-semibold text-gray-700 dark:text-gray-300">مدفوع:</span>
+                <span>{(invoice.paymentsSummary.paid || 0).toFixed(2)} {settings.currency}</span>
+              </div>
+            )}
              {invoice.taxAmount !== undefined && invoice.taxAmount > 0 && (
                 <div className="flex justify-between py-2">
                     <span className="font-semibold text-gray-700 dark:text-gray-300">الضريبة ({invoice.taxRate || 0}%):</span>
@@ -232,9 +240,24 @@ ${settings.businessName}
         <button onClick={handleSendEmail} disabled={!customer?.email} className="px-4 py-2 text-white bg-teal-500 rounded-md hover:bg-teal-600 disabled:bg-gray-400">إرسال عبر الإيميل</button>
         {canWrite && <Link to={`/invoices/edit/${id}`} className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500">تعديل</Link>}
         {canWrite && <button onClick={handleDelete} className="px-4 py-2 text-white bg-red-600 rounded-md hover:bg-red-700">حذف</button>}
+        {canWrite && <button onClick={() => setShowPaymentForm(true)} className="px-4 py-2 text-white bg-indigo-600 rounded-md hover:bg-indigo-700">تسجيل دفعة</button>}
         <button onClick={() => handleExport('pdf')} className="px-4 py-2 text-white bg-red-500 rounded-md hover:bg-red-600">تصدير PDF</button>
         <button onClick={() => handleExport('png')} className="px-4 py-2 text-white bg-green-500 rounded-md hover:bg-green-600">تصدير صورة</button>
       </div>
+
+      {showPaymentForm && customer && (
+        <div className="max-w-2xl mx-auto mt-6 p-4 border rounded bg-white dark:bg-gray-800">
+          <h3 className="font-semibold mb-3">تسجيل دفعة</h3>
+          <PaymentForm customer={customer} onPaymentSaved={async () => {
+            // Refresh invoice and close form
+            if (activeCompanyId && id) {
+              const inv = await getInvoiceById(activeCompanyId, id);
+              setInvoice(inv || null);
+            }
+            setShowPaymentForm(false);
+          }} onClose={() => setShowPaymentForm(false)} />
+        </div>
+      )}
     </>
   );
 };

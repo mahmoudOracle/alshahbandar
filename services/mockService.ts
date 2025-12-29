@@ -2,9 +2,10 @@
 // It uses in-memory arrays to store data.
 
 import {
-  Customer, Product, Invoice, Payment, Settings, Expense, Quote, RecurringInvoice,
-  UserRole, StoredExpenseCategory, StoredVendor, InvoiceStatus,
-    PaymentType, PaginatedData, CompanyUser, CompanyInvitation, CompanyMembership
+    Customer, Product, Invoice, Payment, Settings, Expense, Quote, RecurringInvoice,
+    UserRole, StoredExpenseCategory, StoredVendor, InvoiceStatus,
+        PaymentType, PaginatedData, CompanyUser, CompanyInvitation, CompanyMembership,
+        InventoryItem, StockLedgerEntry
 } from '../types';
 import { User } from 'firebase/auth';
 
@@ -25,6 +26,10 @@ const vendors: StoredVendor[] = [];
 let lastInvoiceNumber = 0;
 let lastQuoteNumber = 0;
 let isSeeded = false;
+
+let inventory: InventoryItem[] = [];
+let stockLedger: StockLedgerEntry[] = [];
+let reports: Record<string, unknown>[] = [];
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
@@ -90,6 +95,15 @@ export const seedData = async (companyId: string) => {
             paymentType: PaymentType.Credit,
             status: InvoiceStatus.Due,
         });
+    }
+
+    // seed a sample daily sales report for the most recent date
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const salesTotal = invoices.reduce((s, inv) => s + ((inv as any).total || 0), 0);
+        reports.push({ id: `daily_${today}`, date: today, type: 'dailySales', totals: { sales: salesTotal }, generatedAt: new Date().toISOString() });
+    } catch (err) {
+        // ignore
     }
 
     isSeeded = true;
@@ -208,7 +222,112 @@ export const saveInvoice = async (_companyId: string, invoice: Omit<Invoice, 'id
         lastInvoiceNumber++;
         (invoice as Invoice).invoiceNumber = `INV-${String(lastInvoiceNumber).padStart(4, '0')}`;
     }
-    return saveAndClone(invoices, invoice);
+    const saved = saveAndClone(invoices, invoice);
+    // Ensure unitCost snapshot, compute costTotal/profit and paymentsSummary
+    let costTotal = 0;
+    if ((saved as Invoice).items && Array.isArray((saved as Invoice).items)) {
+        for (const it of (saved as Invoice).items) {
+            const prod = products.find(p => p.id === it.productId);
+            const unitCost = (typeof (it as any).unitCost === 'number') ? (it as any).unitCost : (prod && typeof prod.averageCost === 'number' ? prod.averageCost : (prod && typeof prod.defaultCost === 'number' ? prod.defaultCost : 0));
+            (it as any).unitCost = unitCost;
+            costTotal += unitCost * (it.quantity || 0);
+        }
+    }
+    (saved as Invoice).costTotal = Math.round(costTotal * 100) / 100;
+    (saved as Invoice).profit = Math.round(((saved as Invoice).total - (saved as Invoice).costTotal) * 100) / 100;
+    (saved as Invoice).paymentsSummary = { paid: 0, due: (saved as Invoice).total };
+
+    // Apply stock reductions and ledger entries for saved invoice (mock behavior)
+    if ((saved as Invoice).items && Array.isArray((saved as Invoice).items)) {
+        for (const it of (saved as Invoice).items) {
+            const prod = products.find(p => p.id === it.productId);
+            if (!prod) continue; // product may have been deleted in tests
+            const qty = Number(it.quantity || 0);
+            const currentStock = Number(prod.stock || 0);
+            const newStock = currentStock - qty;
+            if (newStock < 0) {
+                // prevent oversell in mock
+                throw new Error(`Insufficient stock for product ${it.productId}. Current: ${currentStock}, required: ${qty}`);
+            }
+            prod.stock = newStock;
+
+            // update inventory snapshot
+            const invIndex = inventory.findIndex(i => i.productId === it.productId);
+            if (invIndex > -1) {
+                inventory[invIndex].quantity = prod.stock;
+                inventory[invIndex].lastUpdated = new Date();
+            } else {
+                inventory.push({ id: it.productId, productId: it.productId, quantity: prod.stock, lastUpdated: new Date() });
+            }
+
+            // determine unit cost: prefer item.unitCost or product.averageCost/defaultCost
+            const unitCost = (typeof (it as any).unitCost === 'number') ? (it as any).unitCost : (typeof prod.averageCost === 'number' ? prod.averageCost : (typeof prod.defaultCost === 'number' ? prod.defaultCost : null));
+            // ensure item has unitCost snapshot
+            (it as any).unitCost = unitCost;
+
+            const ledgerEntry: StockLedgerEntry = {
+                id: `ledger_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+                productId: it.productId,
+                change: -qty,
+                qtyBefore: currentStock,
+                qtyAfter: newStock,
+                unitCost: unitCost,
+                sourceType: 'SALE',
+                sourceId: saved.id,
+                timestamp: new Date(),
+            };
+            stockLedger.push(ledgerEntry);
+        }
+    }
+
+    return saved;
+};
+
+export const getInventory = async (_companyId: string): Promise<PaginatedData<InventoryItem>> => { await delay(50); return { data: deepClone(inventory) }; };
+export const getStockLedger = async (_companyId: string, options: { limit?: number } = {}): Promise<PaginatedData<StockLedgerEntry>> => { await delay(50); return { data: deepClone(stockLedger) }; };
+
+export const getReports = async (_companyId: string, _options: { limit?: number; startAfter?: number } = {}): Promise<PaginatedData<Record<string, unknown>>> => { await delay(50); return { data: deepClone(reports) }; };
+
+export const saveGoodsReceipt = async (_companyId: string, receipt: { supplierId: string; items: { productId: string; productName?: string; quantity: number; }[]; idempotencyKey?: string }) => {
+    await delay(120);
+    if (!receipt || !receipt.supplierId) throw new Error('Cannot save goods receipt without supplier');
+    if (!receipt.items || !Array.isArray(receipt.items) || receipt.items.length === 0) throw new Error('Receipt must include at least one item');
+
+    const receiptId = `mock_receipt_${Date.now()}`;
+    const createdLedgerEntries: StockLedgerEntry[] = [];
+
+    for (const it of receipt.items) {
+        const prod = products.find(p => p.id === it.productId);
+        if (!prod) throw new Error(`Product not found: ${it.productId}`);
+        const currentStock = Number(prod.stock || 0);
+        const qtyChange = Number(it.quantity || 0);
+        prod.stock = currentStock + qtyChange;
+
+        // update inventory snapshot
+        const invIndex = inventory.findIndex(i => i.productId === it.productId);
+        if (invIndex > -1) {
+            inventory[invIndex].quantity = prod.stock;
+            inventory[invIndex].lastUpdated = new Date();
+        } else {
+            inventory.push({ id: it.productId, productId: it.productId, quantity: prod.stock, lastUpdated: new Date() });
+        }
+
+        const ledgerEntry: StockLedgerEntry = {
+            id: `ledger_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+            productId: it.productId,
+            change: qtyChange,
+            qtyBefore: currentStock,
+            qtyAfter: prod.stock,
+            unitCost: null,
+            sourceType: 'PURCHASE',
+            sourceId: receiptId,
+            timestamp: new Date(),
+        };
+        stockLedger.push(ledgerEntry);
+        createdLedgerEntries.push(deepClone(ledgerEntry));
+    }
+
+    return { id: receiptId, ledgerEntries: createdLedgerEntries };
 };
 export const deleteInvoice = async (_companyId: string, id: string) => { await delay(150); return deleteById(invoices, id); };
 
@@ -218,7 +337,30 @@ export const getPaymentsByCustomerId = async (_companyId: string, customerId: st
     const filtered = payments.filter(p => p.customerId === customerId);
     return { data: deepClone(filtered) };
 };
-export const savePayment = async (_companyId: string, payment: Omit<Payment, 'id'> | Payment) => { await delay(150); return saveAndClone(payments, payment); };
+export const savePayment = async (_companyId: string, payment: Omit<Payment, 'id'> | Payment) => {
+    await delay(150);
+    const saved = saveAndClone(payments, payment as any);
+
+    // Update related invoice paymentsSummary and status in mock
+    try {
+        if ((saved as Payment).invoiceId) {
+            const inv = invoices.find(i => i.id === (saved as Payment).invoiceId);
+            if (inv) {
+                const paid = payments.filter(p => p.invoiceId === inv.id).reduce((s, p) => s + (p.amount || 0), 0);
+                (inv as any).paymentsSummary = { paid, due: Math.max(0, (inv.total || 0) - paid) };
+                if (paid >= (inv.total || 0)) {
+                    inv.status = 'Paid';
+                } else if (paid > 0) {
+                    inv.status = 'Partial' as any;
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('mockService.savePayment: failed to update invoice paymentsSummary', err);
+    }
+
+    return saved;
+};
 
 export const getSettings = async (_companyId: string): Promise<Settings | null> => { await delay(50); return deepClone(settings); };
 export const saveSettings = async (_companyId: string, newSettings: Settings) => {
@@ -294,4 +436,41 @@ export const deleteAllCompanyData = async (_companyId: string) => {
     isSeeded = false;
     await delay(200);
     console.log("Mock data cleared.");
+};
+
+export const createPurchase = async (_companyId: string, purchase: { supplierId: string; supplierName?: string; invoiceNumber?: string; items: { productId: string; productName?: string; quantity: number; unitPrice: number; }[]; totalAmount: number }) => {
+    await delay(150);
+    if (!purchase || !purchase.supplierId) throw new Error('Purchase requires supplierId');
+    const purchaseId = `mock_purchase_${Date.now()}`;
+
+    // update stocks and ledger
+    for (const it of purchase.items) {
+        const prod = products.find(p => p.id === it.productId);
+        if (!prod) throw new Error(`Product not found: ${it.productId}`);
+        const currentStock = Number(prod.stock || 0);
+        prod.stock = currentStock + Number(it.quantity || 0);
+
+        const invIndex = inventory.findIndex(i => i.productId === it.productId);
+        if (invIndex > -1) {
+            inventory[invIndex].quantity = prod.stock;
+            inventory[invIndex].lastUpdated = new Date();
+        } else {
+            inventory.push({ id: it.productId, productId: it.productId, quantity: prod.stock, lastUpdated: new Date() });
+        }
+
+        const ledgerEntry: StockLedgerEntry = {
+            id: `ledger_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+            productId: it.productId,
+            change: Number(it.quantity || 0),
+            qtyBefore: currentStock,
+            qtyAfter: prod.stock,
+            unitCost: it.unitPrice,
+            sourceType: 'PURCHASE',
+            sourceId: purchaseId,
+            timestamp: new Date(),
+        };
+        stockLedger.push(ledgerEntry);
+    }
+
+    return { id: purchaseId } as { id: string };
 };

@@ -57,14 +57,67 @@ service cloud.firestore {
         // Reads allowed for members or platform admins
         allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
 
-          // Writes allowed only for platform admins or members with sufficient role
-          // For destructive operations (deletes) require server-side callable to set `isDeleted` flag.
-          allow create, update: if isSignedIn() && (
-            isPlatformAdmin() || hasCompanyRole(companyId, ['owner', 'manager', 'editor'])
-          );
+        // Writes allowed only for platform admins or members with sufficient role
+        // For destructive operations (deletes) require server-side callable to set `isDeleted` flag.
+        allow create, update: if isSignedIn() && (
+          isPlatformAdmin() || hasCompanyRole(companyId, ['owner', 'manager', 'editor'])
+        );
 
-          // Prevent client-side hard deletes; require server-side callable to mark `isDeleted`.
-          allow delete: if false;
+        // Prevent client-side hard deletes; require server-side callable to mark `isDeleted`.
+        allow delete: if false;
+      }
+
+      // Protect ledger & inventory: only platform admins (server-side) may modify these.
+      // Clients should use server-side callables or Cloud Functions to append ledger entries
+      // and update inventory snapshots. These collections remain readable by company users.
+      match /stockLedger/{entryId} {
+        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+        // Strict validation for ledger entries to ensure audit integrity.
+        function validLedgerEntry() {
+          return (
+            request.resource.data.productId is string &&
+            request.resource.data.change is number && request.resource.data.change != 0 &&
+            request.resource.data.qtyBefore is number &&
+            request.resource.data.qtyAfter is number &&
+            // Ensure arithmetic consistency: qtyAfter == qtyBefore + change
+            request.resource.data.qtyAfter == request.resource.data.qtyBefore + request.resource.data.change &&
+            (request.resource.data.unitCost is number || request.resource.data.unitCost == null) &&
+            request.resource.data.sourceType in ['SALE', 'PURCHASE', 'ADJUSTMENT', 'RETURN'] &&
+            request.resource.data.referenceId is string &&
+            // timestamp must be provided and cannot be in the future
+            request.resource.data.timestamp is timestamp && request.resource.data.timestamp <= request.time
+          );
+        }
+
+        // Allow creation only by platform admins or callers with `admin` custom claim.
+        // Cloud Functions using the Admin SDK will bypass these rules; client writes are blocked unless caller has admin claim.
+        allow create: if isSignedIn() && (isPlatformAdmin() || (request.auth.token.admin == true)) && validLedgerEntry();
+        allow update, delete: if false;
+      }
+
+      match /inventory/{productId} {
+        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+
+        // Inventory snapshots must be consistent with product stock. Only admin callers may write.
+        function validInventorySnapshot() {
+          return (
+            request.resource.data.productId is string &&
+            request.resource.data.quantity is number &&
+            request.resource.data.lastUpdated is timestamp && request.resource.data.lastUpdated <= request.time
+          );
+        }
+
+        // If the corresponding product document exists, enforce that inventory.quantity equals product.stock
+        function matchesProductStock() {
+          return exists(/databases/$(database)/documents/companies/$(companyId)/products/$(request.resource.data.productId)) ?
+            (get(/databases/$(database)/documents/companies/$(companyId)/products/$(request.resource.data.productId)).data.stock is number &&
+              get(/databases/$(database)/documents/companies/$(companyId)/products/$(request.resource.data.productId)).data.stock == request.resource.data.quantity)
+            : true;
+        }
+
+        allow create: if isSignedIn() && (isPlatformAdmin() || (request.auth.token.admin == true)) && validInventorySnapshot() && matchesProductStock();
+        allow update: if isSignedIn() && (isPlatformAdmin() || (request.auth.token.admin == true)) && validInventorySnapshot() && matchesProductStock();
+        allow delete: if isSignedIn() && (isPlatformAdmin() || (request.auth.token.admin == true));
       }
     }
 

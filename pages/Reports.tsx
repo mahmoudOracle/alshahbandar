@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getInvoices, getExpenses } from '../services/dataService';
+import { getInvoices, getExpenses, getReports } from '../services/dataService';
 import { Invoice, Expense, InvoiceStatus } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -58,6 +58,7 @@ const Reports: React.FC = () => {
     const { activeCompanyId } = useAuth();
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [expenses, setExpenses] = useState<Expense[]>([]);
+    const [reports, setReports] = useState<Record<string, unknown>[]>([]);
     const [loading, setLoading] = useState(true);
     const { settings, loading: settingsLoading } = useSettings();
     const { addNotification } = useNotification();
@@ -75,10 +76,11 @@ const Reports: React.FC = () => {
             }
             setLoading(true);
             try {
-                const [invoicesData, expensesData] = await Promise.all([getInvoices(activeCompanyId), getExpenses(activeCompanyId)]);
+                const [invoicesData, expensesData, reportsData] = await Promise.all([getInvoices(activeCompanyId), getExpenses(activeCompanyId), getReports(activeCompanyId)]);
                 // FIX: Handle PaginatedData response
                 setInvoices(((invoicesData as unknown) as { data?: Invoice[] }).data || []);
                 setExpenses(((expensesData as unknown) as { data?: Expense[] }).data || []);
+                setReports(((reportsData as unknown) as { data?: Record<string, unknown>[] }).data || []);
             } catch (error: unknown) {
                 addNotification(mapFirestoreError(error), 'error');
             }
@@ -182,6 +184,29 @@ const Reports: React.FC = () => {
                     </div>
                 ) : (
                     <p className="text-center text-gray-500 py-8">لا توجد مصروفات في هذا النطاق الزمني.</p>
+                )}
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                <h3 className="text-xl font-bold mb-4">التقارير المولدة</h3>
+                {reports.length === 0 ? (
+                    <p className="text-center text-gray-500 py-8">لا توجد تقارير مولدة بعد.</p>
+                ) : (
+                    <ul className="space-y-3">
+                        {reports.map(r => (
+                            <li key={String((r as any).id)} className="p-3 border rounded">
+                                <div className="flex justify-between">
+                                    <div>
+                                        <div className="font-semibold">{String((r as any).type || 'Report')}</div>
+                                        <div className="text-sm text-gray-600">{String((r as any).date || (r as any).generatedAt || '')}</div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-sm">{JSON.stringify((r as any).totals || {})}</div>
+                                    </div>
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
                 )}
             </div>
         </div>

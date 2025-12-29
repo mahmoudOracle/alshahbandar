@@ -38,6 +38,8 @@ const cacheKey = (fn: string | symbol, args: unknown[]) => {
 const READ_CACHE_FUNCS = new Set(['getProducts', 'getCustomers', 'getInvoices', 'getSettings', 'getQuotes', 'getPayments', 'getExpenses', 'getJournalEntries']);
 // Cache supplier reads as well
 READ_CACHE_FUNCS.add('getSuppliers');
+// Cache reports reads
+READ_CACHE_FUNCS.add('getReports');
 
 const safeService = new Proxy({}, {
     get(_target, prop: string | symbol) {
@@ -150,6 +152,9 @@ export const {
     generateInvoicesFromRecurring,
     getSettings,
     saveSettings,
+    getInventory,
+    getStockLedger,
+    getReports,
     // Reports
     getSalesSummary,
     exportSalesCsv,
