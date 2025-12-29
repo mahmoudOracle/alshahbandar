@@ -8,4 +8,6 @@ export default defineConfig({
     viewport: { width: 1280, height: 720 },
   },
   testDir: 'e2e',
+  retries: process.env.CI ? 2 : 0,
+  reporter: process.env.CI ? [['list'], ['html', { outputFolder: 'playwright-report' }]] : 'list',
 });
