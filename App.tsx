@@ -12,6 +12,7 @@ import OnboardingBanner from './components/OnboardingBanner';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { DataIsolationDebug } from '@/components/DataIsolationDebug';
 import { routes } from '@/src/routes';
+import MobileBottomNav from './components/MobileBottomNav';
 
 const AppRoutes: React.FC = () => (
   <Routes>
@@ -105,6 +106,7 @@ function App() {
             </div>
           </Suspense>
         </div>
+        <MobileBottomNav />
       </main>
 
       {/* Data Isolation Debug Info (dev only) */}
