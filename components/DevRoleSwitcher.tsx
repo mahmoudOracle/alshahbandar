@@ -5,11 +5,14 @@ import { UserRole } from '../types';
 export function DevRoleSwitcher() {
   const { role: currentRole } = useAuth();
   const [role, setRole] = useState<UserRole>(currentRole || UserRole.Viewer);
-  
+
   const user = { name: 'Dev User', email: 'dev@example.com' };
 
   return (
-    <div dir="rtl" className="fixed bottom-2 right-2 bg-white/90 dark:bg-slate-800/90 shadow p-2 rounded text-xs z-50 border dark:border-slate-700">
+    <div
+      dir="rtl"
+      className="fixed bottom-2 right-2 bg-white/90 dark:bg-slate-800/90 shadow p-2 rounded text-xs z-50 border dark:border-slate-700"
+    >
       <div>الدور الحالي: {role}</div>
       <select
         value={role}

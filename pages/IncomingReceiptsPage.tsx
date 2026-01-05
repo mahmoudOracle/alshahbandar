@@ -16,7 +16,12 @@ const IncomingReceiptsPage: React.FC = () => {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string | undefined>();
-  type ReceiptItem = { productId: string; productName: string; quantityReceived: number; note?: string };
+  type ReceiptItem = {
+    productId: string;
+    productName: string;
+    quantityReceived: number;
+    note?: string;
+  };
   const [items, setItems] = useState<ReceiptItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [productSearch, setProductSearch] = useState('');
@@ -31,24 +36,40 @@ const IncomingReceiptsPage: React.FC = () => {
       setProducts(prodRes.data || []);
     } catch (err: unknown) {
       addNotification(mapFirestoreError(err), 'error');
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { fetch(); }, [activeCompanyId]);
+  useEffect(() => {
+    fetch();
+  }, [activeCompanyId]);
 
-  const filteredProducts = useMemo(() => products.filter(p => (p.name || '').toLowerCase().includes(productSearch.toLowerCase())), [products, productSearch]);
+  const filteredProducts = useMemo(
+    () =>
+      products.filter((p) => (p.name || '').toLowerCase().includes(productSearch.toLowerCase())),
+    [products, productSearch]
+  );
 
   const addItem = (product?: unknown) => {
     const prod = product;
-    setItems(prev => [...prev, { productId: prod?.id || '', productName: String(prod?.name || ''), quantityReceived: 1, note: '' }]);
+    setItems((prev) => [
+      ...prev,
+      {
+        productId: prod?.id || '',
+        productName: String(prod?.name || ''),
+        quantityReceived: 1,
+        note: '',
+      },
+    ]);
   };
 
   const updateItem = (index: number, changes: unknown) => {
     const changesTyped = changes as Partial<ReceiptItem>;
-    setItems(prev => prev.map((it, i) => i === index ? { ...it, ...changesTyped } : it));
+    setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...changesTyped } : it)));
   };
 
-  const removeItem = (index: number) => setItems(prev => prev.filter((_, i) => i !== index));
+  const removeItem = (index: number) => setItems((prev) => prev.filter((_, i) => i !== index));
 
   const submit = async () => {
     if (!activeCompanyId) return;
@@ -58,7 +79,12 @@ const IncomingReceiptsPage: React.FC = () => {
     try {
       const payload = {
         supplierId: selectedSupplierId,
-        products: items.map(it => ({ productId: it.productId, productName: it.productName, quantityReceived: Number(it.quantityReceived), note: it.note })),
+        products: items.map((it) => ({
+          productId: it.productId,
+          productName: it.productName,
+          quantityReceived: Number(it.quantityReceived),
+          note: it.note,
+        })),
         receivedBy: user?.uid,
       };
       await saveIncomingReceipt(activeCompanyId, payload as unknown);
@@ -67,7 +93,9 @@ const IncomingReceiptsPage: React.FC = () => {
       setItems([]);
     } catch (err: unknown) {
       addNotification(mapFirestoreError(err), 'error');
-    } finally { setSubmitting(false); }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) return <TableSkeleton cols={4} rows={6} />;
@@ -78,40 +106,87 @@ const IncomingReceiptsPage: React.FC = () => {
 
       <div className="mb-4">
         <label className="block text-sm mb-1">المورد</label>
-        <select className="w-full p-2 border rounded" value={selectedSupplierId || ''} onChange={e => setSelectedSupplierId(e.target.value || undefined)}>
+        <select
+          className="w-full p-2 border rounded"
+          value={selectedSupplierId || ''}
+          onChange={(e) => setSelectedSupplierId(e.target.value || undefined)}
+        >
           <option value="">اختر موردًا</option>
-          {suppliers.map(s => <option key={s.id} value={s.id}>{s.supplierName}</option>)}
+          {suppliers.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.supplierName}
+            </option>
+          ))}
         </select>
       </div>
 
       <div className="mb-4">
         <div className="flex items-center gap-2 mb-2">
-          <Input placeholder="بحث عن المنتج..." value={productSearch} onChange={e => setProductSearch(e.target.value)} />
+          <Input
+            placeholder="بحث عن المنتج..."
+            value={productSearch}
+            onChange={(e) => setProductSearch(e.target.value)}
+          />
           <Button onClick={() => addItem()}>أضف صف فارغ</Button>
         </div>
         <div className="space-y-2">
           {items.map((it, idx) => (
             <div key={idx} className="grid grid-cols-12 gap-2 items-center">
               <div className="col-span-5">
-                <select className="w-full p-2 border rounded" value={it.productId} onChange={e => {
-                  const prod = products.find(p => p.id === e.target.value);
-                  updateItem(idx, { productId: e.target.value, productName: prod?.name || '' });
-                }}>
+                <select
+                  className="w-full p-2 border rounded"
+                  value={it.productId}
+                  onChange={(e) => {
+                    const prod = products.find((p) => p.id === e.target.value);
+                    updateItem(idx, { productId: e.target.value, productName: prod?.name || '' });
+                  }}
+                >
                   <option value="">اختر منتجًا</option>
-                  {filteredProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {filteredProducts.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
                 </select>
               </div>
-              <div className="col-span-3"><Input type="number" min={1} value={it.quantityReceived} onChange={e => updateItem(idx, { quantityReceived: Number(e.target.value) })} /></div>
-              <div className="col-span-3"><Input placeholder="ملاحظة (اختياري)" value={it.note} onChange={e => updateItem(idx, { note: e.target.value })} /></div>
-              <div className="col-span-1"><Button variant="danger" onClick={() => removeItem(idx)}>حذف</Button></div>
+              <div className="col-span-3">
+                <Input
+                  type="number"
+                  min={1}
+                  value={it.quantityReceived}
+                  onChange={(e) => updateItem(idx, { quantityReceived: Number(e.target.value) })}
+                />
+              </div>
+              <div className="col-span-3">
+                <Input
+                  placeholder="ملاحظة (اختياري)"
+                  value={it.note}
+                  onChange={(e) => updateItem(idx, { note: e.target.value })}
+                />
+              </div>
+              <div className="col-span-1">
+                <Button variant="danger" onClick={() => removeItem(idx)}>
+                  حذف
+                </Button>
+              </div>
             </div>
           ))}
         </div>
       </div>
 
       <div className="flex gap-2">
-        <Button onClick={submit} disabled={submitting}>{submitting ? 'جارٍ الحفظ...' : 'حفظ السند'}</Button>
-        <Button variant="secondary" onClick={() => { setItems([]); setSelectedSupplierId(undefined); }}>إلغاء</Button>
+        <Button onClick={submit} disabled={submitting}>
+          {submitting ? 'جارٍ الحفظ...' : 'حفظ السند'}
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setItems([]);
+            setSelectedSupplierId(undefined);
+          }}
+        >
+          إلغاء
+        </Button>
       </div>
     </Card>
   );

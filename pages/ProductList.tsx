@@ -1,9 +1,15 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getProducts, deleteProduct, undeleteDocument, saveProduct } from '../services/dataService';
 import { Product } from '../types';
-import { PlusIcon, PencilIcon, TrashIcon, ArchiveBoxIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import {
+  PlusIcon,
+  PencilIcon,
+  TrashIcon,
+  ArchiveBoxIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+} from '@heroicons/react/24/outline';
 import { useSettings } from '../contexts/SettingsContext';
 import TableSkeleton from '../components/TableSkeleton';
 import EmptyState from '../components/EmptyState';
@@ -19,29 +25,38 @@ import { clearProductCache } from '../services/repositories/products';
 
 const PAGE_SIZE = 15;
 
-const ProductCard: React.FC<{ product: Product, currency?: string, canWrite: boolean, onDelete: (id: string) => void }> = ({ product, currency, canWrite, onDelete }) => (
-    <Card padding="sm" className="md:hidden">
-        <div className="flex justify-between items-start mb-2">
-            <div>
-                <h3 className="font-bold text-lg">{product.name}</h3>
-                <p className="text-sm text-gray-500">{product.price.toFixed(2)} {currency}</p>
-            </div>
-            <span className="font-bold text-primary-600 bg-primary-100 dark:bg-primary-900/50 px-2 py-1 text-xs rounded-full">{product.stock} متبقي</span>
-        </div>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 truncate">{product.description}</p>
-        {canWrite && (
-            <div className="flex gap-2 mt-3 border-t border-gray-200 dark:border-gray-700 pt-3">
-                <Link to={`/products/edit/${product.id}`} className="flex-1">
-                    <Button variant="secondary" size="sm" className="w-full">
-                        <PencilIcon className="h-4 w-4 me-2" /> تعديل
-                    </Button>
-                </Link>
-                <Button variant="danger" size="sm" className="flex-1" onClick={() => onDelete(product.id)}>
-                    <TrashIcon className="h-4 w-4 me-2" /> حذف
-                </Button>
-            </div>
-        )}
-    </Card>
+const ProductCard: React.FC<{
+  product: Product;
+  currency?: string;
+  canWrite: boolean;
+  onDelete: (id: string) => void;
+}> = ({ product, currency, canWrite, onDelete }) => (
+  <Card padding="sm" className="md:hidden">
+    <div className="flex justify-between items-start mb-2">
+      <div>
+        <h3 className="font-bold text-lg">{product.name}</h3>
+        <p className="text-sm text-gray-500">
+          {product.price.toFixed(2)} {currency}
+        </p>
+      </div>
+      <span className="font-bold text-primary-600 bg-primary-100 dark:bg-primary-900/50 px-2 py-1 text-xs rounded-full">
+        {product.stock} متبقي
+      </span>
+    </div>
+    <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 truncate">{product.description}</p>
+    {canWrite && (
+      <div className="flex gap-2 mt-3 border-t border-gray-200 dark:border-gray-700 pt-3">
+        <Link to={`/products/edit/${product.id}`} className="flex-1">
+          <Button variant="secondary" size="sm" className="w-full">
+            <PencilIcon className="h-4 w-4 me-2" /> تعديل
+          </Button>
+        </Link>
+        <Button variant="danger" size="sm" className="flex-1" onClick={() => onDelete(product.id)}>
+          <TrashIcon className="h-4 w-4 me-2" /> حذف
+        </Button>
+      </div>
+    )}
+  </Card>
 );
 
 const ProductList: React.FC = () => {
@@ -50,7 +65,9 @@ const ProductList: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'name_asc' | 'name_desc' | 'price_asc' | 'price_desc'>('name_asc');
+  const [sortBy, setSortBy] = useState<'name_asc' | 'name_desc' | 'price_asc' | 'price_desc'>(
+    'name_asc'
+  );
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
   const [nextCursor, setNextCursor] = useState<unknown | null>(null);
@@ -63,7 +80,8 @@ const ProductList: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editedProduct, setEditedProduct] = useState<Partial<Product> | null>(null);
 
-  const fetchProducts = useCallback(async (cursor?: unknown, direction: 'next' | 'prev' = 'next') => {
+  const fetchProducts = useCallback(
+    async (cursor?: unknown, direction: 'next' | 'prev' = 'next') => {
       if (!activeCompanyId) return;
       setLoading(true);
       try {
@@ -85,23 +103,27 @@ const ProductList: React.FC = () => {
         }
 
         if (direction === 'next') {
-            if (cursor) setPrevCursors(prev => [...prev, cursor]);
+          if (cursor) setPrevCursors((prev) => [...prev, cursor]);
         } else {
-            setPrevCursors(prev => prev.slice(0, prev.length - 1));
+          setPrevCursors((prev) => prev.slice(0, prev.length - 1));
         }
-        } catch (error: unknown) {
-          addNotification(mapFirestoreError(error), "error");
-          setProducts([]);
+      } catch (error: unknown) {
+        addNotification(mapFirestoreError(error), 'error');
+        setProducts([]);
       } finally {
-          setLoading(false);
+        setLoading(false);
       }
-  }, [activeCompanyId, addNotification]);
+    },
+    [activeCompanyId, addNotification]
+  );
 
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
-  const handleNextPage = () => { if (nextCursor) fetchProducts(nextCursor, 'next'); };
+  const handleNextPage = () => {
+    if (nextCursor) fetchProducts(nextCursor, 'next');
+  };
   const handlePrevPage = () => {
     if (prevCursors.length > 0) {
       fetchProducts(prevCursors[prevCursors.length - 2], 'prev');
@@ -112,38 +134,44 @@ const ProductList: React.FC = () => {
 
   const confirmDelete = async () => {
     if (productToDelete && activeCompanyId) {
-        try {
-            const result = await deleteProduct(activeCompanyId, productToDelete.id);
-            if(result) {
-                addNotification('تم حذف المنتج بنجاح!', 'success');
-                addNotification('تم حذف المنتج بنجاح.', 'success', {
-                  label: 'تراجع',
-                  onClick: async () => {
-                    try {
-                      const ok = await undeleteDocument(activeCompanyId, 'products', productToDelete.id);
-                      if (ok) {
-                        await fetchProducts(prevCursors[prevCursors.length - 1] || undefined);
-                      }
-                    } catch (e) { console.error(e); }
-                  }
-                });
-                fetchProducts(prevCursors[prevCursors.length - 1] || undefined);
-            } else {
-                addNotification('فشل حذف المنتج.', 'error');
-            }
-          } catch (error: unknown) {
-            addNotification(mapFirestoreError(error), "error");
+      try {
+        const result = await deleteProduct(activeCompanyId, productToDelete.id);
+        if (result) {
+          addNotification('تم حذف المنتج بنجاح!', 'success');
+          addNotification('تم حذف المنتج بنجاح.', 'success', {
+            label: 'تراجع',
+            onClick: async () => {
+              try {
+                const ok = await undeleteDocument(activeCompanyId, 'products', productToDelete.id);
+                if (ok) {
+                  await fetchProducts(prevCursors[prevCursors.length - 1] || undefined);
+                }
+              } catch (e) {
+                console.error(e);
+              }
+            },
+          });
+          fetchProducts(prevCursors[prevCursors.length - 1] || undefined);
+        } else {
+          addNotification('فشل حذف المنتج.', 'error');
         }
+      } catch (error: unknown) {
+        addNotification(mapFirestoreError(error), 'error');
+      }
     }
     setProductToDelete(null);
-  }
+  };
 
   const filteredProducts = useMemo(() => {
-    let list = products.filter(product => (product.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()));
-    if (sortBy === 'name_asc') list = list.sort((a,b) => (a.name||'').localeCompare(b.name||'', 'ar'));
-    if (sortBy === 'name_desc') list = list.sort((a,b) => (b.name||'').localeCompare(a.name||'', 'ar'));
-    if (sortBy === 'price_asc') list = list.sort((a,b) => (a.price || 0) - (b.price || 0));
-    if (sortBy === 'price_desc') list = list.sort((a,b) => (b.price || 0) - (a.price || 0));
+    let list = products.filter((product) =>
+      (product.name || '').toLowerCase().includes((searchTerm || '').toLowerCase())
+    );
+    if (sortBy === 'name_asc')
+      list = list.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
+    if (sortBy === 'name_desc')
+      list = list.sort((a, b) => (b.name || '').localeCompare(a.name || '', 'ar'));
+    if (sortBy === 'price_asc') list = list.sort((a, b) => (a.price || 0) - (b.price || 0));
+    if (sortBy === 'price_desc') list = list.sort((a, b) => (b.price || 0) - (a.price || 0));
     return list;
   }, [products, searchTerm, sortBy]);
 
@@ -154,8 +182,14 @@ const ProductList: React.FC = () => {
       <EmptyState
         icon={<ArchiveBoxIcon className="h-8 w-8" />}
         title="لا توجد منتجات بعد"
-        message={canWrite ? "ابدأ بإضافة أول منتج أو خدمة لإنشاء الفواتير." : "لم يتم إضافة أي منتجات حتى الآن."}
-        action={canWrite ? { text: 'إضافة منتج', onClick: () => navigate('/products/new')}: undefined}
+        message={
+          canWrite
+            ? 'ابدأ بإضافة أول منتج أو خدمة لإنشاء الفواتير.'
+            : 'لم يتم إضافة أي منتجات حتى الآن.'
+        }
+        action={
+          canWrite ? { text: 'إضافة منتج', onClick: () => navigate('/products/new') } : undefined
+        }
       />
     );
   }
@@ -165,17 +199,23 @@ const ProductList: React.FC = () => {
       <div className="flex flex-col md:flex-row justify-between items-start mb-4 gap-4">
         {canWrite && (
           <div className="w-full md:w-80 mb-2 md:mb-0">
-            <QuickAddProduct onAdd={async (p) => {
-              if (!activeCompanyId) return;
-              try {
-                await saveProduct(activeCompanyId, { name: p.name, price: p.price, stock: p.stock });
-                clearProductCache(activeCompanyId);
-                addNotification('تمت إضافة المنتج بنجاح', 'success');
-                fetchProducts(prevCursors[prevCursors.length - 1] || undefined);
-              } catch (err: unknown) {
-                addNotification(mapFirestoreError(err), 'error');
-              }
-            }} />
+            <QuickAddProduct
+              onAdd={async (p) => {
+                if (!activeCompanyId) return;
+                try {
+                  await saveProduct(activeCompanyId, {
+                    name: p.name,
+                    price: p.price,
+                    stock: p.stock,
+                  });
+                  clearProductCache(activeCompanyId);
+                  addNotification('تمت إضافة المنتج بنجاح', 'success');
+                  fetchProducts(prevCursors[prevCursors.length - 1] || undefined);
+                } catch (err: unknown) {
+                  addNotification(mapFirestoreError(err), 'error');
+                }
+              }}
+            />
           </div>
         )}
       </div>
@@ -183,13 +223,20 @@ const ProductList: React.FC = () => {
       <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
         <div className="flex gap-2 w-full md:w-auto items-center">
           <Input
-              type="text"
-              placeholder="ابحث عن منتج..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full md:w-64"
+            type="text"
+            placeholder="ابحث عن منتج..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full md:w-64"
           />
-          <select value={sortBy} onChange={e => { const v = e.target.value as 'name_asc'|'name_desc'|'price_asc'|'price_desc'; setSortBy(v); }} className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700">
+          <select
+            value={sortBy}
+            onChange={(e) => {
+              const v = e.target.value as 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc';
+              setSortBy(v);
+            }}
+            className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700"
+          >
             <option value="name_asc">الاسم (أ-ي)</option>
             <option value="name_desc">الاسم (ي-أ)</option>
             <option value="price_asc">السعر (من الأقل)</option>
@@ -197,57 +244,118 @@ const ProductList: React.FC = () => {
           </select>
         </div>
         {canWrite && (
-            <Link to="/products/new" className="w-full md:w-auto">
-                <Button variant="primary" className="w-full">
-                    <PlusIcon className="h-5 w-5 me-2" />
-                    إضافة منتج
-                </Button>
-            </Link>
+          <Link to="/products/new" className="w-full md:w-auto">
+            <Button variant="primary" className="w-full">
+              <PlusIcon className="h-5 w-5 me-2" />
+              إضافة منتج
+            </Button>
+          </Link>
         )}
       </div>
-      
+
       <div className="hidden md:block overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">اسم المنتج</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">السعر</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">المخزون</th>
-              {canWrite && <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">إجراءات</th>}
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                اسم المنتج
+              </th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                السعر
+              </th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                المخزون
+              </th>
+              {canWrite && (
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                  إجراءات
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {filteredProducts.map(product => (
-              <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-200">
+            {filteredProducts.map((product) => (
+              <tr
+                key={product.id}
+                className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-200"
+              >
                 {editingId === product.id ? (
                   <>
                     <td className="px-6 py-4 whitespace-nowrap font-medium">
-                      <Input value={String(editedProduct?.name ?? product.name)} onChange={e => setEditedProduct(p => ({ ...(p||{}), name: e.target.value }))} />
+                      <Input
+                        value={String(editedProduct?.name ?? product.name)}
+                        onChange={(e) =>
+                          setEditedProduct((p) => ({ ...(p || {}), name: e.target.value }))
+                        }
+                      />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <Input value={String(editedProduct?.price ?? product.price)} onChange={e => setEditedProduct(p => ({ ...(p||{}), price: parseFloat(e.target.value || '0') }))} /> {settings?.currency}
+                      <Input
+                        value={String(editedProduct?.price ?? product.price)}
+                        onChange={(e) =>
+                          setEditedProduct((p) => ({
+                            ...(p || {}),
+                            price: parseFloat(e.target.value || '0'),
+                          }))
+                        }
+                      />{' '}
+                      {settings?.currency}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <Input value={String(editedProduct?.stock ?? product.stock)} onChange={e => setEditedProduct(p => ({ ...(p||{}), stock: parseInt(e.target.value || '0') }))} />
+                      <Input
+                        value={String(editedProduct?.stock ?? product.stock)}
+                        onChange={(e) =>
+                          setEditedProduct((p) => ({
+                            ...(p || {}),
+                            stock: parseInt(e.target.value || '0'),
+                          }))
+                        }
+                      />
                     </td>
                     {canWrite && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center gap-2">
-                          <Button variant="secondary" size="sm" onClick={async () => {
-                            if (!activeCompanyId || !editedProduct) return;
-                            try {
-                              const toSave = { id: product.id, name: editedProduct.name ?? product.name, price: Number(editedProduct.price ?? product.price), stock: Number(editedProduct.stock ?? product.stock) } as Product;
-                              await saveProduct(activeCompanyId, toSave);
-                              try { clearProductCache(activeCompanyId); } catch (e) { /* ignore cache clear errors */ }
-                              addNotification('تم حفظ المنتج بنجاح.', 'success');
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={async () => {
+                              if (!activeCompanyId || !editedProduct) return;
+                              try {
+                                const toSave = {
+                                  id: product.id,
+                                  name: editedProduct.name ?? product.name,
+                                  price: Number(editedProduct.price ?? product.price),
+                                  stock: Number(editedProduct.stock ?? product.stock),
+                                } as Product;
+                                await saveProduct(activeCompanyId, toSave);
+                                try {
+                                  clearProductCache(activeCompanyId);
+                                } catch (e) {
+                                  /* ignore cache clear errors */
+                                }
+                                addNotification('تم حفظ المنتج بنجاح.', 'success');
+                                setEditingId(null);
+                                setEditedProduct(null);
+                                await fetchProducts(
+                                  prevCursors[prevCursors.length - 1] || undefined
+                                );
+                              } catch (err: unknown) {
+                                addNotification(mapFirestoreError(err), 'error');
+                              }
+                            }}
+                          >
+                            حفظ
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
                               setEditingId(null);
                               setEditedProduct(null);
-                              await fetchProducts(prevCursors[prevCursors.length - 1] || undefined);
-                            } catch (err: unknown) {
-                              addNotification(mapFirestoreError(err), 'error');
-                            }
-                          }}>حفظ</Button>
-                          <Button variant="ghost" size="sm" onClick={() => { setEditingId(null); setEditedProduct(null); }}>إلغاء</Button>
+                            }}
+                          >
+                            إلغاء
+                          </Button>
                         </div>
                       </td>
                     )}
@@ -255,16 +363,37 @@ const ProductList: React.FC = () => {
                 ) : (
                   <>
                     <td className="px-6 py-4 whitespace-nowrap font-medium">{product.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{product.price.toFixed(2)} {settings?.currency}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {product.price.toFixed(2)} {settings?.currency}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">{product.stock}</td>
-                    {canWrite && 
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex items-center gap-2">
-                                <button onClick={() => { setEditingId(product.id); setEditedProduct({ name: product.name, price: product.price, stock: product.stock }); }} className="text-gray-600 hover:text-gray-900 p-2" aria-label="تعديل المنتج"><PencilIcon className="h-5 w-5" /></button>
-                                <button onClick={() => setProductToDelete(product)} className="text-danger-600 hover:text-danger-700 p-2" aria-label="حذف المنتج"><TrashIcon className="h-5 w-5" /></button>
-                          </div>
-                        </td>
-                    }
+                    {canWrite && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingId(product.id);
+                              setEditedProduct({
+                                name: product.name,
+                                price: product.price,
+                                stock: product.stock,
+                              });
+                            }}
+                            className="text-gray-600 hover:text-gray-900 p-2"
+                            aria-label="تعديل المنتج"
+                          >
+                            <PencilIcon className="h-5 w-5" />
+                          </button>
+                          <button
+                            onClick={() => setProductToDelete(product)}
+                            className="text-danger-600 hover:text-danger-700 p-2"
+                            aria-label="حذف المنتج"
+                          >
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </>
                 )}
               </tr>
@@ -274,31 +403,60 @@ const ProductList: React.FC = () => {
       </div>
 
       <div className="md:hidden space-y-4 mt-4">
-        {filteredProducts.map(product => (
-            <ProductCard key={product.id} product={product} currency={settings?.currency} canWrite={canWrite} onDelete={() => setProductToDelete(product)} />
+        {filteredProducts.map((product) => (
+          <ProductCard
+            key={product.id}
+            product={product}
+            currency={settings?.currency}
+            canWrite={canWrite}
+            onDelete={() => setProductToDelete(product)}
+          />
         ))}
       </div>
 
-       <div className="flex justify-center items-center mt-6 gap-2">
-          <Button onClick={handlePrevPage} disabled={prevCursors.length === 0} variant="secondary" size="sm" aria-label="Previous Page">
-              <ChevronRightIcon className="h-5 w-5" />
-          </Button>
-          <Button onClick={handleNextPage} disabled={isLastPage} variant="secondary" size="sm" aria-label="Next Page">
-              <ChevronLeftIcon className="h-5 w-5" />
-          </Button>
+      <div className="flex justify-center items-center mt-6 gap-2">
+        <Button
+          onClick={handlePrevPage}
+          disabled={prevCursors.length === 0}
+          variant="secondary"
+          size="sm"
+          aria-label="Previous Page"
+        >
+          <ChevronRightIcon className="h-5 w-5" />
+        </Button>
+        <Button
+          onClick={handleNextPage}
+          disabled={isLastPage}
+          variant="secondary"
+          size="sm"
+          aria-label="Next Page"
+        >
+          <ChevronLeftIcon className="h-5 w-5" />
+        </Button>
       </div>
 
       {filteredProducts.length === 0 && (
-          <div className="text-center py-10">
-              <p>لا توجد منتجات تطابق بحثك.</p>
-          </div>
+        <div className="text-center py-10">
+          <p>لا توجد منتجات تطابق بحثك.</p>
+        </div>
       )}
 
-      <Modal isOpen={!!productToDelete} onClose={() => setProductToDelete(null)} title="تأكيد الحذف">
-        <p>هل أنت متأكد من رغبتك في حذف المنتج "{productToDelete?.name}"؟ لا يمكن التراجع عن هذا الإجراء.</p>
+      <Modal
+        isOpen={!!productToDelete}
+        onClose={() => setProductToDelete(null)}
+        title="تأكيد الحذف"
+      >
+        <p>
+          هل أنت متأكد من رغبتك في حذف المنتج "{productToDelete?.name}"؟ لا يمكن التراجع عن هذا
+          الإجراء.
+        </p>
         <div className="flex justify-end gap-4 mt-6">
-            <Button variant="secondary" onClick={() => setProductToDelete(null)}>إلغاء</Button>
-            <Button variant="danger" onClick={confirmDelete}>حذف</Button>
+          <Button variant="secondary" onClick={() => setProductToDelete(null)}>
+            إلغاء
+          </Button>
+          <Button variant="danger" onClick={confirmDelete}>
+            حذف
+          </Button>
         </div>
       </Modal>
     </Card>

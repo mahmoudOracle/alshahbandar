@@ -62,14 +62,18 @@ export default function DevDebugPage() {
         <pre className="bg-gray-100 p-3 rounded">{JSON.stringify(companyDoc, null, 2)}</pre>
       </div>
       <div className="mb-4">
-        <h3 className="font-semibold">companies/{companyId}/users/{user?.uid}</h3>
+        <h3 className="font-semibold">
+          companies/{companyId}/users/{user?.uid}
+        </h3>
         <pre className="bg-gray-100 p-3 rounded">{JSON.stringify(membershipDoc, null, 2)}</pre>
       </div>
 
       {!isProd && user && companyId && (
         <div className="mt-4">
           <h3 className="font-semibold mb-2">Dev Actions</h3>
-          <p className="text-sm text-gray-600 mb-2">Create a membership document for the current user under the company (dev-only).</p>
+          <p className="text-sm text-gray-600 mb-2">
+            Create a membership document for the current user under the company (dev-only).
+          </p>
           <div className="flex gap-2">
             <button
               disabled={creating}
@@ -81,12 +85,26 @@ export default function DevDebugPage() {
                 setSuccess(null);
                 try {
                   const mRef = doc(db, 'companies', companyId, 'users', user.uid);
-                  await setDoc(mRef, { uid: user.uid, role: 'owner', email: user.email || null, joinedAt: serverTimestamp() }, { merge: true });
-                  setMembershipDoc({ uid: user.uid, role: 'owner', email: user.email || null, joinedAt: new Date().toISOString() });
+                  await setDoc(
+                    mRef,
+                    {
+                      uid: user.uid,
+                      role: 'owner',
+                      email: user.email || null,
+                      joinedAt: serverTimestamp(),
+                    },
+                    { merge: true }
+                  );
+                  setMembershipDoc({
+                    uid: user.uid,
+                    role: 'owner',
+                    email: user.email || null,
+                    joinedAt: new Date().toISOString(),
+                  });
                   setSuccess('Membership document created successfully.');
                 } catch (e: unknown) {
-                      setError(e instanceof Error ? e.message : String(e));
-                    }
+                  setError(e instanceof Error ? e.message : String(e));
+                }
                 setCreating(false);
               }}
               className="btn-primary bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
@@ -103,8 +121,27 @@ export default function DevDebugPage() {
                 setSuccess(null);
                 try {
                   const uRef = doc(db, 'users', user.uid);
-                  await setDoc(uRef, { uid: user.uid, name: user.displayName || user.email || null, email: user.email || null, emailLower: (user.email || '')?.toLowerCase(), companyId, role: 'company_owner', createdAt: serverTimestamp() }, { merge: true });
-                  setUserDoc({ uid: user.uid, name: user.displayName || user.email || null, email: user.email || null, companyId, role: 'company_owner', createdAt: new Date().toISOString() });
+                  await setDoc(
+                    uRef,
+                    {
+                      uid: user.uid,
+                      name: user.displayName || user.email || null,
+                      email: user.email || null,
+                      emailLower: (user.email || '')?.toLowerCase(),
+                      companyId,
+                      role: 'company_owner',
+                      createdAt: serverTimestamp(),
+                    },
+                    { merge: true }
+                  );
+                  setUserDoc({
+                    uid: user.uid,
+                    name: user.displayName || user.email || null,
+                    email: user.email || null,
+                    companyId,
+                    role: 'company_owner',
+                    createdAt: new Date().toISOString(),
+                  });
                   setSuccess('Top-level user profile created/updated successfully.');
                 } catch (e: unknown) {
                   setError(e instanceof Error ? e.message : String(e));
@@ -125,8 +162,16 @@ export default function DevDebugPage() {
                 setSuccess(null);
                 try {
                   const cRef = doc(db, 'companies', companyId);
-                  await setDoc(cRef, { status: 'approved', updatedAt: serverTimestamp() }, { merge: true });
-                  setCompanyDoc({ ...(companyDoc || {}), status: 'approved', updatedAt: new Date().toISOString() });
+                  await setDoc(
+                    cRef,
+                    { status: 'approved', updatedAt: serverTimestamp() },
+                    { merge: true }
+                  );
+                  setCompanyDoc({
+                    ...(companyDoc || {}),
+                    status: 'approved',
+                    updatedAt: new Date().toISOString(),
+                  });
                   setSuccess('Company status set to approved.');
                 } catch (e: unknown) {
                   setError(e instanceof Error ? e.message : String(e));

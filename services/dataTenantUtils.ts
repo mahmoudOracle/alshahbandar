@@ -1,6 +1,6 @@
 /**
  * Multi-Tenant Data Isolation Utilities
- * 
+ *
  * These utilities help verify data isolation and enforce tenant boundaries
  * in the multi-tenant SaaS application.
  */
@@ -31,7 +31,7 @@ export function validateUserDataIsolation(
     userId: user?.uid || 'unknown',
     companyId: companyId || 'unknown',
     warnings: [],
-    errors: []
+    errors: [],
   };
 
   if (!user) {
@@ -73,10 +73,7 @@ export function validateUserDataIsolation(
  * @param companyId Company ID
  * @returns true if safe to proceed, false if isolation is compromised
  */
-export function isSafeToAccessCompanyData(
-  userId: string,
-  companyId: string
-): boolean {
+export function isSafeToAccessCompanyData(userId: string, companyId: string): boolean {
   if (!userId || !companyId) {
     console.error('[ISOLATION] Missing userId or companyId', { userId, companyId });
     return false;
@@ -118,7 +115,7 @@ export function logDataAccessEvent(
     resource,
     userId,
     companyId,
-    ...details
+    ...details,
   };
 
   if (DEBUG_MODE) {
@@ -136,11 +133,11 @@ export function logDataAccessEvent(
  */
 export function isValidCompanyId(companyId: string): boolean {
   if (!companyId || typeof companyId !== 'string') return false;
-  
+
   // Firestore document IDs are alphanumeric with some special chars allowed
   // Pattern: letters, numbers, hyphens, underscores
   const validPattern = /^[a-zA-Z0-9_-]{1,64}$/;
-  
+
   return validPattern.test(companyId);
 }
 
@@ -156,10 +153,10 @@ export function cleanupSessionData(companyIdToKeep: string | null = null): void 
       'app:activeCompanyId',
       'app:activeRole',
       'app:companyCache',
-      'app:userPermissions'
+      'app:userPermissions',
     ];
 
-    keysToCheck.forEach(key => {
+    keysToCheck.forEach((key) => {
       if (!companyIdToKeep && key === 'app:activeCompanyId') {
         localStorage.removeItem(key);
       } else if (companyIdToKeep) {
@@ -188,7 +185,7 @@ export function getIsolationStateSummary(): Record<string, any> {
       activeCompanyId: localStorage.getItem('app:activeCompanyId'),
       activeRole: localStorage.getItem('app:activeRole'),
       timestamp: new Date().toISOString(),
-      location: window.location.href
+      location: window.location.href,
     };
   } catch (e) {
     return { error: 'Could not read isolation state' };

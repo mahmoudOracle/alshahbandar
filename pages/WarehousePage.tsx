@@ -20,38 +20,57 @@ const WarehousePage: React.FC = () => {
       setProducts(res.data || []);
     } catch (err) {
       setProducts([]);
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { fetch(); }, [activeCompanyId]);
+  useEffect(() => {
+    fetch();
+  }, [activeCompanyId]);
 
   if (loading) return <TableSkeleton cols={4} rows={8} />;
 
-  const filtered = products.filter(p => (p.name || '').toLowerCase().includes(search.toLowerCase()));
+  const filtered = products.filter((p) =>
+    (p.name || '').toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <Card>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold">المخزن</h2>
-        <Input placeholder="ابحث عن منتج..." value={search} onChange={e => setSearch(e.target.value)} />
+        <Input
+          placeholder="ابحث عن منتج..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
 
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50"><tr>
-            <th className="px-4 py-2 text-right">المنتج</th>
-            <th className="px-4 py-2 text-right">الفئة</th>
-            <th className="px-4 py-2 text-right">المخزون الحالي</th>
-            <th className="px-4 py-2 text-right">آخر تحديث</th>
-          </tr></thead>
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-2 text-right">المنتج</th>
+              <th className="px-4 py-2 text-right">الفئة</th>
+              <th className="px-4 py-2 text-right">المخزون الحالي</th>
+              <th className="px-4 py-2 text-right">آخر تحديث</th>
+            </tr>
+          </thead>
           <tbody>
-            {filtered.map(p => {
-              const updatedAtVal = ((p as unknown) as Record<string, unknown>)['updatedAt'];
-              const updatedText = updatedAtVal && (updatedAtVal as { toDate?: () => Date }).toDate ? (updatedAtVal as { toDate: () => Date }).toDate().toLocaleString() : (typeof updatedAtVal === 'string' ? String(updatedAtVal) : '-');
+            {filtered.map((p) => {
+              const updatedAtVal = (p as unknown as Record<string, unknown>)['updatedAt'];
+              const updatedText =
+                updatedAtVal && (updatedAtVal as { toDate?: () => Date }).toDate
+                  ? (updatedAtVal as { toDate: () => Date }).toDate().toLocaleString()
+                  : typeof updatedAtVal === 'string'
+                    ? String(updatedAtVal)
+                    : '-';
               return (
                 <tr key={p.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2">{p.name}</td>
-                  <td className="px-4 py-2">{String(((p as Record<string, unknown>)['category']) ?? '-')}</td>
+                  <td className="px-4 py-2">
+                    {String((p as Record<string, unknown>)['category'] ?? '-')}
+                  </td>
                   <td className="px-4 py-2">{p.stock}</td>
                   <td className="px-4 py-2">{updatedText}</td>
                 </tr>

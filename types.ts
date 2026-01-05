@@ -1,4 +1,3 @@
-
 // --- Business Data Types ---
 
 export enum InvoiceStatus {
@@ -48,7 +47,7 @@ export interface Customer {
   whatsappPhone: string;
   address: string;
   isActive: boolean;
-  createdAt: unknown; 
+  createdAt: unknown;
 }
 
 export interface Product {
@@ -132,9 +131,9 @@ export interface Counter {
 }
 
 export interface Tax {
-    id: string;
-    name: string;
-    rate: number;
+  id: string;
+  name: string;
+  rate: number;
 }
 
 export interface Settings {
@@ -148,83 +147,84 @@ export interface Settings {
   language?: 'ar' | 'en';
   taxes: Tax[];
   source?: 'firestore' | 'local';
+  lockedPeriods?: string[]; // list of YYYY-MM strings representing locked accounting periods
 }
 
 export interface StoredExpenseCategory {
-    id: string;
-    name: string;
+  id: string;
+  name: string;
 }
 
 export interface StoredVendor {
-    id: string;
-    name: string;
+  id: string;
+  name: string;
 }
 
 export interface Expense {
-    id: string;
-    date: string;
-    category: string;
-    vendor: string;
-    description: string;
-    amount: number;
+  id: string;
+  date: string;
+  category: string;
+  vendor: string;
+  description: string;
+  amount: number;
 }
 
 export enum QuoteStatus {
-    Draft = 'Draft',
-    Sent = 'Sent',
-    Accepted = 'Accepted',
-    Declined = 'Declined',
+  Draft = 'Draft',
+  Sent = 'Sent',
+  Accepted = 'Accepted',
+  Declined = 'Declined',
 }
 
 export type QuoteItem = InvoiceItem;
 
 export interface Quote {
-    id: string;
-    quoteNumber: string;
-    customerId: string;
-    customerName: string;
-    date: string;
-    expiryDate: string;
-    items: QuoteItem[];
-    subtotal: number;
-    taxRate?: number;
-    taxAmount?: number;
-    total: number;
-    status: QuoteStatus;
+  id: string;
+  quoteNumber: string;
+  customerId: string;
+  customerName: string;
+  date: string;
+  expiryDate: string;
+  items: QuoteItem[];
+  subtotal: number;
+  taxRate?: number;
+  taxAmount?: number;
+  total: number;
+  status: QuoteStatus;
 }
 
 export enum Frequency {
-    Weekly = 'أسبوعي',
-    Monthly = 'شهري',
-    Yearly = 'سنوي',
+  Weekly = 'أسبوعي',
+  Monthly = 'شهري',
+  Yearly = 'سنوي',
 }
 
 export interface RecurringInvoice {
-    id: string;
-    customerId: string;
-    customerName: string;
-    items: InvoiceItem[];
-    frequency: Frequency;
-    startDate: string;
-    nextDueDate: string;
-    endDate?: string;
-    taxRate?: number;
-    autoSend: boolean;
+  id: string;
+  customerId: string;
+  customerName: string;
+  items: InvoiceItem[];
+  frequency: Frequency;
+  startDate: string;
+  nextDueDate: string;
+  endDate?: string;
+  taxRate?: number;
+  autoSend: boolean;
 }
 
 // --- Multi-tenant Auth & RBAC Types ---
 
 export enum UserRole {
-    Owner = 'owner',
-    Manager = 'manager',
-    Employee = 'employee',
-    Viewer = 'viewer',
+  Owner = 'owner',
+  Manager = 'manager',
+  Employee = 'employee',
+  Viewer = 'viewer',
 }
 
 export interface PlatformAdmin {
-    uid: string;
-    name: string;
-    email: string;
+  uid: string;
+  name: string;
+  email: string;
   createdAt: unknown; // serverTimestamp
 }
 
@@ -243,43 +243,43 @@ export interface Company {
 }
 
 export interface CompanyStats {
-    userCount: number;
-    invoiceCount: number;
+  userCount: number;
+  invoiceCount: number;
 }
 
 export interface CompanyUser {
-    uid: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    fullName: string;
-    mobile?: string;
-    role: UserRole;
-    status: 'active' | 'disabled';
-    profileCompleted: boolean;
-    createdAt: unknown; // serverTimestamp
-    updatedAt: unknown; // serverTimestamp
+  uid: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  mobile?: string;
+  role: UserRole;
+  status: 'active' | 'disabled';
+  profileCompleted: boolean;
+  createdAt: unknown; // serverTimestamp
+  updatedAt: unknown; // serverTimestamp
 }
 
 export interface CompanyInvitation {
-    id: string;
-    email: string;
+  id: string;
+  email: string;
   emailLower?: string;
-    role: UserRole;
-    invitedByUid: string;
-    invitedByEmail: string;
-    createdAt: unknown; // serverTimestamp
-    used: boolean;
-    usedByUid?: string;
-    usedAt?: unknown; // serverTimestamp
+  role: UserRole;
+  invitedByUid: string;
+  invitedByEmail: string;
+  createdAt: unknown; // serverTimestamp
+  used: boolean;
+  usedByUid?: string;
+  usedAt?: unknown; // serverTimestamp
 }
 
 // For AuthContext
 export interface CompanyMembership {
-    companyId: string;
-    companyName: string;
-    role: UserRole;
-    status: 'active' | 'disabled';
+  companyId: string;
+  companyName: string;
+  role: UserRole;
+  status: 'active' | 'disabled';
 }
 
 // Type for paginated data responses

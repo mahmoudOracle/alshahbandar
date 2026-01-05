@@ -3,7 +3,11 @@ import { saveDraft, loadDraft, clearDraft, debounceSaveDraft } from '../utils/dr
 describe('draftAutosave util', () => {
   const key = 'test:draft:key';
   afterEach(() => {
-    try { localStorage.removeItem(key); } catch (e) { void e; }
+    try {
+      localStorage.removeItem(key);
+    } catch (e) {
+      void e;
+    }
   });
 
   test('save and load draft', () => {
@@ -20,7 +24,7 @@ describe('draftAutosave util', () => {
     debounceSaveDraft(key, data, 100);
     // not immediate
     expect(loadDraft(key)).toBeNull();
-    await new Promise(res => setTimeout(res, 150));
+    await new Promise((res) => setTimeout(res, 150));
     expect(loadDraft(key)).toEqual(data);
   });
 });

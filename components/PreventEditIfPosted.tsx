@@ -16,7 +16,10 @@ const PreventEditIfPosted: React.FC<Props> = ({ doc, companySettings, children }
     return (
       <div className="p-4 bg-yellow-50 border border-yellow-200 rounded">
         <strong className="block">Action restricted</strong>
-        <p className="text-sm">This record is locked ({result.reason}). To modify, contact an administrator or unlock the period.</p>
+        <p className="text-sm">
+          This record is locked ({result.reason}). To modify, contact an administrator or unlock the
+          period.
+        </p>
       </div>
     );
   }

@@ -1,7 +1,9 @@
 # Quick Reference: Multi-Tenant System
 
 ## 🎯 Elevator Pitch
+
 Your app is a **multi-tenant SaaS platform**. Each customer gets a separate account with:
+
 - Own company workspace
 - Own data (invoices, customers, products, etc.)
 - Own team members with roles
@@ -30,6 +32,7 @@ WHAT YOU HAVE NOW:
 ## 🔐 Security: 3 Layers
 
 ### Layer 1: Authentication
+
 ```
 User inputs: email + password
 ↓
@@ -41,6 +44,7 @@ App reads: companyId from user profile
 ```
 
 ### Layer 2: Company Assignment
+
 ```
 User profile contains: companyId
 ↓
@@ -52,6 +56,7 @@ Example: companies/{companyId}/invoices
 ```
 
 ### Layer 3: Firestore Rules (STRONGEST)
+
 ```
 User tries: query companies/ANOTHER_COMPANY/invoices
 ↓
@@ -67,17 +72,20 @@ Result: ❌ PERMISSION DENIED (even if client tries to hack)
 ## 💡 Key Insights
 
 ### 1. Isolation is AUTOMATIC
+
 - You don't need to worry about it
 - Firestore rules enforce it
 - No company mixing possible
 
 ### 2. Each Customer is INDEPENDENT
+
 - Company A: 50 invoices
 - Company B: 100 invoices
 - Company C: 20 invoices
 - Total in DB: 170 invoices (but each user sees only theirs)
 
 ### 3. Users CANNOT Hack Isolation
+
 - Direct database query? Rules block it ❌
 - URL manipulation? App redirects them ❌
 - API call? Cloud Functions check company membership ❌
@@ -88,6 +96,7 @@ Result: ❌ PERMISSION DENIED (even if client tries to hack)
 ## 🚀 Resale Process (Simple)
 
 ### Step 1: Customer Signs Up
+
 ```
 1. Customer registers with email/password
 2. App creates company account
@@ -96,6 +105,7 @@ Result: ❌ PERMISSION DENIED (even if client tries to hack)
 ```
 
 ### Step 2: Customer Uses App
+
 ```
 1. Customer logs in
 2. App loads ONLY their company data
@@ -104,6 +114,7 @@ Result: ❌ PERMISSION DENIED (even if client tries to hack)
 ```
 
 ### Step 3: Customer Invites Team
+
 ```
 1. Customer (Owner) goes to Settings > Users
 2. Invites: manager@company.com (role: Manager)
@@ -117,6 +128,7 @@ Result: ❌ PERMISSION DENIED (even if client tries to hack)
 ## 📱 User Experience
 
 ### Customer A's View
+
 ```
 Login as: ahmed@companyA.com
 ↓
@@ -129,6 +141,7 @@ Result: Can't (Firestore rules block)
 ```
 
 ### Customer B's View
+
 ```
 Login as: noor@companyB.com
 ↓
@@ -143,20 +156,21 @@ Customer B has NO IDEA Company A exists
 
 ## 🛡️ What's Protected
 
-| Item | Protection | Why |
-|------|-----------|-----|
-| Invoices | Company-scoped | Different folder per company |
-| Customers | Company-scoped | Different folder per company |
-| Products | Company-scoped | Different folder per company |
-| Users | Role-based | Owner > Manager > Employee > Viewer |
-| Settings | Role-based | Only Owner can change |
-| Reports | Company-scoped | Data from same company only |
+| Item      | Protection     | Why                                 |
+| --------- | -------------- | ----------------------------------- |
+| Invoices  | Company-scoped | Different folder per company        |
+| Customers | Company-scoped | Different folder per company        |
+| Products  | Company-scoped | Different folder per company        |
+| Users     | Role-based     | Owner > Manager > Employee > Viewer |
+| Settings  | Role-based     | Only Owner can change               |
+| Reports   | Company-scoped | Data from same company only         |
 
 ---
 
 ## 🔧 For Developers
 
 ### File Map
+
 ```
 AuthContext.tsx
   ├─ Handles user authentication
@@ -180,6 +194,7 @@ dataTenantUtils.ts (NEW)
 ```
 
 ### One-Line Explanation
+
 > "Every database query includes the company ID. Firestore rules check if you're allowed to access that company. You are allowed only if you're a member of that company."
 
 ---
@@ -233,6 +248,7 @@ A: They're stored separately. Company A's "Ahmed" ≠ Company B's "Ahmed".
 ## 🎓 Under The Hood
 
 ### Query Flow
+
 ```
 1. User clicks "View Invoices"
 2. App gets: activeCompanyId (e.g., "company-123")
@@ -248,6 +264,7 @@ A: They're stored separately. Company A's "Ahmed" ≠ Company B's "Ahmed".
 ```
 
 ### Unauthorized Query
+
 ```
 1. Hacker tries to access: companies/OTHER-COMPANY/invoices
 2. Firestore receives query
@@ -263,18 +280,21 @@ A: They're stored separately. Company A's "Ahmed" ≠ Company B's "Ahmed".
 ## 💰 Business Model
 
 ### Option A: Per-Company Subscription
+
 ```
 $29/month × number of customers
 100 customers = $2,900/month recurring
 ```
 
 ### Option B: Usage-Based
+
 ```
 $99 base + invoices/customers/payments
 Dynamic pricing per customer
 ```
 
 ### Option C: Freemium
+
 ```
 Free: 10 invoices/month
 Pro: $9/month → unlimited
@@ -285,16 +305,19 @@ Pro: $9/month → unlimited
 ## 📈 Scaling
 
 ### Day 1
+
 - 1 customer
 - 1 company in database
 - No isolation concerns
 
 ### Day 100
+
 - 100 customers
 - 100 separate company folders
 - Each sees only their folder
 
 ### Day 10,000
+
 - 10,000 customers
 - 10,000 separate company folders
 - Still isolated, still works

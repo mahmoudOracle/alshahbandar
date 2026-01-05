@@ -27,18 +27,26 @@ const ReceiptDetailPage: React.FC = () => {
       try {
         const r = await getIncomingReceiptById(activeCompanyId, id);
         setReceipt(r || null);
-        setItems(((r?.products || []) as IncomingReceiptProduct[]).map(p => ({ ...p })));
+        setItems(((r?.products || []) as IncomingReceiptProduct[]).map((p) => ({ ...p })));
       } catch (err: unknown) {
         addNotification(mapFirestoreError(err), 'error');
-      } finally { setLoading(false); }
+      } finally {
+        setLoading(false);
+      }
     };
     fetch();
   }, [activeCompanyId, id]);
 
   if (loading) return <TableSkeleton cols={3} rows={6} />;
-  if (!receipt) return <Card><p>Receipt not found</p></Card>;
+  if (!receipt)
+    return (
+      <Card>
+        <p>Receipt not found</p>
+      </Card>
+    );
 
-  const updateItem = (index:number, changes: Partial<IncomingReceiptProduct>) => setItems(prev=>prev.map((it,i)=>i===index?{...it,...changes}:it));
+  const updateItem = (index: number, changes: Partial<IncomingReceiptProduct>) =>
+    setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...changes } : it)));
   const submitEdit = async () => {
     if (!activeCompanyId || !id) return;
     try {
@@ -55,8 +63,10 @@ const ReceiptDetailPage: React.FC = () => {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold">تفاصيل السند {receipt.receiptId || receipt.id}</h2>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => navigate('/receipts')}>رجوع</Button>
-          <Button onClick={() => setEditing(e=>!e)}>{editing ? 'إلغاء' : 'تعديل'}</Button>
+          <Button variant="secondary" onClick={() => navigate('/receipts')}>
+            رجوع
+          </Button>
+          <Button onClick={() => setEditing((e) => !e)}>{editing ? 'إلغاء' : 'تعديل'}</Button>
         </div>
       </div>
 
@@ -64,22 +74,54 @@ const ReceiptDetailPage: React.FC = () => {
         <div>
           <p>المورد: {receipt.supplierName}</p>
           <table className="min-w-full divide-y divide-gray-200 mt-4">
-            <thead className="bg-gray-50"><tr><th>المنتج</th><th>الكمية</th><th>ملاحظة</th></tr></thead>
-            <tbody>{(receipt.products||[]).map((p: IncomingReceiptProduct, i: number) => (<tr key={i}><td>{p.productName}</td><td>{p.quantityReceived}</td><td>{p.note || '-'}</td></tr>))}</tbody>
+            <thead className="bg-gray-50">
+              <tr>
+                <th>المنتج</th>
+                <th>الكمية</th>
+                <th>ملاحظة</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(receipt.products || []).map((p: IncomingReceiptProduct, i: number) => (
+                <tr key={i}>
+                  <td>{p.productName}</td>
+                  <td>{p.quantityReceived}</td>
+                  <td>{p.note || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
           </table>
         </div>
       )}
 
       {editing && (
         <div className="space-y-3">
-          {(items||[]).map((it,idx)=> (
+          {(items || []).map((it, idx) => (
             <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-              <div className="col-span-7"><Input value={it.productName} readOnly /></div>
-              <div className="col-span-3"><Input type="number" value={it.quantityReceived} onChange={e=>updateItem(idx,{ quantityReceived: Number(e.target.value) })} /></div>
-              <div className="col-span-2"><Input value={it.note||''} onChange={e=>updateItem(idx,{ note: e.target.value })} /></div>
+              <div className="col-span-7">
+                <Input value={it.productName} readOnly />
+              </div>
+              <div className="col-span-3">
+                <Input
+                  type="number"
+                  value={it.quantityReceived}
+                  onChange={(e) => updateItem(idx, { quantityReceived: Number(e.target.value) })}
+                />
+              </div>
+              <div className="col-span-2">
+                <Input
+                  value={it.note || ''}
+                  onChange={(e) => updateItem(idx, { note: e.target.value })}
+                />
+              </div>
             </div>
           ))}
-          <div className="flex justify-end gap-2"><Button variant="secondary" onClick={()=>setEditing(false)}>إلغاء</Button><Button onClick={submitEdit}>حفظ التعديل</Button></div>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setEditing(false)}>
+              إلغاء
+            </Button>
+            <Button onClick={submitEdit}>حفظ التعديل</Button>
+          </div>
         </div>
       )}
     </Card>

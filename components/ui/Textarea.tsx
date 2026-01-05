@@ -24,11 +24,14 @@ export const Textarea: React.FC<TextareaProps> = ({
 }) => {
   const textareaId = id || `textarea-${Math.random().toString(36).substr(2, 9)}`;
   const charCount = typeof value === 'string' ? value.length : 0;
-  
+
   return (
     <div className="w-full">
       {label && (
-        <label htmlFor={textareaId} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label
+          htmlFor={textareaId}
+          className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+        >
           {label}
           {required && <span className="text-danger-600 ms-1">*</span>}
         </label>
@@ -69,7 +72,9 @@ export const Textarea: React.FC<TextareaProps> = ({
           </p>
         )}
         {showCharCount && maxLength && (
-          <p className={`text-xs ms-auto ${charCount > maxLength * 0.9 ? 'text-warning-600' : 'text-gray-500'}`}>
+          <p
+            className={`text-xs ms-auto ${charCount > maxLength * 0.9 ? 'text-warning-600' : 'text-gray-500'}`}
+          >
             {charCount} / {maxLength}
           </p>
         )}

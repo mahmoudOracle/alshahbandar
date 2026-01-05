@@ -7,6 +7,7 @@ This guide explains how to resell the Alshabandar Trading App as a multi-tenant 
 ## 📋 What Your Customers Get
 
 Each customer receives:
+
 - ✅ Full access to all app features (invoices, customers, products, expenses, etc.)
 - ✅ Completely isolated data (cannot see other customers' data)
 - ✅ User management (can invite their team)
@@ -18,6 +19,7 @@ Each customer receives:
 ## 🚀 Customer Onboarding Process
 
 ### Step 1: Create Customer Company Account
+
 When a new customer signs up:
 
 ```bash
@@ -54,6 +56,7 @@ Use Cloud Function: setupNewCustomerAccount(
 ```
 
 ### Step 2: Customer Logs In
+
 ```
 1. Customer enters: username (email) + password
 2. Firebase authenticates
@@ -63,6 +66,7 @@ Use Cloud Function: setupNewCustomerAccount(
 ```
 
 ### Step 3: Customer Manages Their Team
+
 ```
 1. Owner logs in → goes to Settings > Users
 2. Invites team members (manager@company.com)
@@ -75,6 +79,7 @@ Use Cloud Function: setupNewCustomerAccount(
 ## 🔐 Data Isolation - Technical Details
 
 ### Database Structure
+
 ```
 companies/
 ├── {companyId_A}/
@@ -105,6 +110,7 @@ users/
 ```
 
 ### Security Rules (Enforced at Database Level)
+
 ```firestore
 // User A from Company A tries to access Company B's invoices:
 db.collection('companies/companyB/invoices').getDocs()
@@ -122,6 +128,7 @@ db.collection('companies/companyB/invoices').getDocs()
 ## 📊 Multi-Customer Example
 
 ### Scenario: Three Customers
+
 ```
 Customer 1: "Ahmed Trading"
 - Owner: ahmed@trading.com (uid: abc123)
@@ -159,6 +166,7 @@ Even if Ahmed tries to query Noor's data, Firestore returns permission denied.
 ## 💰 Pricing & Billing Model
 
 ### Option 1: Per-Company Fixed Fee
+
 ```
 $29/month per company subscription
 - Unlimited users per company
@@ -167,6 +175,7 @@ $29/month per company subscription
 ```
 
 ### Option 2: Usage-Based Pricing
+
 ```
 $99/month base
 + $0.10 per invoice
@@ -175,6 +184,7 @@ $99/month base
 ```
 
 ### Option 3: Tiered Plans
+
 ```
 Starter: $19/month
 - 1 user, 100 invoices/month
@@ -193,9 +203,11 @@ Enterprise: Custom
 ## 🛠️ Admin Dashboard Tasks
 
 ### For You (Platform Admin)
+
 Located in: `/admin` (auto-routes platform admins here)
 
 Tasks:
+
 1. ✅ View all companies
 2. ✅ Approve/reject new companies
 3. ✅ View company metrics (user count, invoice count)
@@ -203,9 +215,11 @@ Tasks:
 5. ✅ Handle disputes (export company data if needed)
 
 ### Customer Self-Service
+
 Available in: `/settings` (for each company)
 
 Tasks:
+
 1. ✅ Update company profile
 2. ✅ Manage team members (invite, remove, change roles)
 3. ✅ View billing
@@ -216,15 +230,17 @@ Tasks:
 ## 🔧 Backend Setup
 
 ### Cloud Functions (Already Configured)
+
 ```typescript
 // functions/index.js
-- createCompanyAsAdmin() // Only platform admins can call
-- getAdminCompanies() // Platform admin dashboard
-- setupNewCustomerAccount() // Onboarding automation
-- inviteUser() // Send invite emails to team members
+-createCompanyAsAdmin() - // Only platform admins can call
+  getAdminCompanies() - // Platform admin dashboard
+  setupNewCustomerAccount() - // Onboarding automation
+  inviteUser(); // Send invite emails to team members
 ```
 
 ### Firestore Indexes (Auto-Created)
+
 ```
 // These are automatically created for efficient queries:
 - companies/{companyId}/invoices (created_at, status)
@@ -237,6 +253,7 @@ Tasks:
 ## 📈 Going Live Checklist
 
 ### Pre-Launch
+
 - [ ] Enable Firebase Authentication
 - [ ] Deploy Firestore Security Rules
 - [ ] Deploy Cloud Functions
@@ -245,12 +262,14 @@ Tasks:
 - [ ] Enable backups
 
 ### Launch Week
+
 - [ ] Onboard first 3 test customers
 - [ ] Verify data isolation (test multiple users)
 - [ ] Monitor performance (Firestore usage)
 - [ ] Have support ready
 
 ### Post-Launch
+
 - [ ] Collect customer feedback
 - [ ] Monitor Firestore costs (adjust pricing if needed)
 - [ ] Add more features based on feedback
@@ -260,18 +279,23 @@ Tasks:
 ## 📞 Common Support Questions
 
 ### Q: "Can I see what data is in the app?"
+
 A: Only your company's data is visible in the app. You cannot see other customers' data.
 
 ### Q: "What if I need to switch companies?"
+
 A: If you own multiple companies, contact admin to add you to each company. You can then switch between them in the company selector.
 
 ### Q: "How do I invite my team?"
+
 A: Go to Settings > Users > Invite User. Enter their email and select their role. They'll receive an invitation link.
 
 ### Q: "Is my data encrypted?"
+
 A: Yes. All data is encrypted in transit (HTTPS) and at rest (Firestore encryption). Only you and your team can access it.
 
 ### Q: "Can I export my data?"
+
 A: Yes. Go to Reports and download CSV exports. You own all your data.
 
 ---
@@ -279,22 +303,24 @@ A: Yes. Go to Reports and download CSV exports. You own all your data.
 ## 🚨 Emergency Procedures
 
 ### If Customer Data is Compromised
+
 ```
 1. Immediate: Revoke user sessions
    - Go to Firebase Console → Authentication
    - Disable customer's user accounts
-   
+
 2. Investigation: Check audit logs
    - See which user accessed what data and when
-   
+
 3. Recovery: Restore from backup
    - Firebase can restore from backup
    - Firestore point-in-time recovery
-   
+
 4. Communication: Notify customer ASAP
 ```
 
 ### If You Suspect Data Breach
+
 ```
 1. Pause all operations
 2. Check Firebase activity log
@@ -308,6 +334,7 @@ A: Yes. Go to Reports and download CSV exports. You own all your data.
 ## 📚 Documentation for Customers
 
 Create a knowledge base article for each topic:
+
 1. How to login
 2. How to create invoices
 3. How to manage customers
@@ -352,6 +379,7 @@ Example: `https://help.alshabandar.com/getting-started`
 ## 📞 Questions?
 
 Refer to:
+
 - [MULTI_TENANT_SECURITY.md](./MULTI_TENANT_SECURITY.md) - Security deep dive
 - [DEPLOYMENT.md](./DEPLOYMENT.md) - Deployment instructions
 - Firestore docs: https://firebase.google.com/docs/firestore

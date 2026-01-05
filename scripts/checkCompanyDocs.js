@@ -16,7 +16,11 @@ if (!saPath) {
     path.join(root, 'service-account.json'),
     path.join(root, 'serviceAccountKey.json'),
   ];
-  for (const c of candidates) if (fs.existsSync(c)) { saPath = c; break; }
+  for (const c of candidates)
+    if (fs.existsSync(c)) {
+      saPath = c;
+      break;
+    }
 }
 
 if (!saPath) {
@@ -45,7 +49,11 @@ async function run() {
       console.log('[check] Company doc:', { id: compSnap.id, data: compSnap.data() });
     }
 
-    const membershipRef = db.collection('companies').doc(COMPANY_ID).collection('users').doc(userRecord.uid);
+    const membershipRef = db
+      .collection('companies')
+      .doc(COMPANY_ID)
+      .collection('users')
+      .doc(userRecord.uid);
     const memSnap = await membershipRef.get();
     if (!memSnap.exists) {
       console.warn('[check] Membership doc not found for uid under company');

@@ -11,7 +11,14 @@ describe('invoice ledger integration (mock)', () => {
 
   it('saveInvoice decreases stock and creates negative ledger entries with unitCost', async () => {
     // create product with stock and averageCost
-    const prod = await mockService.saveProduct('mock-company', { name: 'Serum X', description: '', price: 50, stock: 10, sku: 'SRX-1', defaultCost: 12, });
+    const prod = await mockService.saveProduct('mock-company', {
+      name: 'Serum X',
+      description: '',
+      price: 50,
+      stock: 10,
+      sku: 'SRX-1',
+      defaultCost: 12,
+    });
 
     // save purchase to set averageCost (optional) - not required here
 
@@ -30,12 +37,14 @@ describe('invoice ledger integration (mock)', () => {
     const saved = await saveInvoice('mock-company', inv as any);
     expect(saved).toBeTruthy();
     const inventory = await mockService.getInventory('mock-company');
-    const itemSnapshot = inventory.data.find(i => i.productId === prod.id);
+    const itemSnapshot = inventory.data.find((i) => i.productId === prod.id);
     expect(itemSnapshot).toBeDefined();
     expect(itemSnapshot?.quantity).toBe(7); // 10 - 3
 
     const ledger = await mockService.getStockLedger('mock-company');
-    const led = ledger.data.find(l => l.productId === prod.id && l.sourceId === saved.id && l.change < 0);
+    const led = ledger.data.find(
+      (l) => l.productId === prod.id && l.sourceId === saved.id && l.change < 0
+    );
     expect(led).toBeDefined();
     expect(led?.qtyAfter).toBe(7);
     // unitCost should match product average/default cost

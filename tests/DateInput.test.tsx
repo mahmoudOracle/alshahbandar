@@ -10,7 +10,9 @@ describe('DateInput', () => {
     const day = getByPlaceholderText('DD') as HTMLInputElement;
 
     // simulate paste
-    fireEvent.paste(day, { clipboardData: { getData: () => '12/03/2025' } } as unknown as DataTransferEvent);
+    fireEvent.paste(day, {
+      clipboardData: { getData: () => '12/03/2025' },
+    } as unknown as DataTransferEvent);
 
     // allow microtask
     await Promise.resolve();

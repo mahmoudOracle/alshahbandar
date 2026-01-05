@@ -27,11 +27,14 @@ export const Select: React.FC<SelectProps> = ({
   ...props
 }) => {
   const selectId = id || `select-${Math.random().toString(36).substr(2, 9)}`;
-  
+
   return (
     <div className="w-full">
       {label && (
-        <label htmlFor={selectId} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label
+          htmlFor={selectId}
+          className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+        >
           {label}
           {required && <span className="text-danger-600 ms-1">*</span>}
         </label>
@@ -53,7 +56,7 @@ export const Select: React.FC<SelectProps> = ({
           {...props}
         >
           {placeholder && <option value="">{placeholder}</option>}
-          {options.map(option => (
+          {options.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>

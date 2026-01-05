@@ -2,25 +2,25 @@ export function mapFirestoreError(e: unknown): string {
   const obj = (e as Record<string, unknown>) || {};
   const code = String(obj?.code ?? '').toLowerCase();
   const msg = String(obj?.message ?? '');
-  
+
   // Handle Cloud Function errors first
   if (code.startsWith('functions/')) {
     const functionError = code.replace('functions/', '');
-    switch(functionError) {
-        case 'unauthenticated':
-            return 'يجب تسجيل الدخول لتنفيذ هذا الإجراء.';
-        case 'permission-denied':
-            return 'صلاحية غير كافية لتنفيذ هذا الإجراء.';
-        case 'already-exists':
-            return 'هذا العنصر موجود بالفعل أو المعرف مستخدم.';
-        case 'invalid-argument':
-            return 'البيانات المدخلة غير صحيحة أو ناقصة.';
-        case 'failed-precondition':
-             return 'فشل شرط مسبق، قد تكون خدمة البريد الإلكتروني غير مهيأة.';
-        case 'internal':
-             return 'حدث خطأ في الخادم. السبب الأكثر شيوعاً هو عدم تفعيل خطة الفوترة (Blaze) للمشروع. يرجى تفعيل الفوترة ثم المحاولة مرة أخرى. إذا استمرت المشكلة، يرجى مراجعة سجلات الوظائف السحابية (Cloud Function logs).';
-        default:
-            return `حدث خطأ غير معروف في الخادم (${functionError}). يرجى مراجعة سجلات الوظائف السحابية.`;
+    switch (functionError) {
+      case 'unauthenticated':
+        return 'يجب تسجيل الدخول لتنفيذ هذا الإجراء.';
+      case 'permission-denied':
+        return 'صلاحية غير كافية لتنفيذ هذا الإجراء.';
+      case 'already-exists':
+        return 'هذا العنصر موجود بالفعل أو المعرف مستخدم.';
+      case 'invalid-argument':
+        return 'البيانات المدخلة غير صحيحة أو ناقصة.';
+      case 'failed-precondition':
+        return 'فشل شرط مسبق، قد تكون خدمة البريد الإلكتروني غير مهيأة.';
+      case 'internal':
+        return 'حدث خطأ في الخادم. السبب الأكثر شيوعاً هو عدم تفعيل خطة الفوترة (Blaze) للمشروع. يرجى تفعيل الفوترة ثم المحاولة مرة أخرى. إذا استمرت المشكلة، يرجى مراجعة سجلات الوظائف السحابية (Cloud Function logs).';
+      default:
+        return `حدث خطأ غير معروف في الخادم (${functionError}). يرجى مراجعة سجلات الوظائف السحابية.`;
     }
   }
 

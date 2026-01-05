@@ -13,7 +13,10 @@ export default function useTenantConfig() {
     (async () => {
       try {
         if (!activeCompanyId) {
-          if (mounted) { setConfig(null); setLoading(false); }
+          if (mounted) {
+            setConfig(null);
+            setLoading(false);
+          }
           return;
         }
         const c = await getTenantConfig(activeCompanyId);
@@ -26,7 +29,9 @@ export default function useTenantConfig() {
         if (mounted) setLoading(false);
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [activeCompanyId]);
 
   return { config, loading };

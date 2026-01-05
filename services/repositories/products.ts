@@ -1,4 +1,12 @@
-import { collection, getDocs, query, orderBy, where, limit as firestoreLimit, QueryConstraint } from 'firebase/firestore';
+import {
+  collection,
+  getDocs,
+  query,
+  orderBy,
+  where,
+  limit as firestoreLimit,
+  QueryConstraint,
+} from 'firebase/firestore';
 import { db } from '../firebase';
 import { Product } from '../../types';
 
@@ -13,26 +21,36 @@ interface QueryOptions {
 const productCache = new Map<string, { ts: number; data: Product[] }>();
 const CACHE_TTL_MS = 60 * 1000; // 60s
 
-export const getProducts = async (tenantId: string, options: QueryOptions = {}): Promise<Product[]> => {
-  const { limit = 50, orderBy: orderByField = 'updatedAt', orderDirection = 'desc', filters = [] } = options;
+export const getProducts = async (
+  tenantId: string,
+  options: QueryOptions = {}
+): Promise<Product[]> => {
+  const {
+    limit = 50,
+    orderBy: orderByField = 'updatedAt',
+    orderDirection = 'desc',
+    filters = [],
+  } = options;
 
   // Return cached result when fresh
   const cacheKey = `${tenantId}:${orderByField}:${orderDirection}:${limit}`;
   const cached = productCache.get(cacheKey);
-  if (cached && (Date.now() - cached.ts) < CACHE_TTL_MS) {
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
     return cached.data;
   }
 
   const constraints: QueryConstraint[] = [];
   if (filters && filters.length) {
-    filters.forEach(f => constraints.push(where(f[0], '==', f[1])));
+    filters.forEach((f) => constraints.push(where(f[0], '==', f[1])));
   }
   if (orderByField) constraints.push(orderBy(orderByField, orderDirection));
   if (limit) constraints.push(firestoreLimit(limit));
 
   const q = query(collection(db, 'companies', tenantId, 'products'), ...constraints);
   const snap = await getDocs(q);
-  const data = snap.docs.map(d => ({ id: d.id, ...(d.data() as unknown as Record<string, unknown>) } as Product));
+  const data = snap.docs.map(
+    (d) => ({ id: d.id, ...(d.data() as unknown as Record<string, unknown>) }) as Product
+  );
 
   productCache.set(cacheKey, { ts: Date.now(), data });
   return data;

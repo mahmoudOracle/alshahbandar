@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useOfflineStatus } from '../hooks/useOfflineStatus';
 import { WifiIcon } from '@heroicons/react/24/outline';

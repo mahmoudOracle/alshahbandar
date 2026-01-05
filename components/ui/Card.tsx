@@ -21,21 +21,15 @@ export const Card: React.FC<CardProps> = ({
     md: 'p-6',
     lg: 'p-8',
   };
-  
+
   return (
     <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-md ${className}`}>
       {header && (
-        <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-          {header}
-        </div>
+        <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4">{header}</div>
       )}
-      <div className={paddingClasses[padding]}>
-        {children}
-      </div>
+      <div className={paddingClasses[padding]}>{children}</div>
       {footer && (
-        <div className="border-t border-gray-200 dark:border-gray-700 px-6 py-4">
-          {footer}
-        </div>
+        <div className="border-t border-gray-200 dark:border-gray-700 px-6 py-4">{footer}</div>
       )}
     </div>
   );

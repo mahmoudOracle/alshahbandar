@@ -42,11 +42,21 @@ const CashFlow: React.FC = () => {
         <div className="flex gap-4 mb-4">
           <div>
             <label className="block text-sm">من</label>
-            <input type="date" value={dateRange.start} onChange={e => setDateRange(prev => ({ ...prev, start: e.target.value }))} className="mt-1" />
+            <input
+              type="date"
+              value={dateRange.start}
+              onChange={(e) => setDateRange((prev) => ({ ...prev, start: e.target.value }))}
+              className="mt-1"
+            />
           </div>
           <div>
             <label className="block text-sm">إلى</label>
-            <input type="date" value={dateRange.end} onChange={e => setDateRange(prev => ({ ...prev, end: e.target.value }))} className="mt-1" />
+            <input
+              type="date"
+              value={dateRange.end}
+              onChange={(e) => setDateRange((prev) => ({ ...prev, end: e.target.value }))}
+              className="mt-1"
+            />
           </div>
         </div>
 
@@ -54,28 +64,81 @@ const CashFlow: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 bg-white dark:bg-gray-900 border rounded">
               <h3 className="font-semibold">التدفقات التشغيلية</h3>
-              <p>الواردات: <strong>{Number(result.operatingIn ?? 0).toFixed(2)} {settings?.currency}</strong></p>
-              <p>المصروفات: <strong>-{Number(result.operatingOut ?? 0).toFixed(2)} {settings?.currency}</strong></p>
+              <p>
+                الواردات:{' '}
+                <strong>
+                  {Number(result.operatingIn ?? 0).toFixed(2)} {settings?.currency}
+                </strong>
+              </p>
+              <p>
+                المصروفات:{' '}
+                <strong>
+                  -{Number(result.operatingOut ?? 0).toFixed(2)} {settings?.currency}
+                </strong>
+              </p>
             </div>
 
             <div className="p-4 bg-white dark:bg-gray-900 border rounded">
               <h3 className="font-semibold">التدفقات الاستثمارية</h3>
-              <p>المبيعات/تحويلات: <strong>{Number(result.investingIn ?? 0).toFixed(2)} {settings?.currency}</strong></p>
-              <p>المشتريات: <strong>-{Number(result.investingOut ?? 0).toFixed(2)} {settings?.currency}</strong></p>
+              <p>
+                المبيعات/تحويلات:{' '}
+                <strong>
+                  {Number(result.investingIn ?? 0).toFixed(2)} {settings?.currency}
+                </strong>
+              </p>
+              <p>
+                المشتريات:{' '}
+                <strong>
+                  -{Number(result.investingOut ?? 0).toFixed(2)} {settings?.currency}
+                </strong>
+              </p>
             </div>
 
             <div className="p-4 bg-white dark:bg-gray-900 border rounded">
               <h3 className="font-semibold">التدفقات التمويلية</h3>
-              <p>إضافات المالك: <strong>{Number(result.financingIn ?? 0).toFixed(2)} {settings?.currency}</strong></p>
-              <p>سحوبات/قروض: <strong>-{Number(result.financingOut ?? 0).toFixed(2)} {settings?.currency}</strong></p>
+              <p>
+                إضافات المالك:{' '}
+                <strong>
+                  {Number(result.financingIn ?? 0).toFixed(2)} {settings?.currency}
+                </strong>
+              </p>
+              <p>
+                سحوبات/قروض:{' '}
+                <strong>
+                  -{Number(result.financingOut ?? 0).toFixed(2)} {settings?.currency}
+                </strong>
+              </p>
             </div>
 
             <div className="md:col-span-3 p-4 bg-white dark:bg-gray-900 border rounded">
               <h3 className="font-semibold">ملخص</h3>
-              <p>رصيد افتتاحي: <strong>{Number(result.openingCash ?? 0).toFixed(2)} {settings?.currency}</strong></p>
-              <p>صافي التدفق النقدي: <strong>{Number(result.netCashFlow ?? 0).toFixed(2)} {settings?.currency}</strong></p>
-              <p>رصيد اختتامي: <strong>{Number(result.closingCash ?? 0).toFixed(2)} {settings?.currency}</strong> {Number(result.closingCash ?? 0) < 0 && <span className="text-yellow-600">⚠️ رصيد سلبي</span>}</p>
-              {Number(result.unclassifiedCount ?? 0) > 0 && <p className="text-sm text-red-600">تحذير: هناك {Number(result.unclassifiedCount ?? 0)} معاملة غير مصنفة. راجع قيود اليومية.</p>}
+              <p>
+                رصيد افتتاحي:{' '}
+                <strong>
+                  {Number(result.openingCash ?? 0).toFixed(2)} {settings?.currency}
+                </strong>
+              </p>
+              <p>
+                صافي التدفق النقدي:{' '}
+                <strong>
+                  {Number(result.netCashFlow ?? 0).toFixed(2)} {settings?.currency}
+                </strong>
+              </p>
+              <p>
+                رصيد اختتامي:{' '}
+                <strong>
+                  {Number(result.closingCash ?? 0).toFixed(2)} {settings?.currency}
+                </strong>{' '}
+                {Number(result.closingCash ?? 0) < 0 && (
+                  <span className="text-yellow-600">⚠️ رصيد سلبي</span>
+                )}
+              </p>
+              {Number(result.unclassifiedCount ?? 0) > 0 && (
+                <p className="text-sm text-red-600">
+                  تحذير: هناك {Number(result.unclassifiedCount ?? 0)} معاملة غير مصنفة. راجع قيود
+                  اليومية.
+                </p>
+              )}
             </div>
           </div>
         ) : (

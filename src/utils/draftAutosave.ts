@@ -51,7 +51,9 @@ export const loadDraft = (key: string): unknown | null => {
 export const clearDraft = (key: string) => {
   try {
     localStorage.removeItem(key);
-  } catch (e) { void e; }
+  } catch (e) {
+    void e;
+  }
 };
 
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -74,10 +76,14 @@ export const debounceSaveDraft = (key: string, data: unknown, wait = 1200) => {
             try {
               const fn = ds.saveDraft as (...args: unknown[]) => unknown;
               fn(companyId, docKey, data);
-            } catch { /* ignore */ }
+            } catch {
+              /* ignore */
+            }
           }
         }
-      } catch (e) { /* ignore */ }
+      } catch (e) {
+        /* ignore */
+      }
       timers.delete(key);
     }, wait) as unknown as number;
     timers.set(key, id);

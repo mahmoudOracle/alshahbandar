@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Customer, Invoice, InvoiceStatus } from '../types';
 import { getInvoices, savePayment } from '../services/dataService';
@@ -28,14 +27,15 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, onPaymentSaved, onC
 
   useEffect(() => {
     if (customer && activeCompanyId) {
-      getInvoices(activeCompanyId, { filters: [['customerId', '==', customer.id]] }).then(result => {
-        const customerUnpaidInvoices = result.data.filter(
-          inv => inv.status === InvoiceStatus.Due
-        ) || [];
-        setUnpaidInvoices(customerUnpaidInvoices);
-      }).catch(error => {
-        addNotification(mapFirestoreError(error), 'error');
-      });
+      getInvoices(activeCompanyId, { filters: [['customerId', '==', customer.id]] })
+        .then((result) => {
+          const customerUnpaidInvoices =
+            result.data.filter((inv) => inv.status === InvoiceStatus.Due) || [];
+          setUnpaidInvoices(customerUnpaidInvoices);
+        })
+        .catch((error) => {
+          addNotification(mapFirestoreError(error), 'error');
+        });
       setAmount(0);
       setDate(new Date().toISOString().split('T')[0]);
       setInvoiceId('');
@@ -47,12 +47,17 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, onPaymentSaved, onC
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canWrite) {
-        addNotification('صلاحية غير كافية.', 'error');
-        return;
+      addNotification('صلاحية غير كافية.', 'error');
+      return;
     }
     if (amount <= 0 || !activeCompanyId) return;
     setSaving(true);
-    console.log('🟢 [PAYMENT] Saving payment', { companyId: activeCompanyId, customerId: customer.id, amount, invoiceId });
+    console.log('🟢 [PAYMENT] Saving payment', {
+      companyId: activeCompanyId,
+      customerId: customer.id,
+      amount,
+      invoiceId,
+    });
     try {
       const result = await savePayment(activeCompanyId, {
         customerId: customer.id,
@@ -88,24 +93,35 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, onPaymentSaved, onC
         min="0.01"
         step="0.01"
       />
-      <DateInput label="تاريخ الدفع" name="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+      <DateInput
+        label="تاريخ الدفع"
+        name="date"
+        value={date}
+        onChange={(e) => setDate(e.target.value)}
+        required
+      />
       <Select
         label="ربط بفاتورة (اختياري)"
         value={invoiceId}
         onChange={(e) => setInvoiceId(e.target.value)}
         options={[
-            { value: '', label: 'دفعة عامة' },
-            ...unpaidInvoices.map(inv => ({
-                value: inv.id,
-                label: `${inv.invoiceNumber} - (${inv.total.toFixed(2)} ${inv.status})`
-            }))
+          { value: '', label: 'دفعة عامة' },
+          ...unpaidInvoices.map((inv) => ({
+            value: inv.id,
+            label: `${inv.invoiceNumber} - (${inv.total.toFixed(2)} ${inv.status})`,
+          })),
         ]}
       />
       <div className="flex justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
         <Button type="button" variant="secondary" onClick={onClose}>
           إلغاء
         </Button>
-        <Button type="submit" loading={saving} disabled={saving || !canWrite || amount <= 0} title={!canWrite ? 'صلاحية غير كافية' : ''}>
+        <Button
+          type="submit"
+          loading={saving}
+          disabled={saving || !canWrite || amount <= 0}
+          title={!canWrite ? 'صلاحية غير كافية' : ''}
+        >
           حفظ الدفعة
         </Button>
       </div>

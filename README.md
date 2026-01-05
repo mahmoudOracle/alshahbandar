@@ -79,6 +79,7 @@ Usage (PowerShell):
 ```
 
 What the script does:
+
 - Reads `projectId` from `public/config/firebase.json` or `FIREBASE_PROJECT` env var.
 - Ensures you are logged in to the Firebase CLI.
 - Deploys the `isPlatformAdmin` function (falls back to all functions).
@@ -135,11 +136,13 @@ This repo includes a GitHub Actions workflow (`.github/workflows/deploy.yml`) th
 - `FIREBASE_PROJECT_ID` — your Firebase project id.
 
 The workflow will:
+
 - install dependencies
 - run `npm run build`
 - deploy `hosting`, `functions`, and `firestore:rules` using `firebase deploy`.
 
 Important:
+
 - Do NOT commit your `service-account.json` to the repo. Add it as a GitHub secret and remove any existing committed copies.
 - Verify your `functions/` directory contains the Cloud Functions code and `package.json`.
 
@@ -161,4 +164,3 @@ bash scripts/create_github_repo.sh my-org/alshabandar-trading-app private
 ```
 
 The script will create the repo, set `origin`, and push the current branch. After creating the repo, add the required repository secrets (`FIREBASE_SERVICE_ACCOUNT` and `FIREBASE_PROJECT_ID`) in the repository settings.
-

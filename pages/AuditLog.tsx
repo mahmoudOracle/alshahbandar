@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import useTenantConfig from '../hooks/useTenantConfig';
 import { useAuth } from '../contexts/AuthContext';
 
 const AuditLog: React.FC = () => {
@@ -18,7 +17,9 @@ const AuditLog: React.FC = () => {
         setEntries(logs || []);
       } catch (e) {
         console.warn('Could not load audit logs', e);
-      } finally { setLoading(false); }
+      } finally {
+        setLoading(false);
+      }
     })();
   }, [activeCompanyId]);
 
@@ -28,14 +29,20 @@ const AuditLog: React.FC = () => {
       <h2 className="text-xl font-semibold mb-4">Audit Trail</h2>
       {loading ? <p>Loading...</p> : null}
       <div className="space-y-3">
-        {entries.map((e,i) => (
+        {entries.map((e, i) => (
           <div key={i} className="p-3 bg-white border rounded shadow-sm">
-            <div className="text-sm text-gray-600">{new Date(e.performedAt?.toDate ? e.performedAt.toDate() : e.performedAt || Date.now()).toLocaleString()}</div>
+            <div className="text-sm text-gray-600">
+              {new Date(
+                e.performedAt?.toDate ? e.performedAt.toDate() : e.performedAt || Date.now()
+              ).toLocaleString()}
+            </div>
             <div className="font-medium">{e.action}</div>
             <div className="text-xs text-gray-500">By: {e.performedBy || 'system'}</div>
             <details className="mt-2 text-xs text-gray-700">
               <summary className="cursor-pointer">Details</summary>
-              <pre className="whitespace-pre-wrap mt-2 text-xs">{JSON.stringify({ before: e.before, after: e.after, meta: e.meta }, null, 2)}</pre>
+              <pre className="whitespace-pre-wrap mt-2 text-xs">
+                {JSON.stringify({ before: e.before, after: e.after, meta: e.meta }, null, 2)}
+              </pre>
             </details>
           </div>
         ))}

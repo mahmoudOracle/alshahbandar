@@ -12,7 +12,7 @@ const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  projectId: serviceAccount.project_id || 'al-shabandar'
+  projectId: serviceAccount.project_id || 'al-shabandar',
 });
 
 const db = admin.firestore();
@@ -30,7 +30,7 @@ async function sampleDocs() {
     try {
       const snap = await db.collection(col).limit(5).get();
       console.log(`\nCollection ${col}: ${snap.size} documents (showing up to 5)`);
-      snap.forEach(doc => console.log(` - ${doc.id}:`, doc.data()));
+      snap.forEach((doc) => console.log(` - ${doc.id}:`, doc.data()));
     } catch (err) {
       console.error('Error reading', col, err.message || err);
     }
@@ -43,7 +43,7 @@ async function sampleDocs() {
     console.log('\nSampling company:', compId);
     const invoicesSnap = await db.collection(`companies/${compId}/invoices`).limit(5).get();
     console.log(`invoices: ${invoicesSnap.size}`);
-    invoicesSnap.forEach(d => console.log(' -', d.id, d.data()));
+    invoicesSnap.forEach((d) => console.log(' -', d.id, d.data()));
   } else {
     console.log('\nNo companies found to sample subcollections.');
   }

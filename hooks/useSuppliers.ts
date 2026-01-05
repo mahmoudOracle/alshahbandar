@@ -17,13 +17,17 @@ export const useSuppliers = (companyId?: string) => {
         if (mounted) setSuppliers(data);
       } catch (err: unknown) {
         if (mounted) setSuppliers([]);
-      } finally { if (mounted) setLoading(false); }
+      } finally {
+        if (mounted) setLoading(false);
+      }
     };
     fetch();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [companyId]);
 
   return { suppliers, loading };
-}
+};
 
 export default useSuppliers;

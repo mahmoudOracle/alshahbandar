@@ -1,4 +1,3 @@
-
 import { FirebaseOptions } from 'firebase/app';
 
 /**

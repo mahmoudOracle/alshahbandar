@@ -5,7 +5,7 @@ vi.mock('firebase/functions', () => ({
   getFunctions: vi.fn(() => ({})),
   httpsCallable: vi.fn(() => {
     return async (payload: any) => ({ data: { success: true, invoiceId: 'inv-mocked-123' } });
-  })
+  }),
 }));
 
 import * as fsService from '../../services/firestoreService';

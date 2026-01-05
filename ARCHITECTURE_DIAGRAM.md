@@ -133,7 +133,7 @@ Firestore receives query:
        │
        ▼
 Firestore checks rules:
-  1. Is uid-ahmed authenticated? 
+  1. Is uid-ahmed authenticated?
      → YES (token is valid)
   2. Is uid-ahmed in companies/company-A/users?
      → YES (has document: {role: "Owner"})
@@ -158,7 +158,7 @@ METHOD 1: Direct Query
        │
        ▼
 Firestore checks rules:
-  1. Is uid-ahmed authenticated? 
+  1. Is uid-ahmed authenticated?
      → YES (token is valid)
   2. Is uid-ahmed in companies/company-B/users?
      → NO (no document found)
@@ -166,7 +166,7 @@ Firestore checks rules:
        │
        ▼
 Result: ❌ PERMISSION DENIED
-  Firebase throws: FirebaseError: 
+  Firebase throws: FirebaseError:
     "Missing or insufficient permissions"
 
 METHOD 2: URL/Route Manipulation
@@ -367,7 +367,7 @@ Query fails with PERMISSION DENIED
   └─ (Rare) Auth expired   │
 
 Resolution:
-1. Check user exists in 
+1. Check user exists in
    companies/{id}/users/{uid}
 2. Check company.status = "approved"
 3. Check user role can do action

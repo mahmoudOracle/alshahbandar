@@ -13,13 +13,13 @@ First, we will create the backend infrastructure for your application.
 1.  **Go to Firebase Console:** Open the [Firebase Console](https://console.firebase.google.com/). You may need to sign in with your Google account.
 2.  **Create a Project:** Click on **"Add project"**. Give it a name like "My Invoicing App" and click **Continue**. You can disable Google Analytics for this project to simplify setup. Click **"Create project"**.
 3.  **Create a Web App:** Once your project is ready, you'll be on the project dashboard.
-    *   Click the Web icon (`</>`) to add a web app to your project.
-    *   Give your app a nickname, e.g., "Invoicing Web App".
-    *   Click **"Register app"**.
+    - Click the Web icon (`</>`) to add a web app to your project.
+    - Give your app a nickname, e.g., "Invoicing Web App".
+    - Click **"Register app"**.
 4.  **CRITICAL - Copy Firebase Config:** Firebase will now show you your configuration details. This is the most important piece of information you will get.
-    *   Find the `const firebaseConfig = { ... };` code block.
-    *   **Copy the entire JavaScript object, including the curly braces `{}`.** You will need to paste this into the application on first launch.
-    *   Click **"Continue to console"**.
+    - Find the `const firebaseConfig = { ... };` code block.
+    - **Copy the entire JavaScript object, including the curly braces `{}`.** You will need to paste this into the application on first launch.
+    - Click **"Continue to console"**.
 
 ---
 
@@ -92,17 +92,17 @@ This is the most important step to secure your data and enable multi-user roles.
             // This collection should be managed manually or through a secure backend process.
             allow read: if isPlatformAdmin();
         }
-        
+
         match /companies/{companyId} {
           // Only Platform Admins can create new company documents.
           allow create: if isPlatformAdmin();
-          
+
           // Any member of the company can read the main company document.
           allow read: if isCompanyMember(companyId);
-          
-          allow update: if 
+
+          allow update: if
             // Company managers can update general company details.
-            isCompanyManager(companyId) || 
+            isCompanyManager(companyId) ||
             // A new user can "claim" an unassigned company if their email matches
             // by setting their own UID on it as part of the invitation acceptance transaction.
             (
@@ -118,7 +118,7 @@ This is the most important step to secure your data and enable multi-user roles.
         match /companies/{companyId}/users/{userId} {
             // Any company member can read user profiles within the same company.
             allow read: if isCompanyMember(companyId);
-            
+
             allow create: if (
                 // A user can create their OWN user document if they are accepting an invitation.
                 // The client-side transaction in `resolveFirstLogin` ensures an invitation exists
@@ -126,7 +126,7 @@ This is the most important step to secure your data and enable multi-user roles.
                 request.auth != null &&
                 request.auth.uid == userId
             );
-            
+
             allow update: if (
                 // A manager can update roles of non-owners/managers.
                 (isCompanyManager(companyId) && resource.data.role in ['employee', 'viewer']) ||
@@ -144,11 +144,11 @@ This is the most important step to secure your data and enable multi-user roles.
         match /companies/{companyId}/invitations/{inviteId} {
             // Platform Admins can create the initial owner invitation. Company managers can invite staff.
             allow create: if isCompanyManager(companyId) || isPlatformAdmin();
-            allow read: if isCompanyManager(companyId) || 
+            allow read: if isCompanyManager(companyId) ||
                          (request.auth != null && request.auth.token.email == resource.data.email);
             allow update: if (
                 // Allow the invited user to accept the invitation (part of the transaction in resolveFirstLogin)
-                request.auth != null && 
+                request.auth != null &&
                 resource.data.email == request.auth.token.email &&
                 request.resource.data.used == true &&
                 request.resource.data.usedByUid == request.auth.uid
@@ -208,19 +208,19 @@ To send invitation emails automatically, you need to connect to an email service
 
 1.  **Create a SendGrid Account:** Go to [SendGrid](https://sendgrid.com/) and create a free account.
 2.  **Create an API Key:**
-    *   Inside SendGrid, navigate to **Settings -> API Keys**.
-    *   Click **"Create API Key"**. Give it a name (e.g., "Firebase Invoicing App") and choose **"Full Access"**.
-    *   **Copy the API key immediately.** You will not be able to see it again.
+    - Inside SendGrid, navigate to **Settings -> API Keys**.
+    - Click **"Create API Key"**. Give it a name (e.g., "Firebase Invoicing App") and choose **"Full Access"**.
+    - **Copy the API key immediately.** You will not be able to see it again.
 3.  **Set the API Key in Firebase:**
-    *   Open your terminal in your project's root directory.
-    *   Run the following command, replacing `your_sendgrid_api_key_here` with the key you just copied:
-        ```bash
-        firebase functions:secrets:set SENDGRID_API_KEY
-        ```
-    *   When prompted, paste your API key and press Enter.
+    - Open your terminal in your project's root directory.
+    - Run the following command, replacing `your_sendgrid_api_key_here` with the key you just copied:
+      ```bash
+      firebase functions:secrets:set SENDGRID_API_KEY
+      ```
+    - When prompted, paste your API key and press Enter.
 4.  **Verify a Sender Identity:**
-    *   In SendGrid, go to **Sender Authentication**. You must verify a "Single Sender" (your email address) or an entire domain to be able to send emails. Follow their instructions.
-    *   **IMPORTANT:** Open the `functions/index.js` file and replace the placeholder `from: 'support@yourdomain.com'` with your own verified sender email address.
+    - In SendGrid, go to **Sender Authentication**. You must verify a "Single Sender" (your email address) or an entire domain to be able to send emails. Follow their instructions.
+    - **IMPORTANT:** Open the `functions/index.js` file and replace the placeholder `from: 'support@yourdomain.com'` with your own verified sender email address.
 5.  **Redeploy Functions:** After setting the secret and updating the sender email, you must redeploy your functions for the changes to take effect:
     ```bash
     firebase deploy --only functions

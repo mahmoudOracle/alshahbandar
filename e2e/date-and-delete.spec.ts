@@ -25,7 +25,7 @@ test.describe('Date input and invoice delete', () => {
     const del = page.locator('button[aria-label="حذف الفاتورة"]').first();
     if (await del.count()) {
       // ensure dialog is accepted
-      page.once('dialog', dialog => dialog.accept());
+      page.once('dialog', (dialog) => dialog.accept());
       await del.click();
     }
   });

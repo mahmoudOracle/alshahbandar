@@ -3,7 +3,14 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { getFirestore as getClientFirestore } from 'firebase/firestore';
 
 // Lightweight audit logging service. In browser, this will write to `companies/{companyId}/auditLogs`.
-export async function logAudit(companyId: string, userId: string | null, action: string, before: any, after: any, meta: Record<string, any> = {}) {
+export async function logAudit(
+  companyId: string,
+  userId: string | null,
+  action: string,
+  before: any,
+  after: any,
+  meta: Record<string, any> = {}
+) {
   if (!companyId) throw new Error('companyId required for audit log');
   const entry = {
     action,
@@ -16,10 +23,14 @@ export async function logAudit(companyId: string, userId: string | null, action:
 
   try {
     // Try admin SDK
-    // @ts-ignore
+    // @ts-expect-error - may be running in admin runtime
     if (typeof getFirestore === 'function') {
       const db = getFirestore();
-      await db.collection('companies').doc(companyId).collection('auditLogs').add(entry as any);
+      await db
+        .collection('companies')
+        .doc(companyId)
+        .collection('auditLogs')
+        .add(entry as any);
       return;
     }
   } catch (e) {
@@ -28,7 +39,7 @@ export async function logAudit(companyId: string, userId: string | null, action:
 
   try {
     const db = getClientFirestore();
-    // @ts-ignore - client SDK compatibility
+    // @ts-expect-error - client SDK compatibility
     await db.collection(`companies/${companyId}/auditLogs`).add(entry as any);
   } catch (e) {
     console.warn('[auditService] failed to write audit log', e);

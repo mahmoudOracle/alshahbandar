@@ -47,7 +47,16 @@ const tryParseAny = (s: string) => {
   return null;
 };
 
-const DateInput: React.FC<Props> = ({ label, name, value, onChange, required, disabled, error, className }) => {
+const DateInput: React.FC<Props> = ({
+  label,
+  name,
+  value,
+  onChange,
+  required,
+  disabled,
+  error,
+  className,
+}) => {
   const initial = isoToParts(value);
   const [day, setDay] = useState(initial.d);
   const [month, setMonth] = useState(initial.m);
@@ -145,15 +154,23 @@ const DateInput: React.FC<Props> = ({ label, name, value, onChange, required, di
       const target = e.currentTarget as HTMLInputElement;
       if (!target.value) {
         // move focus to previous
-        if (part === 'm') { dayRef.current?.focus(); }
-        if (part === 'y') { monthRef.current?.focus(); }
+        if (part === 'm') {
+          dayRef.current?.focus();
+        }
+        if (part === 'y') {
+          monthRef.current?.focus();
+        }
       }
     }
     if (k === 'Enter') {
       // advance or commit
-      if (part === 'd') { monthRef.current?.focus(); }
-      else if (part === 'm') { yearRef.current?.focus(); }
-      else { commitIfValid(); }
+      if (part === 'd') {
+        monthRef.current?.focus();
+      } else if (part === 'm') {
+        yearRef.current?.focus();
+      } else {
+        commitIfValid();
+      }
       e.preventDefault();
       return;
     }
@@ -177,8 +194,17 @@ const DateInput: React.FC<Props> = ({ label, name, value, onChange, required, di
 
   return (
     <div className={`w-full ${className || ''}`}>
-      {label && <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}{required && <span className="text-danger-600 ms-1">*</span>}</label>}
-      <div role="group" aria-label={label || 'Date'} className={`inline-flex items-center gap-2 px-2 py-1 border rounded-md ${error ? 'border-danger-600' : 'border-gray-300'} bg-white dark:bg-gray-700`}> 
+      {label && (
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          {label}
+          {required && <span className="text-danger-600 ms-1">*</span>}
+        </label>
+      )}
+      <div
+        role="group"
+        aria-label={label || 'Date'}
+        className={`inline-flex items-center gap-2 px-2 py-1 border rounded-md ${error ? 'border-danger-600' : 'border-gray-300'} bg-white dark:bg-gray-700`}
+      >
         <input
           ref={dayRef}
           name={name ? `${name}-day` : undefined}
@@ -227,7 +253,11 @@ const DateInput: React.FC<Props> = ({ label, name, value, onChange, required, di
           className="w-24 text-center px-3 py-2 border rounded-md bg-transparent focus:outline-none touch-manipulation"
         />
       </div>
-      {error && <p className="mt-1 text-sm text-danger-600" role="alert">{error}</p>}
+      {error && (
+        <p className="mt-1 text-sm text-danger-600" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 };

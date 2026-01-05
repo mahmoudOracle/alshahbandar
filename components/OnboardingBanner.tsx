@@ -13,7 +13,11 @@ const OnboardingBanner: React.FC = () => {
         <strong className="block font-semibold">تنبيه إعداد الحساب</strong>
         <div className="mt-1">{onboardingError}</div>
       </div>
-      <button aria-label="Dismiss onboarding message" onClick={clearOnboardingError} className="text-yellow-700 dark:text-yellow-200 hover:text-yellow-900 dark:hover:text-white">
+      <button
+        aria-label="Dismiss onboarding message"
+        onClick={clearOnboardingError}
+        className="text-yellow-700 dark:text-yellow-200 hover:text-yellow-900 dark:hover:text-white"
+      >
         <XMarkIcon className="h-5 w-5" />
       </button>
     </div>

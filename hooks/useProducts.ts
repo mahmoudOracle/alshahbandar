@@ -11,19 +11,23 @@ export const useProducts = (companyId?: string) => {
     const fetch = async () => {
       if (!companyId) return setLoading(false);
       setLoading(true);
-        try {
-          const res = await getProducts(companyId, { limit: 1000 });
-          const data = (res as { data?: Product[] } | undefined)?.data || [];
-          if (mounted) setProducts(data);
-        } catch (err: unknown) {
-          if (mounted) setProducts([]);
-        } finally { if (mounted) setLoading(false); }
+      try {
+        const res = await getProducts(companyId, { limit: 1000 });
+        const data = (res as { data?: Product[] } | undefined)?.data || [];
+        if (mounted) setProducts(data);
+      } catch (err: unknown) {
+        if (mounted) setProducts([]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
     };
     fetch();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [companyId]);
 
   return { products, loading };
-}
+};
 
 export default useProducts;

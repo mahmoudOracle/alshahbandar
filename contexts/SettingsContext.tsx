@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { Settings } from '../types';
 import { getSettings, saveSettings as saveSettingsService } from '../services/dataService';
@@ -14,16 +13,16 @@ interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 const hardcodedDefaultSettings: Settings = {
-    businessName: 'Alshabandar Suite (Fallback)',
-    slogan: 'Invoicing Simplified',
-    address: '123 Developer Lane, Code City',
-    contactInfo: 'contact@example.com',
-    currency: 'USD',
-    logo: '',
+  businessName: 'Alshabandar Suite (Fallback)',
+  slogan: 'Invoicing Simplified',
+  address: '123 Developer Lane, Code City',
+  contactInfo: 'contact@example.com',
+  currency: 'USD',
+  logo: '',
   invoiceFooter: '',
   language: 'ar',
-    taxes: [{ id: '1', name: 'VAT', rate: 15 }],
-    source: 'local',
+  taxes: [{ id: '1', name: 'VAT', rate: 15 }],
+  source: 'local',
 };
 
 export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -35,9 +34,9 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
   useEffect(() => {
     const fetchSettings = async () => {
       if (!activeCompanyId) {
-          setLoading(false);
-          setSettings(null);
-          return;
+        setLoading(false);
+        setSettings(null);
+        return;
       }
 
       setLoading(true);
@@ -46,30 +45,33 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
         if (firestoreSettings) {
           setSettings({ ...firestoreSettings, source: 'firestore' });
         } else {
-            console.log('No settings in source. Seeding default settings for company:', activeCompanyId);
-            await saveSettingsService(activeCompanyId, hardcodedDefaultSettings);
-            setSettings({ ...hardcodedDefaultSettings, source: 'firestore' });
+          console.log(
+            'No settings in source. Seeding default settings for company:',
+            activeCompanyId
+          );
+          await saveSettingsService(activeCompanyId, hardcodedDefaultSettings);
+          setSettings({ ...hardcodedDefaultSettings, source: 'firestore' });
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn("Could not load settings from Firestore. Error:", msg);
-        addNotification("تعذّر تحميل الإعدادات من قاعدة البيانات.", "error");
+        console.warn('Could not load settings from Firestore. Error:', msg);
+        addNotification('تعذّر تحميل الإعدادات من قاعدة البيانات.', 'error');
         setSettings(hardcodedDefaultSettings);
       } finally {
         setLoading(false);
       }
     };
-    
+
     fetchSettings();
   }, [activeCompanyId, addNotification]);
 
   const updateSettings = async (newSettings: Omit<Settings, 'source'>) => {
-    if (!activeCompanyId) throw new Error("No active company to save settings.");
-    
+    if (!activeCompanyId) throw new Error('No active company to save settings.');
+
     await saveSettingsService(activeCompanyId, newSettings);
     setSettings({ ...newSettings, source: 'firestore' });
   };
-  
+
   // If still loading, show full-screen loader to avoid flashing UI
   if (loading) {
     return <div className="flex items-center justify-center h-screen">جاري تحميل الإعدادات...</div>;
@@ -82,7 +84,9 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
       throw new Error('Cannot save settings: no active company');
     };
     return (
-      <SettingsContext.Provider value={{ settings: hardcodedDefaultSettings, loading: false, updateSettings: safeUpdate }}>
+      <SettingsContext.Provider
+        value={{ settings: hardcodedDefaultSettings, loading: false, updateSettings: safeUpdate }}
+      >
         {children}
       </SettingsContext.Provider>
     );

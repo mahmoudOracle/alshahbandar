@@ -12,21 +12,17 @@ module.exports = {
     sourceType: 'module',
   },
   plugins: ['@typescript-eslint', 'react'],
-  extends: [
-    'eslint:recommended',
-    'plugin:@typescript-eslint/recommended',
-    'prettier'
-  ],
+  extends: ['eslint:recommended', 'plugin:@typescript-eslint/recommended', 'prettier'],
   rules: {
     'react/react-in-jsx-scope': 'off',
     '@typescript-eslint/explicit-function-return-type': 'off',
     '@typescript-eslint/no-explicit-any': 'warn',
     'no-unused-vars': 'off',
-    '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }]
+    '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
   },
   settings: {
-    react: { version: 'detect' }
-  }
+    react: { version: 'detect' },
+  },
 };
 
 // Allow legacy scripts to use CommonJS require() without ESLint errors.
@@ -35,15 +31,15 @@ module.exports.overrides = [
     files: ['scripts/**/*.js'],
     env: { node: true },
     rules: {
-      '@typescript-eslint/no-var-requires': 'off'
-    }
-  }
+      '@typescript-eslint/no-var-requires': 'off',
+    },
+  },
 ];
 
 // Allow explicit `any` in services where integrating third-party SDKs or shims.
 module.exports.overrides.push({
   files: ['services/**/*.ts', 'services/**/*.tsx'],
   rules: {
-    '@typescript-eslint/no-explicit-any': 'off'
-  }
+    '@typescript-eslint/no-explicit-any': 'off',
+  },
 });

@@ -13,7 +13,9 @@ test('purchase -> sale -> payment flow', async ({ page }) => {
   // Create a purchase: select supplier (if none, this step may need seeded data)
   await page.click('text=أضف صف');
   // select first product in the added row
-  await page.selectOption('select[aria-label="purchase-row-product-select-0"]', { index: 1 }).catch(()=>{});
+  await page
+    .selectOption('select[aria-label="purchase-row-product-select-0"]', { index: 1 })
+    .catch(() => {});
   // set quantity and price inputs for row 0
   await page.fill('input[aria-label="purchase-row-quantity-0"]', '5');
   await page.fill('input[aria-label="purchase-row-unitPrice-0"]', '10');
@@ -29,8 +31,11 @@ test('purchase -> sale -> payment flow', async ({ page }) => {
   // choose product via SearchableSelect input (first product item)
   await page.fill('input[name="product_0"]', '');
   // fallback: select the first visible option in the listbox
-  await page.click('ul[role="listbox"] li:nth-child(1)').catch(()=>{});
-  const qtyInv = await page.locator('input[placeholder="الكمية"]').first().catch(()=>page.locator('input[type="number"]').first());
+  await page.click('ul[role="listbox"] li:nth-child(1)').catch(() => {});
+  const qtyInv = await page
+    .locator('input[placeholder="الكمية"]')
+    .first()
+    .catch(() => page.locator('input[type="number"]').first());
   await qtyInv.fill('2');
   await page.click('text=حفظ');
   await page.waitForTimeout(1000);

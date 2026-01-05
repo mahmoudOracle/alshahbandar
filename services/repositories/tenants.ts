@@ -5,7 +5,9 @@ import { Company } from '../../types';
 export const getCompany = async (tenantId: string): Promise<Company | null> => {
   const ref = doc(db, 'companies', tenantId);
   const snap = await getDoc(ref);
-  return snap.exists() ? ({ id: snap.id, ...(snap.data() as unknown as Record<string, unknown>) } as Company) : null;
+  return snap.exists()
+    ? ({ id: snap.id, ...(snap.data() as unknown as Record<string, unknown>) } as Company)
+    : null;
 };
 
 export const createCompany = async (tenantId: string, data: Partial<Company>) => {

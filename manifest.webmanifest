@@ -1,11 +1,10 @@
-
 {
-	"name": "Alshabandar Business Suite",
-	"short_name": "Alshabandar",
-	"description": "A powerful, intuitive, and completely free-to-use web application designed to be the ultimate business management tool for small businesses. It provides a beautiful and professional interface for managing invoices, customers, products, payments, expenses, and more.",
-	"start_url": ".",
-	"display": "standalone",
-	"background_color": "#f3f4f6",
-	"theme_color": "#ffffff",
-	"icons": []
+  "name": "Alshabandar Business Suite",
+  "short_name": "Alshabandar",
+  "description": "A powerful, intuitive, and completely free-to-use web application designed to be the ultimate business management tool for small businesses. It provides a beautiful and professional interface for managing invoices, customers, products, payments, expenses, and more.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f3f4f6",
+  "theme_color": "#ffffff",
+  "icons": []
 }

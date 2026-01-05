@@ -40,7 +40,7 @@ const resources: Record<string, Record<string, string>> = {
     warehouse: 'Warehouse',
     reports: 'Reports',
     settings: 'Settings',
-  }
+  },
 };
 
 export const t = (key: string, lang: 'ar' | 'en' = 'ar') => {

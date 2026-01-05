@@ -15,7 +15,7 @@ const TTL = 30 * 1000; // 30s cache
 export const getTenantConfig = async (tenantId: string): Promise<TenantConfig | null> => {
   if (!tenantId) return null;
   const cached = cache.get(tenantId);
-  if (cached && (Date.now() - cached.ts) < TTL) return cached.data;
+  if (cached && Date.now() - cached.ts < TTL) return cached.data;
   try {
     const ref = doc(db, 'companies', tenantId, 'settings', 'app');
     const snap = await getDoc(ref);

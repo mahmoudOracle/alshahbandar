@@ -22,7 +22,10 @@ async function grantOwnerPermissions() {
   await userDoc.ref.update({ role: 'owner' });
 
   // Add to platformAdmins for full permissions
-  await db.collection('platformAdmins').doc(uid).set({ email: OWNER_EMAIL, grantedAt: new Date() }, { merge: true });
+  await db
+    .collection('platformAdmins')
+    .doc(uid)
+    .set({ email: OWNER_EMAIL, grantedAt: new Date() }, { merge: true });
 
   console.log('Owner and full permissions granted to:', OWNER_EMAIL);
 }

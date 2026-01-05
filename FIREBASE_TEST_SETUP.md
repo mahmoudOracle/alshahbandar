@@ -49,21 +49,21 @@ Example UID format: `abcDEF1234567890xyz`
    - Document ID: `test-company-001` (you can customize this)
    - Add fields (click "Add field" for each):
 
-| Field Name | Type | Value |
-|-----------|------|-------|
-| companyName | String | Test Trading Company |
-| companyAddress | String | 123 Main Street |
-| city | String | Dubai |
-| country | String | UAE |
-| phone | String | +971501234567 |
-| email | String | owner@alshabandar.com |
-| ownerName | String | Test Owner |
-| ownerUid | String | `[PASTE_YOUR_UID_HERE]` |
-| status | String | `approved` |
-| isActive | Boolean | `true` |
-| plan | String | `free` |
-| createdAt | Timestamp | (auto-generated) |
-| updatedAt | Timestamp | (auto-generated) |
+| Field Name     | Type      | Value                   |
+| -------------- | --------- | ----------------------- |
+| companyName    | String    | Test Trading Company    |
+| companyAddress | String    | 123 Main Street         |
+| city           | String    | Dubai                   |
+| country        | String    | UAE                     |
+| phone          | String    | +971501234567           |
+| email          | String    | owner@alshabandar.com   |
+| ownerName      | String    | Test Owner              |
+| ownerUid       | String    | `[PASTE_YOUR_UID_HERE]` |
+| status         | String    | `approved`              |
+| isActive       | Boolean   | `true`                  |
+| plan           | String    | `free`                  |
+| createdAt      | Timestamp | (auto-generated)        |
+| updatedAt      | Timestamp | (auto-generated)        |
 
 8. Click **Save**
 
@@ -81,11 +81,11 @@ Example UID format: `abcDEF1234567890xyz`
    - Document ID: `[PASTE_YOUR_UID_HERE]` (use the same UID from Step 2)
    - Add fields:
 
-| Field Name | Type | Value |
-|-----------|------|-------|
-| uid | String | `[PASTE_YOUR_UID_HERE]` |
-| role | String | `owner` |
-| status | String | `active` |
+| Field Name | Type   | Value                   |
+| ---------- | ------ | ----------------------- |
+| uid        | String | `[PASTE_YOUR_UID_HERE]` |
+| role       | String | `owner`                 |
+| status     | String | `active`                |
 
 6. Click **Save**
 
@@ -102,13 +102,13 @@ Example UID format: `abcDEF1234567890xyz`
    - Document ID: `[PASTE_YOUR_UID_HERE]` (same UID)
    - Add fields:
 
-| Field Name | Type | Value |
-|-----------|------|-------|
-| uid | String | `[PASTE_YOUR_UID_HERE]` |
-| email | String | owner@alshabandar.com |
-| companyId | String | `test-company-001` |
-| role | String | `owner` |
-| createdAt | Timestamp | (auto-generated) |
+| Field Name | Type      | Value                   |
+| ---------- | --------- | ----------------------- |
+| uid        | String    | `[PASTE_YOUR_UID_HERE]` |
+| email      | String    | owner@alshabandar.com   |
+| companyId  | String    | `test-company-001`      |
+| role       | String    | `owner`                 |
+| createdAt  | Timestamp | (auto-generated)        |
 
 5. Click **Save**
 
@@ -144,6 +144,7 @@ firestore
 ## Step 7: Test Login in the App
 
 1. **Make sure the app is running:**
+
    ```bash
    npm run dev
    ```
@@ -195,6 +196,7 @@ Once logged in:
 **Cause:** User isn't in the company's `users` collection
 
 **Fix:**
+
 1. Go to Firestore → `companies/test-company-001/users`
 2. Add document with ID = your UID
 3. Add fields: `uid`, `role: "owner"`, `status: "active"`
@@ -204,6 +206,7 @@ Once logged in:
 **Cause:** User not created or wrong password
 
 **Fix:**
+
 1. Go to Firebase → Authentication → Users
 2. Verify user exists: `owner@alshabandar.com`
 3. Reset password if needed
@@ -213,6 +216,7 @@ Once logged in:
 **Cause:** User profile doesn't have correct `companyId`
 
 **Fix:**
+
 1. Go to Firestore → `users/[YOUR_UID]`
 2. Verify `companyId: "test-company-001"` (matches your company ID)
 
@@ -221,6 +225,7 @@ Once logged in:
 **Cause:** Firebase not connecting
 
 **Fix:**
+
 1. Open browser DevTools (F12)
 2. Check Console tab for errors
 3. Look for "Firebase initialization" messages
@@ -250,6 +255,7 @@ After setup, verify you have:
 If you need help filling in the Firebase Console, here's example data:
 
 ### Company Fields (Step 3)
+
 ```
 companyName: "Ahmed Trading Company"
 companyAddress: "Building 5, Dubai Business Park"
@@ -265,6 +271,7 @@ plan: "free"
 ```
 
 ### User Membership Fields (Step 4)
+
 ```
 uid: [YOUR_UID]
 role: "owner"
@@ -272,6 +279,7 @@ status: "active"
 ```
 
 ### User Profile Fields (Step 5)
+
 ```
 uid: [YOUR_UID]
 email: "owner@alshabandar.com"

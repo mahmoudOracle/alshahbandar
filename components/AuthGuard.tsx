@@ -12,49 +12,44 @@ const AcceptInvitationPage = React.lazy(() => import('../pages/AcceptInvitationP
 const AppContent = React.lazy(() => import('../App'));
 
 export const AuthGuard: React.FC = () => {
-    const { 
-        firebaseUser, 
-        authLoading, 
-        isPlatformAdmin, 
-        activeCompanyId, 
-        companyMemberships 
-    } = useAuth();
+  const { firebaseUser, authLoading, isPlatformAdmin, activeCompanyId, companyMemberships } =
+    useAuth();
 
-    if (authLoading) {
-        return <FullPageSpinner />;
-    }
+  if (authLoading) {
+    return <FullPageSpinner />;
+  }
 
-    if (!firebaseUser) {
-        return (
-             <HashRouter>
-                <React.Suspense fallback={<FullPageSpinner />}>
-                  <Routes>
-                      <Route path="/invite/accept" element={<AcceptInvitationPage />} />
-                      <Route path="/register" element={<RegisterPage />} />
-                      <Route path="*" element={<LoginPage />} />
-                  </Routes>
-                </React.Suspense>
-            </HashRouter>
-        );
-    }
-    
-    if (isPlatformAdmin) {
-        // Correctly route to the real admin dashboard
-        return <PlatformCompaniesPage />;
-    }
+  if (!firebaseUser) {
+    return (
+      <HashRouter>
+        <React.Suspense fallback={<FullPageSpinner />}>
+          <Routes>
+            <Route path="/invite/accept" element={<AcceptInvitationPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="*" element={<LoginPage />} />
+          </Routes>
+        </React.Suspense>
+      </HashRouter>
+    );
+  }
 
-    if (companyMemberships.length > 1 && !activeCompanyId) {
-        return <CompanySelectionPage />;
-    }
+  if (isPlatformAdmin) {
+    // Correctly route to the real admin dashboard
+    return <PlatformCompaniesPage />;
+  }
 
-    if (companyMemberships.length === 0) {
-        return <NoAccessPage />;
-    }
-    
-    if (activeCompanyId) {
-        return <AppContent />;
-    }
+  if (companyMemberships.length > 1 && !activeCompanyId) {
+    return <CompanySelectionPage />;
+  }
 
-    // Fallback case, should ideally not be reached
+  if (companyMemberships.length === 0) {
     return <NoAccessPage />;
+  }
+
+  if (activeCompanyId) {
+    return <AppContent />;
+  }
+
+  // Fallback case, should ideally not be reached
+  return <NoAccessPage />;
 };

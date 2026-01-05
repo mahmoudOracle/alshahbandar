@@ -86,4 +86,4 @@ export const designTokens = {
       bold: 700,
     },
   },
-}
+};

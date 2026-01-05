@@ -1,11 +1,11 @@
-Inventory & Suppliers Module
-===========================
+# Inventory & Suppliers Module
 
-Overview
---------
+## Overview
+
 This module adds supplier management, incoming receipts (supplier receiving), and a warehouse (stock) view.
 
 Firestore Collections (per company)
+
 - `companies/{companyId}/suppliers/{supplierId}`
   - `supplierName` (string, required)
   - `supplierNameLower` (string, lowercase for uniqueness)
@@ -24,18 +24,21 @@ Firestore Collections (per company)
   - `receiptId`, `createdAt`
 
 Stock
+
 - Single source of truth: `companies/{companyId}/products/{productId}.stock`
 - Incoming receipts increase stock atomically inside Firestore transactions.
 
 Idempotency
+
 - Client may supply `idempotencyKey` (e.g., UUID per form submit).
 - Server creates `incomingReceiptKeys/{key}` in the transaction; if exists, transaction aborts and returns duplicate error.
 
-Validation Rules (example snippets)
------------------
+## Validation Rules (example snippets)
+
 Note: enforce these in Firestore security rules server-side; client checks are convenience only.
 
 Example rule (pseudo):
+
 ```
 match /companies/{companyId}/incomingReceipts/{receiptId} {
   allow create: if request.auth != null && request.resource.data.supplierId is string && request.resource.data.products.size() > 0;
@@ -47,11 +50,14 @@ match /companies/{companyId}/suppliers/{supplierId} {
 ```
 
 Logging
+
 - Client logs at key points: supplier created, receipt saved, per-product stock update, transaction failure.
 
 UX Notes
+
 - Dropdowns include search; pages are responsive and re-use app UI components.
 
 Future Work
+
 - Add server-side uniqueness enforcement (Cloud Function) for supplierNameLower to avoid race conditions on high concurrency.
 - Add receipt edit support with computed deltas.

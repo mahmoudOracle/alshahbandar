@@ -16,13 +16,17 @@ test.describe('Purchase flow', () => {
 
     // Select supplier
     await page.waitForSelector('[aria-label="purchase-supplier-select"]');
-    await page.selectOption('[aria-label="purchase-supplier-select"]', { index: 1 }).catch(()=>{});
+    await page
+      .selectOption('[aria-label="purchase-supplier-select"]', { index: 1 })
+      .catch(() => {});
 
     // Add a row
     await page.click('button:has-text("أضف صف")');
 
     // Fill first row product and quantity/price
-    await page.selectOption('[aria-label="purchase-row-product-select-0"]', { index: 1 }).catch(()=>{});
+    await page
+      .selectOption('[aria-label="purchase-row-product-select-0"]', { index: 1 })
+      .catch(() => {});
     await page.fill('[aria-label="purchase-row-quantity-0"]', '2');
     await page.fill('[aria-label="purchase-row-unitPrice-0"]', '10');
 

@@ -5,7 +5,10 @@ import { UserRole } from '../types';
 
 export function isPosted(doc: any): boolean {
   // Many documents use a 'posted' or 'isFinal' flag when finalized. Safe-check common variants.
-  return !!(doc && (doc.posted === true || doc.isPosted === true || doc.isFinal === true || doc.status === 'final'));
+  return !!(
+    doc &&
+    (doc.posted === true || doc.isPosted === true || doc.isFinal === true || doc.status === 'final')
+  );
 }
 
 export function isPeriodLocked(companySettings: any, isoDate: string | Date): boolean {
@@ -20,9 +23,14 @@ export function isPeriodLocked(companySettings: any, isoDate: string | Date): bo
   }
 }
 
-export function canEditEntry(userRole: UserRole | null, doc: any, companySettings: any): { allowed: boolean; reason?: string } {
+export function canEditEntry(
+  userRole: UserRole | null,
+  doc: any,
+  companySettings: any
+): { allowed: boolean; reason?: string } {
   if (isPosted(doc)) return { allowed: false, reason: 'posted' };
-  if (isPeriodLocked(companySettings, doc?.date || new Date())) return { allowed: false, reason: 'period_locked' };
+  if (isPeriodLocked(companySettings, doc?.date || new Date()))
+    return { allowed: false, reason: 'period_locked' };
   if (!userRole) return { allowed: false, reason: 'no_role' };
   if (userRole === UserRole.Owner || userRole === UserRole.Manager) return { allowed: true };
   // Employees can edit drafts only

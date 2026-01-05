@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { setDataServiceImpl, duplicateLastInvoice, duplicateInvoice } from '../../services/dataService';
+import {
+  setDataServiceImpl,
+  duplicateLastInvoice,
+  duplicateInvoice,
+} from '../../services/dataService';
 
 describe('duplicate invoice helpers (proxy)', () => {
   beforeEach(() => {
@@ -14,11 +18,16 @@ describe('duplicate invoice helpers (proxy)', () => {
       items: [{ productId: 'p1', quantity: 2, price: 10 }],
       subtotal: 20,
       total: 22,
-      createdAt: '2025-01-01'
+      createdAt: '2025-01-01',
     } as unknown;
 
-    const mockGetInvoices = vi.fn(async (_companyId: string, _opts?: unknown) => ({ data: [last] }));
-    const mockSaveInvoice = vi.fn(async (_companyId: string, invoice: unknown) => ({ id: 'inv2', ...(invoice as Record<string, unknown>) }));
+    const mockGetInvoices = vi.fn(async (_companyId: string, _opts?: unknown) => ({
+      data: [last],
+    }));
+    const mockSaveInvoice = vi.fn(async (_companyId: string, invoice: unknown) => ({
+      id: 'inv2',
+      ...(invoice as Record<string, unknown>),
+    }));
 
     const mockService: unknown = {
       getInvoices: mockGetInvoices,
@@ -31,7 +40,7 @@ describe('duplicate invoice helpers (proxy)', () => {
         delete clone.invoiceNumber;
         clone.date = new Date().toISOString();
         return mockSaveInvoice(companyId, clone);
-      }
+      },
     };
 
     setDataServiceImpl(mockService, 'mock');
@@ -51,11 +60,14 @@ describe('duplicate invoice helpers (proxy)', () => {
       id: 'invA',
       invoiceNumber: 'INV-A',
       items: [{ productId: 'p2', quantity: 1, price: 5 }],
-      createdAt: '2025-01-02'
+      createdAt: '2025-01-02',
     } as unknown;
 
     const mockGetInvoiceById = vi.fn(async (_companyId: string, _id: string) => inv);
-    const mockSaveInvoice = vi.fn(async (_companyId: string, invoice: unknown) => ({ id: 'invB', ...(invoice as Record<string, unknown>) }));
+    const mockSaveInvoice = vi.fn(async (_companyId: string, invoice: unknown) => ({
+      id: 'invB',
+      ...(invoice as Record<string, unknown>),
+    }));
 
     const mockService: unknown = {
       getInvoiceById: mockGetInvoiceById,
@@ -67,7 +79,7 @@ describe('duplicate invoice helpers (proxy)', () => {
         delete clone.invoiceNumber;
         clone.date = new Date().toISOString();
         return mockSaveInvoice(companyId, clone);
-      }
+      },
     };
 
     setDataServiceImpl(mockService, 'mock');

@@ -11,16 +11,16 @@ import * as firestoreService from './services/firestoreService';
 import * as mockService from './services/mockService';
 import { initSentry } from './services/errorReporting';
 
-
 // Register Service Worker for PWA functionality
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
   window.addEventListener('load', () => {
     try {
-      navigator.serviceWorker.register('./service-worker.js')
-        .then(registration => {
+      navigator.serviceWorker
+        .register('./service-worker.js')
+        .then((registration) => {
           console.log('ServiceWorker registration successful with scope: ', registration.scope);
         })
-        .catch(err => {
+        .catch((err) => {
           console.warn('ServiceWorker registration failed: ', err);
         });
     } catch (err) {
@@ -31,31 +31,39 @@ if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
-  throw new Error("Could not find root element to mount to");
+  throw new Error('Could not find root element to mount to');
 }
 
 const root = ReactDOM.createRoot(rootElement);
 
 try {
   // Initialize Sentry (if DSN provided). Supports both process.env and Vite env.
-  const SENTRY_DSN = (
-    typeof process !== 'undefined' ? (process as unknown as { env?: Record<string,string> }).env?.SENTRY_DSN : undefined
-  ) || (
-    typeof import.meta !== 'undefined' ? (import.meta as unknown as { env?: Record<string,string> }).env?.VITE_SENTRY_DSN : undefined
-  );
+  const SENTRY_DSN =
+    (typeof process !== 'undefined'
+      ? (process as unknown as { env?: Record<string, string> }).env?.SENTRY_DSN
+      : undefined) ||
+    (typeof import.meta !== 'undefined'
+      ? (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_SENTRY_DSN
+      : undefined);
   if (SENTRY_DSN) {
-    initSentry(SENTRY_DSN as string).catch(e => console.warn('Sentry init failed', e));
+    initSentry(SENTRY_DSN as string).catch((e) => console.warn('Sentry init failed', e));
   }
   // 1. Inject the concrete service implementation into the data service proxy.
   // In development you can enable `VITE_USE_MOCK=true` to use an in-memory
   // mock service which provides sample data (handy when Cloud Functions
   // or Firestore data are unavailable). By default we use Firestore.
-  const useMock = typeof import.meta !== 'undefined' && (import.meta as unknown as { env?: Record<string,string> }).env?.VITE_USE_MOCK === 'true';
+  const useMock =
+    typeof import.meta !== 'undefined' &&
+    (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_USE_MOCK === 'true';
   if (useMock) {
     console.info('[DEV] Using mock data service (VITE_USE_MOCK=true)');
     // seed mock data once (company id is not relevant for mock seeding)
     // intentionally ignore failures
-    try { mockService.seedData?.('mock-company-id'); } catch { /* ignore */ }
+    try {
+      mockService.seedData?.('mock-company-id');
+    } catch {
+      /* ignore */
+    }
     setDataServiceImpl(mockService as unknown as typeof firestoreService, 'mock');
   } else {
     setDataServiceImpl(firestoreService, 'firestore');
@@ -65,16 +73,16 @@ try {
   root.render(
     <React.StrictMode>
       <ErrorBoundary>
-          <NotificationProvider>
-            <AuthProvider>
-              <AuthGuard />
-            </AuthProvider>
-          </NotificationProvider>
+        <NotificationProvider>
+          <AuthProvider>
+            <AuthGuard />
+          </AuthProvider>
+        </NotificationProvider>
       </ErrorBoundary>
     </React.StrictMode>
   );
 } catch (error) {
-  console.error("Failed to initialize the application:", error);
+  console.error('Failed to initialize the application:', error);
   root.render(
     <React.StrictMode>
       <FatalErrorPage error={error as Error} />

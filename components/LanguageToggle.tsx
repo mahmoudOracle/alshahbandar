@@ -20,8 +20,22 @@ const LanguageToggle: React.FC = () => {
 
   return (
     <div className="flex gap-2 items-center justify-center mt-2">
-      <Button variant={lang === 'ar' ? 'primary' : 'ghost'} size="sm" onClick={() => setLang('ar')} aria-label="العربية">العربية</Button>
-      <Button variant={lang === 'en' ? 'primary' : 'ghost'} size="sm" onClick={() => setLang('en')} aria-label="English">EN</Button>
+      <Button
+        variant={lang === 'ar' ? 'primary' : 'ghost'}
+        size="sm"
+        onClick={() => setLang('ar')}
+        aria-label="العربية"
+      >
+        العربية
+      </Button>
+      <Button
+        variant={lang === 'en' ? 'primary' : 'ghost'}
+        size="sm"
+        onClick={() => setLang('en')}
+        aria-label="English"
+      >
+        EN
+      </Button>
     </div>
   );
 };
