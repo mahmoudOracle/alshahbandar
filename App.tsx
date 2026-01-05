@@ -13,6 +13,8 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import { DataIsolationDebug } from '@/components/DataIsolationDebug';
 import { routes } from '@/src/routes';
 import MobileBottomNav from './components/MobileBottomNav';
+import LogoPlaceholder from './components/LogoPlaceholder';
+import { designTokens } from './design-tokens';
 
 const AppRoutes: React.FC = () => (
   <Routes>
@@ -65,7 +67,10 @@ function App() {
       )}
 
       <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white dark:bg-gray-800 shadow-sm p-4 flex flex-col sm:flex-row items-center justify-between gap-4 relative">
+        <header
+          className="shadow-sm p-3 flex flex-col sm:flex-row items-center justify-between gap-4 relative"
+          style={{ background: designTokens.colors.primary[600], color: '#ffffff' }}
+        >
           <div className="w-full">
             <OfflineBanner />
             <div className="mt-3">
@@ -82,7 +87,16 @@ function App() {
             >
               <Bars3Icon className="h-6 w-6" />
             </button>
-            <h1 className="text-2xl font-bold">{pageTitle}</h1>
+            <div className="flex items-center gap-3">
+              <LogoPlaceholder size={44} ariaLabel="Company logo" />
+              <div>
+                <h1 className="text-white text-lg sm:text-2xl font-bold">{pageTitle}</h1>
+                <div className="text-sm text-white/90">{/* subtle subtitle or tenant name */}</div>
+              </div>
+            </div>
+            <div className="ms-4 hidden md:block w-full">
+              <OfflineBanner />
+            </div>
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <button
