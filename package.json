@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist",
     "lint": "eslint \"**/*.{ts,tsx,js,jsx}\" --ext .ts,.tsx,.js,.jsx --ignore-pattern dist --ignore-pattern functions",
     "lint:fix": "eslint \"**/*.{ts,tsx,js,jsx}\" --fix --ignore-pattern dist --ignore-pattern functions",
     "format": "prettier --write .",

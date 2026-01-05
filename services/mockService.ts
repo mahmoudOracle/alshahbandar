@@ -27,9 +27,9 @@ let lastInvoiceNumber = 0;
 let lastQuoteNumber = 0;
 let isSeeded = false;
 
-let inventory: InventoryItem[] = [];
-let stockLedger: StockLedgerEntry[] = [];
-let reports: Record<string, unknown>[] = [];
+const inventory: InventoryItem[] = [];
+const stockLedger: StockLedgerEntry[] = [];
+const reports: Record<string, unknown>[] = [];
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
