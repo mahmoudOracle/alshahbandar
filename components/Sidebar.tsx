@@ -31,20 +31,40 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { config } = useTenantConfig();
   const lang = (config && config.language) || 'ar';
 
-  const navItems = [
-    { to: '/', text: t('dashboard', lang), icon: HomeIcon },
-    { to: '/invoices', text: t('invoices', lang), icon: DocumentTextIcon },
-    { to: '/purchases', text: t('purchases', lang), icon: CurrencyDollarIcon },
-    { to: '/quotes', text: t('quotes', lang), icon: DocumentDuplicateIcon },
-    { to: '/recurring', text: t('recurring', lang), icon: ArrowPathIcon },
-    { to: '/expenses', text: t('expenses', lang), icon: CurrencyDollarIcon },
-    { to: '/customers', text: t('customers', lang), icon: UsersIcon },
-    { to: '/products', text: t('products', lang), icon: ArchiveBoxIcon },
-    { to: '/suppliers', text: t('suppliers', lang), icon: UsersIcon },
-    { to: '/receipts', text: t('receipts', lang), icon: DocumentTextIcon },
-    { to: '/warehouse', text: t('warehouse', lang), icon: ArchiveBoxIcon },
-    { to: '/reports', text: t('reports', lang), icon: ChartPieIcon },
-    { to: '/settings', text: t('settings', lang), icon: Cog6ToothIcon },
+  const groups = [
+    {
+      title: t('sales', lang) || 'Sales',
+      items: [
+        { to: '/', text: t('dashboard', lang), icon: HomeIcon },
+        { to: '/customers', text: t('customers', lang), icon: UsersIcon },
+        { to: '/quotes', text: t('quotes', lang), icon: DocumentDuplicateIcon },
+      ]
+    },
+    {
+      title: t('accounting', lang) || 'Accounting',
+      items: [
+        { to: '/invoices', text: t('invoices', lang), icon: DocumentTextIcon },
+        { to: '/purchases', text: t('purchases', lang), icon: CurrencyDollarIcon },
+        { to: '/recurring', text: t('recurring', lang), icon: ArrowPathIcon },
+        { to: '/expenses', text: t('expenses', lang), icon: CurrencyDollarIcon },
+      ]
+    },
+    {
+      title: t('inventory', lang) || 'Inventory',
+      items: [
+        { to: '/products', text: t('products', lang), icon: ArchiveBoxIcon },
+        { to: '/suppliers', text: t('suppliers', lang), icon: UsersIcon },
+        { to: '/receipts', text: t('receipts', lang), icon: DocumentTextIcon },
+        { to: '/warehouse', text: t('warehouse', lang), icon: ArchiveBoxIcon },
+      ]
+    },
+    {
+      title: t('reports', lang) || 'Reports',
+      items: [
+        { to: '/reports', text: t('reports', lang), icon: ChartPieIcon },
+        { to: '/settings', text: t('settings', lang), icon: Cog6ToothIcon },
+      ]
+    }
   ];
   
   const sidebarClasses = `
@@ -69,22 +89,26 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <XMarkIcon className="h-6 w-6" />
         </button>
       </div>
-      <nav className="flex-1 mt-6 space-y-2">
-        {navItems.map((item, index) => {
-          // FIX: Removed check for non-existent 'visible' property.
-          return (
-            <NavLink
-              key={index}
-              to={item.to}
-              onClick={onClose}
-              end={item.to === '/'}
-              className={({ isActive }) => navLinkClass({ isActive })}
-            >
-              <item.icon className="h-6 w-6 me-3" />
-              {item.text}
-            </NavLink>
-          )
-        })}
+      <nav className="flex-1 mt-6 space-y-4 overflow-y-auto">
+        {groups.map((group, gi) => (
+          <div key={gi} className="px-2">
+            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">{group.title}</div>
+            <div className="space-y-2">
+              {group.items.map((item, index) => (
+                <NavLink
+                  key={index}
+                  to={item.to}
+                  onClick={onClose}
+                  end={item.to === '/'}
+                  className={({ isActive }) => navLinkClass({ isActive })}
+                >
+                  <item.icon className="h-6 w-6 me-3" />
+                  {item.text}
+                </NavLink>
+              ))}
+            </div>
+          </div>
+        ))}
       </nav>
       <div className="mt-auto pt-4 border-t border-gray-200 dark:border-gray-700">
           <div className="text-center">

@@ -1,34 +1,36 @@
 import { lazy } from 'react';
 
-const Dashboard = lazy(() => import('@/pages/Dashboard'));
-const InvoiceList = lazy(() => import('@/pages/InvoiceList'));
-const CustomerList = lazy(() => import('@/pages/CustomerList'));
-const ProductList = lazy(() => import('@/pages/ProductList'));
+// Feature-based lazy imports (keeps original pages but groups them by domain)
+const Dashboard = lazy(() => import('@/features/reports').then(m => ({ default: m.Dashboard })) as any);
+const InvoiceList = lazy(() => import('@/features/accounting').then(m => ({ default: m.InvoiceList })) as any);
+const InvoiceForm = lazy(() => import('@/features/accounting').then(m => ({ default: m.InvoiceForm })) as any);
+const InvoiceDetail = lazy(() => import('@/features/accounting').then(m => ({ default: m.InvoiceDetail })) as any);
+const AccountingCashFlow = lazy(() => import('@/features/accounting').then(m => ({ default: m.CashFlow })) as any);
+const CashFlow = AccountingCashFlow;
+const CustomerList = lazy(() => import('@/features/sales').then(m => ({ default: m.CustomerList })) as any);
+const CustomerForm = lazy(() => import('@/features/sales').then(m => ({ default: m.CustomerForm })) as any);
+const CustomerDetail = lazy(() => import('@/features/sales').then(m => ({ default: m.CustomerDetail })) as any);
+const QuoteList = lazy(() => import('@/features/sales').then(m => ({ default: m.QuoteList })) as any);
+const QuoteForm = lazy(() => import('@/features/sales').then(m => ({ default: m.QuoteForm })) as any);
+const QuoteDetail = lazy(() => import('@/features/sales').then(m => ({ default: m.QuoteDetail })) as any);
+const ProductList = lazy(() => import('@/features/inventory').then(m => ({ default: m.ProductList })) as any);
+const ProductForm = lazy(() => import('@/features/inventory').then(m => ({ default: m.ProductForm })) as any);
+const PurchasesPage = lazy(() => import('@/features/inventory').then(m => ({ default: m.PurchasesPage })) as any);
+const SuppliersPage = lazy(() => import('@/features/inventory').then(m => ({ default: m.SuppliersPage })) as any);
+const WarehousePage = lazy(() => import('@/features/inventory').then(m => ({ default: m.WarehousePage })) as any);
+const InventoryAudit = lazy(() => import('@/features/inventory').then(m => ({ default: m.InventoryAudit })) as any);
+const IncomingReceiptsList = lazy(() => import('@/features/inventory').then(m => ({ default: m.IncomingReceiptsList })) as any);
+const ReceiptDetailPage = lazy(() => import('@/features/inventory').then(m => ({ default: m.ReceiptDetailPage })) as any);
 const SettingsPage = lazy(() => import('@/pages/Settings'));
-const InvoiceForm = lazy(() => import('@/pages/InvoiceForm'));
-const InvoiceDetail = lazy(() => import('@/pages/InvoiceDetail'));
 const AcceptInvitationPage = lazy(() => import('@/pages/AcceptInvitationPage'));
 const CompleteCompanySetupPage = lazy(() => import('@/pages/CompleteCompanySetupPage'));
-const CustomerDetail = lazy(() => import('@/pages/CustomerDetail'));
-const CustomerForm = lazy(() => import('@/pages/CustomerForm'));
-const ProductForm = lazy(() => import('@/pages/ProductForm'));
-const QuoteList = lazy(() => import('@/pages/QuoteList'));
-const QuoteForm = lazy(() => import('@/pages/QuoteForm'));
-const QuoteDetail = lazy(() => import('@/pages/QuoteDetail'));
 const RecurringInvoiceList = lazy(() => import('@/pages/RecurringInvoiceList'));
 const RecurringInvoiceForm = lazy(() => import('@/pages/RecurringInvoiceForm'));
 const ExpenseList = lazy(() => import('@/pages/ExpenseList'));
 const ExpenseForm = lazy(() => import('@/pages/ExpenseForm'));
 const Reports = lazy(() => import('@/pages/Reports'));
-const CashFlow = lazy(() => import('@/pages/CashFlow'));
 const NotAuthorizedPage = lazy(() => import('@/pages/NotAuthorizedPage'));
 const DevDebugPage = lazy(() => import('@/pages/DevDebugPage'));
-const SuppliersPage = lazy(() => import('@/pages/SuppliersPage'));
-const PurchasesPage = lazy(() => import('@/pages/PurchasesPage'));
-const WarehousePage = lazy(() => import('@/pages/WarehousePage'));
-const InventoryAudit = lazy(() => import('@/pages/InventoryAudit'));
-const IncomingReceiptsList = lazy(() => import('@/pages/IncomingReceiptsList'));
-const ReceiptDetailPage = lazy(() => import('@/pages/ReceiptDetailPage'));
 
 export const routes = [
   { path: "/invite/accept", component: AcceptInvitationPage, title: "Accept Invitation" },
