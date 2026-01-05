@@ -51,6 +51,7 @@ import { enqueueOperation } from './syncService';
 import * as productsRepo from './repositories/products';
 import { serverTimestamp } from 'firebase/firestore';
 import { DEBUG_MODE } from '../config';
+import { isPosted, isPeriodLocked } from './accountingSafety';
 
 // --- Retry & Network Helpers ---
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
@@ -409,12 +410,33 @@ const saveData = async <T extends { id?: string }>(
   section: WriteableSection
 ): Promise<T> => {
   ensureWriteAllowed(section);
+  // Accounting safety (UI-level): prevent edits to posted or locked-period documents.
+  // Note: server-side rules and callables are authoritative; this is an early guard to prevent accidental edits.
+  const company = await getCompany(companyId);
+
   if ('id' in item && item.id) {
-    const { id, ...data } = item;
+    const { id, ...data } = item as any;
     const docRef = doc(db, 'companies', companyId, collectionName, id);
+    const existing = await getDoc(docRef);
+    const existingData = existing.exists() ? existing.data() : null;
+    if (existingData && isPosted(existingData)) {
+      throw new Error('Cannot edit posted (finalized) document. Contact your administrator.');
+    }
+    // determine date to check locked periods: prefer provided date, then existing.date, else today
+    const dateToCheck = (data && (data as any).date) || (existingData && existingData.date) || new Date();
+    if (company && isPeriodLocked(company, dateToCheck)) {
+      throw new Error('Accounting period locked. Edits are not permitted for the selected date.');
+    }
+
     await setDoc(docRef, data, { merge: true });
     return item as T;
   } else {
+    const newItem = item as any;
+    const dateToCheck = newItem && (newItem.date || newItem.createdAt) ? newItem.date || newItem.createdAt : new Date();
+    if (company && isPeriodLocked(company, dateToCheck)) {
+      throw new Error('Accounting period locked. Cannot create documents in locked period.');
+    }
+
     const docRef = await addDoc(getCollectionRef(companyId, collectionName), item);
     return { id: docRef.id, ...item } as T;
   }
@@ -429,6 +451,23 @@ const deleteData = async (
   ensureWriteAllowed(section);
   // Prefer server-side callable for safe (soft) deletes with audit and business logic.
   try {
+    // UI-level safety: check if the document is posted or in a locked period before attempting delete
+    try {
+      const docRef = doc(db, 'companies', companyId, collectionName, id);
+      const snap = await getDoc(docRef);
+      const data = snap.exists() ? snap.data() : null;
+      const company = await getCompany(companyId);
+      if (data && isPosted(data)) {
+        throw new Error('Cannot delete a posted (finalized) document.');
+      }
+      const dateToCheck = data && (data as any).date ? (data as any).date : new Date();
+      if (company && isPeriodLocked(company, dateToCheck)) {
+        throw new Error('Accounting period locked. Deletes are not permitted for this document.');
+      }
+    } catch (safetyErr) {
+      // Bubble up safety errors
+      if (safetyErr && (safetyErr as Error).message) throw safetyErr;
+    }
     const fn = httpsCallable(functions, 'safeDeleteDocument');
     const res = await fn({ companyId, collectionName, id, reason: 'deleted_via_ui' });
     // Callable returns { success: true }
