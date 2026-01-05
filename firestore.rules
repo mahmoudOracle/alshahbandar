@@ -67,6 +67,45 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Invoices: prevent client-side edits/deletes when a document is posted or its period is locked
+      match /invoices/{invoiceId} {
+        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+
+        function companyLockedForDate(ts) {
+          // company doc may include `lockedPeriods` array of YYYY-MM strings
+          let locked = false;
+          if (exists(/databases/$(database)/documents/companies/$(companyId))) {
+            let cp = get(/databases/$(database)/documents/companies/$(companyId)).data;
+            if (cp.lockedPeriods is list) {
+              let monthKey = '';
+              // ts could be timestamp or string; attempt to parse timestamp
+              monthKey = ts is timestamp ? (ts.toDate().getUTCFullYear() + '-' + (ts.toDate().getUTCMonth() + 1).toString().padStart(2, '0')) : '';
+              locked = cp.lockedPeriods.hasAny([monthKey]);
+            }
+          }
+          return locked;
+        }
+
+        allow create: if isSignedIn() && (isPlatformAdmin() || hasCompanyRole(companyId, ['owner', 'manager', 'editor']));
+
+        allow update: if isSignedIn() && (
+          (isPlatformAdmin() || hasCompanyRole(companyId, ['owner', 'manager', 'editor'])) &&
+          // Disallow updating if invoice already posted
+          !(resource.data.posted == true || resource.data.isPosted == true || resource.data.isFinal == true) &&
+          // Disallow if period locked
+          !companyLockedForDate(request.resource.data.date)
+        );
+
+        allow delete: if false; // prevent client-side deletes for invoices
+      }
+
+      // Audit logs: read allowed for company members, writes only allowed via Cloud Functions (admin SDK)
+      match /auditLogs/{logId} {
+        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+        // Client-side writes are denied; Cloud Functions should write audit logs using Admin SDK.
+        allow create, update, delete: if isSignedIn() && isPlatformAdmin();
+      }
+
       // Protect ledger & inventory: only platform admins (server-side) may modify these.
       // Clients should use server-side callables or Cloud Functions to append ledger entries
       // and update inventory snapshots. These collections remain readable by company users.

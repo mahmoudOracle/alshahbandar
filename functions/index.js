@@ -1299,3 +1299,117 @@ exports.createPurchaseAtomic = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('internal', 'Failed to create purchase atomically');
     }
 });
+
+// Centralized audit log writer (callable). Use Cloud Functions to ensure honest writes.
+exports.logAudit = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+    const { companyId, action, before, after, meta } = data || {};
+    if (!companyId || !action) throw new functions.https.HttpsError('invalid-argument', 'companyId and action are required');
+
+    try {
+        const auditRef = db.collection('companies').doc(companyId).collection('auditLogs').doc();
+        const payload = {
+            action,
+            before: before || null,
+            after: after || null,
+            meta: meta || null,
+            performedBy: context.auth.uid,
+            performedAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+        await auditRef.set(payload);
+        return { success: true, id: auditRef.id };
+    } catch (err) {
+        console.error('[logAudit] failed', err);
+        throw new functions.https.HttpsError('internal', 'Failed to write audit log');
+    }
+});
+
+// Assign or change a user's role within a company. Only platform admins or company owners/managers may call.
+exports.assignCompanyRole = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+    const { companyId, uid, role } = data || {};
+    if (!companyId || !uid || !role) throw new functions.https.HttpsError('invalid-argument', 'companyId, uid and role are required');
+
+    try {
+        const platformAdminDoc = await db.collection('platformAdmins').doc(context.auth.uid).get();
+        let authorized = false;
+        if (platformAdminDoc.exists) authorized = true;
+        if (!authorized) {
+            const memberDoc = await db.collection('companies').doc(companyId).collection('users').doc(context.auth.uid).get();
+            if (memberDoc.exists) {
+                const callerRole = memberDoc.data().role;
+                if (callerRole === 'owner' || callerRole === 'manager') authorized = true;
+            }
+        }
+        if (!authorized) throw new functions.https.HttpsError('permission-denied', 'Not authorized');
+
+        const userRef = db.collection('companies').doc(companyId).collection('users').doc(uid);
+        await userRef.set({ role }, { merge: true });
+
+        // Audit
+        const auditRef = db.collection('companies').doc(companyId).collection('auditLogs').doc();
+        await auditRef.set({ action: 'assign_role', performedBy: context.auth.uid, performedAt: admin.firestore.FieldValue.serverTimestamp(), meta: { uid, role } });
+
+        return { success: true };
+    } catch (err) {
+        console.error('[assignCompanyRole] failed', err);
+        throw new functions.https.HttpsError('internal', 'Failed to assign role');
+    }
+});
+
+// Finalize (post) an invoice: mark as posted and create a basic journal entry.
+exports.setInvoicePosted = functions.https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+    const { companyId, invoiceId } = data || {};
+    if (!companyId || !invoiceId) throw new functions.https.HttpsError('invalid-argument', 'companyId and invoiceId are required');
+
+    try {
+        // Authorization: platform admin OR company member with owner/manager
+        const platformAdminRef = db.collection('platformAdmins').doc(context.auth.uid);
+        const platformAdminDoc = await platformAdminRef.get();
+        let authorized = false;
+        if (platformAdminDoc.exists) authorized = true;
+        if (!authorized) {
+            const memberRef = db.collection('companies').doc(companyId).collection('users').doc(context.auth.uid);
+            const memberDoc = await memberRef.get();
+            if (memberDoc.exists) {
+                const role = memberDoc.data().role;
+                if (role === 'owner' || role === 'manager') authorized = true;
+            }
+        }
+        if (!authorized) throw new functions.https.HttpsError('permission-denied', 'Not authorized to post invoice');
+
+        const invoiceRef = db.collection('companies').doc(companyId).collection('invoices').doc(invoiceId);
+        const invoiceSnap = await invoiceRef.get();
+        if (!invoiceSnap.exists) throw new functions.https.HttpsError('not-found', 'Invoice not found');
+        const invoice = invoiceSnap.data();
+        if (invoice.posted === true) return { success: true, message: 'Already posted' };
+
+        // Create a journal entry reflecting revenue and COGS (simple representation)
+        const journalRef = db.collection('companies').doc(companyId).collection('journalEntries').doc();
+        const total = Number(invoice.total || 0);
+        const costTotal = Number(invoice.costTotal || 0);
+        const lines = [
+            { accountId: 'AccountsReceivable', debit: total, credit: 0 },
+            { accountId: 'Sales', debit: 0, credit: total },
+        ];
+        if (costTotal > 0) {
+            lines.push({ accountId: 'COGS', debit: costTotal, credit: 0 });
+            lines.push({ accountId: 'Inventory', debit: 0, credit: costTotal });
+        }
+
+        await db.runTransaction(async (tx) => {
+            tx.update(invoiceRef, { posted: true, postedAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+            tx.set(journalRef, { date: admin.firestore.FieldValue.serverTimestamp(), lines, referenceType: 'invoice', referenceId: invoiceId, createdAt: admin.firestore.FieldValue.serverTimestamp(), createdBy: context.auth.uid });
+
+            // Audit
+            const auditRef = db.collection('companies').doc(companyId).collection('auditLogs').doc();
+            tx.set(auditRef, { action: 'post_invoice', performedBy: context.auth.uid, performedAt: admin.firestore.FieldValue.serverTimestamp(), meta: { invoiceId } });
+        });
+
+        return { success: true };
+    } catch (err) {
+        console.error('[setInvoicePosted] failed', err);
+        throw new functions.https.HttpsError('internal', 'Failed to post invoice');
+    }
+});
