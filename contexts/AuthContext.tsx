@@ -23,6 +23,7 @@ interface AuthContextType {
     signOutUser: () => Promise<void>;
     onboardingError: string | null;
     clearOnboardingError: () => void;
+    hasRole?: (role: string | string[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -273,6 +274,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         signOutUser: authService.signOutUser,
         onboardingError,
         clearOnboardingError: () => setOnboardingError(null),
+        hasRole: (roleOrRoles?: string | string[]) => {
+            if (!roleOrRoles) return false;
+            const current = activeRole;
+            if (!current) return false;
+            const roles = Array.isArray(roleOrRoles) ? roleOrRoles : [roleOrRoles];
+            return roles.some(r => String(r).toLowerCase() === String(current).toLowerCase());
+        },
     };
 
     if (authLoading) return <FullPageSpinner />;

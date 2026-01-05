@@ -142,6 +142,20 @@ export const getCompanyCounts = async (companyId: string): Promise<Record<string
     }
 };
 
+// --- Audit logs ---
+export const getAuditLogs = async (companyId: string, options: { limit?: number } = {}): Promise<any[]> => {
+    const { limit: lim = 100 } = options;
+    try {
+        const col = collection(db, `companies/${companyId}/auditLogs`);
+        const q = query(col, orderBy('performedAt', 'desc'), firestoreLimit(lim));
+        const snaps = await getDocs(q);
+        return snaps.docs.map(d => ({ id: d.id, ...(d.data() as Record<string, unknown>) }));
+    } catch (err) {
+        console.error('[FIRESTORE] getAuditLogs failed', err);
+        return [];
+    }
+};
+
 export const createInvoiceAtomic = async (companyId: string, invoice: Partial<Invoice>): Promise<any> => {
     try {
         const fn = httpsCallable(functions, 'createInvoiceAtomic');
