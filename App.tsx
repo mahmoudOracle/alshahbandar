@@ -4,6 +4,7 @@ import { Bars3Icon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 
 import Sidebar from './components/Sidebar';
 import { SettingsProvider } from './contexts/SettingsContext';
+import { useAuth } from './contexts/AuthContext';
 import ThemeToggle from './components/ThemeToggle';
 import CommandBar from './components/CommandBar';
 import { FullPageSpinner } from './components/Spinner';
@@ -15,6 +16,74 @@ import { routes } from '@/src/routes';
 import MobileBottomNav from './components/MobileBottomNav';
 import LogoPlaceholder from './components/LogoPlaceholder';
 import { designTokens } from './design-tokens';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+
+// Inline small header user menu (keeps App layout simple). Uses AuthContext to access user and memberships.
+const HeaderUserMenu: React.FC = () => {
+  const { firebaseUser, companyMemberships, activeCompanyId, setActiveCompanyId, signOutUser } =
+    useAuth();
+  const [open, setOpen] = useState(false);
+
+  const displayName = firebaseUser?.displayName || firebaseUser?.email || 'User';
+
+  return (
+    <div className="relative ms-3">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-2 text-white rounded-md px-2 py-1 hover:bg-white/10"
+        aria-haspopup="true"
+        aria-expanded={open}
+      >
+        <span className="text-sm">{displayName}</span>
+        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden>
+          <path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-md shadow-lg z-50">
+          <div className="p-2 border-b border-gray-100 dark:border-gray-700">
+            <div className="text-sm font-semibold">{displayName}</div>
+            <div className="text-xs text-gray-500">{activeCompanyId}</div>
+          </div>
+          <ul className="py-1">
+            <li>
+              <Link to="/settings" onClick={() => setOpen(false)} className="block px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Profile / Settings</Link>
+            </li>
+            <li>
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  signOutUser().catch(() => {});
+                }}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                Sign out
+              </button>
+            </li>
+            {companyMemberships && companyMemberships.length > 1 && (
+              <li>
+                <div className="p-2 text-xs text-gray-500">Switch company</div>
+                {companyMemberships.map((m) => (
+                  <button
+                    key={m.companyId}
+                    onClick={() => {
+                      setActiveCompanyId(m.companyId);
+                      setOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    {m.companyName}
+                  </button>
+                ))}
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const AppRoutes: React.FC = () => (
   <Routes>
@@ -88,12 +157,14 @@ function App() {
               <Bars3Icon className="h-6 w-6" />
             </button>
             <div className="flex items-center gap-3">
-              <LogoPlaceholder size={44} ariaLabel="Company logo" />
-              <div>
-                <h1 className="text-white text-lg sm:text-2xl font-bold">{pageTitle}</h1>
-                <div className="text-sm text-white/90">{/* subtle subtitle or tenant name */}</div>
+                <LogoPlaceholder size={44} ariaLabel="Company logo" />
+                <div>
+                  <h1 className="text-white text-lg sm:text-2xl font-bold">{pageTitle}</h1>
+                  <div className="text-sm text-white/90">{/* subtle subtitle or tenant name */}</div>
+                </div>
               </div>
-            </div>
+              {/* User / Company dropdown */}
+              <HeaderUserMenu />
             <div className="ms-4 hidden md:block w-full">
               <OfflineBanner />
             </div>
