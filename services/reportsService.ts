@@ -74,27 +74,27 @@ export const getCashFlow = async (
 
   // Entries in range
   const entriesRes = await getJournalEntries(companyId, {
-    filters: [
+    filters: ([
       ['date', '>=', startFilter],
       ['date', '<=', endFilter],
-    ],
+    ] as unknown) as any,
     limit: 1000,
   });
   const entries = entriesRes.data as JournalEntry[];
 
   // Entries before start for opening balance
   const beforeRes = await getJournalEntries(companyId, {
-    filters: [['date', '<', startFilter]],
+    filters: ([['date', '<', startFilter]] as unknown) as any,
     limit: 2000,
   });
   const beforeEntries = beforeRes.data as JournalEntry[];
 
   // Payments (some systems record payments independently)
   const paymentsRes = await getPayments(companyId, {
-    filters: [
+    filters: ([
       ['date', '>=', startFilter],
       ['date', '<=', endFilter],
-    ],
+    ] as unknown) as any,
     limit: 1000,
   });
   const payments = paymentsRes.data || [];
@@ -139,7 +139,7 @@ export const getCashFlow = async (
   // Process payments fallback (some payments may not have journal entries with clear lines)
   for (const p of payments) {
     // Expect payment.amount and date and possibly invoiceId
-    const amt = Number((p as Record<string, unknown>)['amount'] ?? 0);
+    const amt = Number((p as any)?.amount ?? 0);
     // Heuristic: a payment record is a customer payment => operating inflow
     operatingIn += amt;
   }

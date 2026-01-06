@@ -506,12 +506,16 @@ const InvoiceForm: React.FC = () => {
                   onAdd={async (p) => {
                     if (!activeCompanyId) return;
                     try {
-                      const saved = await saveProduct(activeCompanyId, {
-                        name: p.name,
-                        price: p.price,
-                        stock: p.stock,
-                        createdAt: new Date().toISOString(),
-                      } as unknown as Record<string, unknown>);
+                        const saved = await saveProduct(
+                          activeCompanyId,
+                          ({
+                            name: p.name,
+                            description: p.description || '',
+                            price: p.price,
+                            stock: p.stock,
+                            sku: p.sku,
+                          } as unknown) as Omit<import('../types').Product, 'id'>
+                        );
                       // clear repo cache and refresh local list
                       try {
                         clearProductCache(activeCompanyId);

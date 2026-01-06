@@ -88,13 +88,14 @@ const RegisterPage: React.FC = () => {
       try {
         // Try callable first (server-side creation)
         try {
-          const callablePayload = await createOwnerCompanyCallable({
+          const callableResponse = await createOwnerCompanyCallable({
             ownerFirstName: ownerFirstName.trim(),
             ownerLastName: ownerLastName.trim(),
             companyName: companyName.trim(),
             companyAddress: companyAddress.trim(),
             ownerMobile: ownerMobile.trim(),
           });
+          const callablePayload = callableResponse as unknown as { companyId?: string } | null;
           if (callablePayload && callablePayload.companyId) {
             console.log('🟢 [Register] Company created via callable', callablePayload.companyId);
             addNotification('تم إنشاء الحساب والشركة بنجاح! بانتظار موافقة المسؤول.', 'success');

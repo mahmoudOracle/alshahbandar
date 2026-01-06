@@ -559,13 +559,13 @@ export const savePayment = async (_companyId: string, payment: Omit<Payment, 'id
   try {
     if ((saved as Payment).invoiceId) {
       const inv = invoices.find((i) => i.id === (saved as Payment).invoiceId);
-      if (inv) {
+        if (inv) {
         const paid = payments
           .filter((p) => p.invoiceId === inv.id)
           .reduce((s, p) => s + (p.amount || 0), 0);
         (inv as any).paymentsSummary = { paid, due: Math.max(0, (inv.total || 0) - paid) };
         if (paid >= (inv.total || 0)) {
-          inv.status = 'Paid';
+            inv.status = InvoiceStatus.Paid;
         } else if (paid > 0) {
           inv.status = 'Partial' as any;
         }

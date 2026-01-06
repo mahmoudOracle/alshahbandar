@@ -45,6 +45,7 @@ import {
   IncomingReceipt,
   InventoryItem,
   StockLedgerEntry,
+  JournalEntry,
 } from '../types';
 import { db, functions } from './firebase';
 import { enqueueOperation } from './syncService';
@@ -1295,7 +1296,8 @@ export const getSalesSummary = async (
         res && (res as unknown as Record<string, unknown>)['data']
           ? (res as unknown as Record<string, unknown>)['data']
           : res;
-      if (payload && typeof payload.totalSales !== 'undefined') return payload;
+      const payloadAny = payload as any;
+      if (payloadAny && typeof payloadAny.totalSales !== 'undefined') return payloadAny;
     } catch (callErr) {
       // Callable may not be deployed in some environments; fall back to client-side aggregation
       if (typeof callErr?.message === 'string')
@@ -1508,11 +1510,11 @@ export const editIncomingReceipt = async (
 
       // Build maps of old and new quantities
       const oldMap: Record<string, number> = {};
-      for (const p of old.products || [])
-        oldMap[p.productId] = (oldMap[p.productId] || 0) + (p.quantityReceived || 0);
+      for (const p of ((old.products as any[]) || []))
+        oldMap[(p as any).productId] = (oldMap[(p as any).productId] || 0) + ((p as any).quantityReceived || 0);
       const newMap: Record<string, number> = {};
-      for (const p of updated.products || [])
-        newMap[p.productId] = (newMap[p.productId] || 0) + (p.quantityReceived || 0);
+      for (const p of ((updated.products as any[]) || []))
+        newMap[(p as any).productId] = (newMap[(p as any).productId] || 0) + ((p as any).quantityReceived || 0);
 
       // Determine all productIds involved
       const productIds = Array.from(new Set([...Object.keys(oldMap), ...Object.keys(newMap)]));

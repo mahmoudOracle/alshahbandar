@@ -16,8 +16,8 @@ export async function initSentry(dsn?: string, options?: Record<string, unknown>
 
   try {
     const Sentry = await import('@sentry/browser');
-    // @ts-expect-error Sentry shape depends on package version
-    Sentry.init({ dsn, ...(options as unknown as Record<string, unknown>) });
+    // Initialize Sentry if available; cast options defensively
+    (Sentry as any).init({ dsn, ...(options as unknown as Record<string, unknown>) });
     _sentry = Sentry;
     _sentryInitialized = true;
   } catch (e) {

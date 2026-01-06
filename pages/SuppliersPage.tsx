@@ -14,7 +14,7 @@ import {
   saveIncomingReceipt,
 } from '../services/dataService';
 import useProducts from '../hooks/useProducts';
-import { Product } from '../types';
+import { Product, IncomingReceipt } from '../types';
 
 const SuppliersPage: React.FC = () => {
   const { activeCompanyId } = useAuth();
@@ -124,7 +124,7 @@ const SuppliersPage: React.FC = () => {
         })),
         idempotencyKey,
       };
-      await saveIncomingReceipt(activeCompanyId, payload as unknown as Record<string, unknown>);
+      await saveIncomingReceipt(activeCompanyId, (payload as unknown) as Omit<IncomingReceipt, 'id'>);
       addNotification('تم حفظ السند وتحديث المخزون', 'success');
       setShowReceiptModal(false);
       setReceiptItems([]);

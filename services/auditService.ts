@@ -23,7 +23,6 @@ export async function logAudit(
 
   try {
     // Try admin SDK
-    // @ts-expect-error - may be running in admin runtime
     if (typeof getFirestore === 'function') {
       const db = getFirestore();
       await db
@@ -39,8 +38,9 @@ export async function logAudit(
 
   try {
     const db = getClientFirestore();
-    // @ts-expect-error - client SDK compatibility
-    await db.collection(`companies/${companyId}/auditLogs`).add(entry as any);
+    // client SDK: use collection path via API compatible call
+    // cast to any for runtime compatibility with multiple SDKs
+    await (db as any).collection(`companies/${companyId}/auditLogs`).add(entry as any);
   } catch (e) {
     console.warn('[auditService] failed to write audit log', e);
   }
