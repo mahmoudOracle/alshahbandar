@@ -119,11 +119,23 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             {/* simple chevron implemented with SVG to avoid adding new deps */}
             {isCollapsed ? (
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M7 5l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                <path
+                  d="M7 5l5 5-5 5"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             ) : (
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M13 5l-5 5 5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                <path
+                  d="M13 5l-5 5 5 5"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             )}
           </button>

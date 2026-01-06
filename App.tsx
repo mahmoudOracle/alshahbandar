@@ -15,8 +15,8 @@ import { DataIsolationDebug } from '@/components/DataIsolationDebug';
 import { routes } from '@/src/routes';
 import MobileBottomNav from './components/MobileBottomNav';
 import LogoPlaceholder from './components/LogoPlaceholder';
+import Avatar from './components/Avatar';
 import { designTokens } from './design-tokens';
-import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 // Inline small header user menu (keeps App layout simple). Uses AuthContext to access user and memberships.
@@ -24,31 +24,96 @@ const HeaderUserMenu: React.FC = () => {
   const { firebaseUser, companyMemberships, activeCompanyId, setActiveCompanyId, signOutUser } =
     useAuth();
   const [open, setOpen] = useState(false);
+  const buttonRef = React.useRef<HTMLButtonElement | null>(null);
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
 
   const displayName = firebaseUser?.displayName || firebaseUser?.email || 'User';
+
+  React.useEffect(() => {
+    if (!open) return;
+    // focus first actionable element when menu opens
+    const el = menuRef.current?.querySelector<HTMLElement>('a,button');
+    el?.focus();
+  }, [open]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!menuRef.current) return;
+    const focusables = Array.from(menuRef.current.querySelectorAll<HTMLElement>('a,button'));
+    const idx = focusables.indexOf(document.activeElement as HTMLElement);
+
+    if (e.key === 'Escape') {
+      setOpen(false);
+      buttonRef.current?.focus();
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = focusables[(idx + 1) % focusables.length];
+      next?.focus();
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = focusables[(idx - 1 + focusables.length) % focusables.length];
+      prev?.focus();
+      return;
+    }
+    // trap tab within menu
+    if (e.key === 'Tab') {
+      if (focusables.length === 0) return;
+      if (e.shiftKey && idx === 0) {
+        e.preventDefault();
+        focusables[focusables.length - 1].focus();
+      } else if (!e.shiftKey && idx === focusables.length - 1) {
+        e.preventDefault();
+        focusables[0].focus();
+      }
+    }
+  };
 
   return (
     <div className="relative ms-3">
       <button
+        ref={buttonRef}
         onClick={() => setOpen((o) => !o)}
         className="inline-flex items-center gap-2 text-white rounded-md px-2 py-1 hover:bg-white/10"
         aria-haspopup="true"
         aria-expanded={open}
       >
-        <span className="text-sm">{displayName}</span>
+        <Avatar name={firebaseUser?.displayName} email={firebaseUser?.email} size={36} />
+        <span className="text-sm hidden sm:inline">{displayName}</span>
         <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden>
-          <path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M6 8l4 4 4-4"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-md shadow-lg z-50">
+        <div
+          ref={menuRef}
+          onKeyDown={handleKeyDown}
+          className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-md shadow-lg z-50"
+          role="menu"
+        >
           <div className="p-2 border-b border-gray-100 dark:border-gray-700">
             <div className="text-sm font-semibold">{displayName}</div>
             <div className="text-xs text-gray-500">{activeCompanyId}</div>
           </div>
           <ul className="py-1">
             <li>
-              <Link to="/settings" onClick={() => setOpen(false)} className="block px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Profile / Settings</Link>
+              <Link
+                to="/profile"
+                onClick={() => setOpen(false)}
+                className="block px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                role="menuitem"
+              >
+                Profile
+              </Link>
             </li>
             <li>
               <button
@@ -57,6 +122,7 @@ const HeaderUserMenu: React.FC = () => {
                   signOutUser().catch(() => {});
                 }}
                 className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                role="menuitem"
               >
                 Sign out
               </button>
@@ -72,6 +138,7 @@ const HeaderUserMenu: React.FC = () => {
                       setOpen(false);
                     }}
                     className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                    role="menuitem"
                   >
                     {m.companyName}
                   </button>
@@ -157,14 +224,14 @@ function App() {
               <Bars3Icon className="h-6 w-6" />
             </button>
             <div className="flex items-center gap-3">
-                <LogoPlaceholder size={44} ariaLabel="Company logo" />
-                <div>
-                  <h1 className="text-white text-lg sm:text-2xl font-bold">{pageTitle}</h1>
-                  <div className="text-sm text-white/90">{/* subtle subtitle or tenant name */}</div>
-                </div>
+              <LogoPlaceholder size={44} ariaLabel="Company logo" />
+              <div>
+                <h1 className="text-white text-lg sm:text-2xl font-bold">{pageTitle}</h1>
+                <div className="text-sm text-white/90">{/* subtle subtitle or tenant name */}</div>
               </div>
-              {/* User / Company dropdown */}
-              <HeaderUserMenu />
+            </div>
+            {/* User / Company dropdown */}
+            <HeaderUserMenu />
             <div className="ms-4 hidden md:block w-full">
               <OfflineBanner />
             </div>

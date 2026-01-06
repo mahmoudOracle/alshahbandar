@@ -59,7 +59,7 @@ const IncomingReceiptsList = lazy(
 const ReceiptDetailPage = lazy(
   () => import('@/features/inventory').then((m) => ({ default: m.ReceiptDetailPage })) as any
 );
-const SettingsPage = lazy(() => import('@/pages/Settings'));
+const ProfilePage = lazy(() => import('@/pages/Profile'));
 const AcceptInvitationPage = lazy(() => import('@/pages/AcceptInvitationPage'));
 const CompleteCompanySetupPage = lazy(() => import('@/pages/CompleteCompanySetupPage'));
 const RecurringInvoiceList = lazy(() => import('@/pages/RecurringInvoiceList'));
@@ -90,7 +90,7 @@ export const routes = [
   { path: '/products', component: ProductList, title: 'المنتجات' },
   { path: '/products/new', component: ProductForm, title: 'منتج جديد' },
   { path: '/products/edit/:id', component: ProductForm, title: 'تحرير المنتج' },
-  { path: '/settings', component: SettingsPage, title: 'الإعدادات' },
+  { path: '/profile', component: ProfilePage, title: 'الإعدادات' },
   { path: '/quotes', component: QuoteList, title: 'عروض الأسعار' },
   { path: '/quotes/new', component: QuoteForm, title: 'عرض سعر جديد' },
   { path: '/quotes/edit/:id', component: QuoteForm, title: 'تعديل عرض السعر' },

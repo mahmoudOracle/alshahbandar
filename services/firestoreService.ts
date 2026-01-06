@@ -423,7 +423,8 @@ const saveData = async <T extends { id?: string }>(
       throw new Error('Cannot edit posted (finalized) document. Contact your administrator.');
     }
     // determine date to check locked periods: prefer provided date, then existing.date, else today
-    const dateToCheck = (data && (data as any).date) || (existingData && existingData.date) || new Date();
+    const dateToCheck =
+      (data && (data as any).date) || (existingData && existingData.date) || new Date();
     if (company && isPeriodLocked(company, dateToCheck)) {
       throw new Error('Accounting period locked. Edits are not permitted for the selected date.');
     }
@@ -432,7 +433,10 @@ const saveData = async <T extends { id?: string }>(
     return item as T;
   } else {
     const newItem = item as any;
-    const dateToCheck = newItem && (newItem.date || newItem.createdAt) ? newItem.date || newItem.createdAt : new Date();
+    const dateToCheck =
+      newItem && (newItem.date || newItem.createdAt)
+        ? newItem.date || newItem.createdAt
+        : new Date();
     if (company && isPeriodLocked(company, dateToCheck)) {
       throw new Error('Accounting period locked. Cannot create documents in locked period.');
     }

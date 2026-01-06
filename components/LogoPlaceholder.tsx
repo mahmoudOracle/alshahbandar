@@ -21,10 +21,7 @@ const LogoPlaceholder: React.FC<LogoPlaceholderProps> = ({ size = 64, initials, 
       style={{ width: size, height: size, background: bg }}
     >
       {initials ? (
-        <span
-          style={{ color: fg, fontSize }}
-          className="font-bold select-none"
-        >
+        <span style={{ color: fg, fontSize }} className="font-bold select-none">
           {initials}
         </span>
       ) : (
