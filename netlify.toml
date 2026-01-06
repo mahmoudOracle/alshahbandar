@@ -1,0 +1,15 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "18"
+  VITE_USE_MOCK = "false"
+  VITE_USE_FIREBASE_EMULATORS = "false"
+  VITE_SENTRY_DSN = ""
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  force = true
