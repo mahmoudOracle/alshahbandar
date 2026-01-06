@@ -102,8 +102,9 @@ service cloud.firestore {
       // Audit logs: read allowed for company members, writes only allowed via Cloud Functions (admin SDK)
       match /auditLogs/{logId} {
         allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
-        // Client-side writes are denied; Cloud Functions should write audit logs using Admin SDK.
-        allow create, update, delete: if isSignedIn() && isPlatformAdmin();
+        // Deny client-side writes to audit logs. Audit entries must be written by
+        // trusted server-side code (Cloud Functions using Admin SDK) to ensure immutability.
+        allow create, update, delete: if false;
       }
 
       // Protect ledger & inventory: only platform admins (server-side) may modify these.

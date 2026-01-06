@@ -1,8 +1,8 @@
-import { getFirestore } from 'firebase-admin/firestore';
-// Client fallback: uses firebase/app + firestore browser SDK when admin not available
-import { getFirestore as getClientFirestore } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from './firebase';
 
-// Lightweight audit logging service. In browser, this will write to `companies/{companyId}/auditLogs`.
+// Lightweight audit logging service: prefer server-side callable `logAudit` so audit entries
+// are always written using Admin SDK (honest actor). Fall back to console when not available.
 export async function logAudit(
   companyId: string,
   userId: string | null,
@@ -12,36 +12,22 @@ export async function logAudit(
   meta: Record<string, any> = {}
 ) {
   if (!companyId) throw new Error('companyId required for audit log');
-  const entry = {
-    action,
-    before: before || null,
-    after: after || null,
-    performedBy: userId || null,
-    performedAt: new Date(),
-    meta: meta || {},
-  };
 
   try {
-    // Try admin SDK
-    if (typeof getFirestore === 'function') {
-      const db = getFirestore();
-      await db
-        .collection('companies')
-        .doc(companyId)
-        .collection('auditLogs')
-        .add(entry as any);
-      return;
-    }
-  } catch (e) {
-    // ignore and try client SDK
-  }
-
-  try {
-    const db = getClientFirestore();
-    // client SDK: use collection path via API compatible call
-    // cast to any for runtime compatibility with multiple SDKs
-    await (db as any).collection(`companies/${companyId}/auditLogs`).add(entry as any);
-  } catch (e) {
-    console.warn('[auditService] failed to write audit log', e);
+    const fn = httpsCallable(functions, 'logAudit');
+    await fn({ companyId, action, before: before || null, after: after || null, meta: meta || {} });
+    return;
+  } catch (err) {
+    // If callable isn't available (dev environment) or fails, degrade gracefully to console.
+    console.warn('[auditService] logAudit callable failed; falling back to console', err);
+    console.info('[auditService] audit:', {
+      companyId,
+      action,
+      performedBy: userId || null,
+      performedAt: new Date().toISOString(),
+      meta,
+      before,
+      after,
+    });
   }
 }
