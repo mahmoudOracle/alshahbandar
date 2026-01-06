@@ -87,7 +87,7 @@ const ProductList: React.FC = () => {
       try {
         const result = await getProducts(activeCompanyId, {
           limit: PAGE_SIZE,
-          startAfter: cursor,
+          startAfter: cursor as any,
         });
 
         // `getProducts` may return either PaginatedData<T> or a plain T[] depending on implementation.
@@ -205,9 +205,10 @@ const ProductList: React.FC = () => {
                 try {
                   await saveProduct(activeCompanyId, {
                     name: p.name,
+                    description: p.description || '',
                     price: p.price,
                     stock: p.stock,
-                  });
+                  } as any);
                   clearProductCache(activeCompanyId);
                   addNotification('تمت إضافة المنتج بنجاح', 'success');
                   fetchProducts(prevCursors[prevCursors.length - 1] || undefined);

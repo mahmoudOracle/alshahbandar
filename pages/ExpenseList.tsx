@@ -178,7 +178,7 @@ const ExpenseList: React.FC = () => {
       try {
         const result = await getExpenses(activeCompanyId, {
           limit: PAGE_SIZE,
-          startAfter: cursor,
+          startAfter: cursor as any,
         });
 
         setExpenses(result.data);

@@ -56,7 +56,7 @@ export const clearDraft = (key: string) => {
   }
 };
 
-const timers = new Map<string, ReturnType<typeof setTimeout>>();
+const timers = new Map<string, any>();
 export const debounceSaveDraft = (key: string, data: unknown, wait = 1200) => {
   try {
     const existing = timers.get(key);
@@ -86,7 +86,7 @@ export const debounceSaveDraft = (key: string, data: unknown, wait = 1200) => {
       }
       timers.delete(key);
     }, wait) as unknown as number;
-    timers.set(key, id);
+    timers.set(key, id as any);
   } catch (e) {
     // ignore
   }

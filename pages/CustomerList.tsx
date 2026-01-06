@@ -98,7 +98,7 @@ const CustomerList: React.FC = () => {
       try {
         const result = await getCustomers(activeCompanyId, {
           limit: PAGE_SIZE,
-          startAfter: cursor,
+          startAfter: cursor as any,
         });
 
         setCustomers(result.data);

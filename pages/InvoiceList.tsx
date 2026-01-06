@@ -155,7 +155,7 @@ const InvoiceList: React.FC = () => {
       try {
         const result = await getInvoices(activeCompanyId, {
           limit: PAGE_SIZE,
-          startAfter: cursor,
+          startAfter: cursor as any,
           orderBy: 'date',
           orderDirection: 'desc',
         });

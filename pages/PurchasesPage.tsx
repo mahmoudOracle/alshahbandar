@@ -92,7 +92,7 @@ const PurchasesPage: React.FC = () => {
         })),
         totalAmount: total,
       };
-      await createPurchase(activeCompanyId, payload as unknown);
+      await createPurchase(activeCompanyId, payload as any);
       addNotification('تم إنشاء أمر الشراء', 'success');
       setSupplierId('');
       setInvoiceNumber('');

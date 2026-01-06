@@ -30,7 +30,7 @@ class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
-      const { fallback } = this.props;
+      const { fallback } = (this as any).props;
       if (fallback) return fallback;
 
       return (
@@ -70,7 +70,7 @@ class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    return this.props.children as ReactNode;
+    return (this as any).props.children as ReactNode;
   }
 }
 

@@ -569,7 +569,7 @@ export const getCompanyMemberships = async (uid: string): Promise<CompanyMembers
       if (DEBUG_MODE)
         console.log(`🟢 [FIRESTORE] Found company doc for companyId=${id}`, {
           id,
-          data: snap.data(),
+          data: (snap as any).data(),
         });
     } else {
       if (DEBUG_MODE)
@@ -582,9 +582,10 @@ export const getCompanyMemberships = async (uid: string): Promise<CompanyMembers
   for (const ud of userDocs) {
     const compData = companyMap.get(ud.companyId);
     if (compData) {
+      const compAny = compData as any;
       memberships.push({
         companyId: ud.companyId,
-        companyName: compData.companyName || compData.name || 'Unnamed Company',
+        companyName: compAny.companyName || compAny.name || 'Unnamed Company',
         role: ud.userData.role,
         status: ud.userData.status,
       });
@@ -743,12 +744,10 @@ export const resolveFirstLogin = async (
     const fn = httpsCallable(functions, 'resolveFirstLogin');
     console.log('[DEBUG][OwnerLink] Calling server callable resolveFirstLogin');
     const res = await fn({});
-    const payload =
-      res && (res as unknown as Record<string, unknown>)['data']
-        ? (res as unknown as Record<string, unknown>)['data']
-        : {};
-    if (payload.success) return { success: true };
-    return { success: false, message: payload.message || 'no-invitations' };
+    const payload = (res as any)?.data ?? {};
+    const payloadAny = payload as any;
+    if (payloadAny.success) return { success: true };
+    return { success: false, message: payloadAny.message || 'no-invitations' };
   } catch (err) {
     console.error('[DEBUG][OwnerLink] resolveFirstLogin callable failed', err);
     return {
@@ -805,11 +804,8 @@ export const getPendingInvitations = async (companyId: string): Promise<CompanyI
   try {
     // Use retry wrapper for transient network issues
     const res = await withRetry(() => fn({ companyId }));
-    const payload =
-      res && (res as unknown as Record<string, unknown>)['data']
-        ? (res as unknown as Record<string, unknown>)['data']
-        : {};
-    return (payload.invites || []) as CompanyInvitation[];
+    const payload = (res as any)?.data ?? {};
+    return ((payload as any).invites || []) as CompanyInvitation[];
   } catch (err) {
     console.error('[DEBUG][Invite] getCompanyInvitations failed', err);
     // Provide a clearer error code when the callable is not deployed or functions not reachable
@@ -1037,7 +1033,7 @@ export const getProducts = (
   options: QueryOptions = {}
 ): Promise<PaginatedData<Product>> => {
   // Delegate to the new tenant-aware products repository (includes simple caching)
-  return productsRepo.getProducts(companyId, options as unknown as Record<string, unknown>);
+  return productsRepo.getProducts(companyId, options as any) as any;
 };
 export const getProductById = (companyId: string, id: string) =>
   getById<Product>(companyId, 'products', id);
@@ -1077,23 +1073,23 @@ export const saveInvoice = async (
   let costTotal = 0;
   for (const it of invoiceToSave.items) {
     if (!it.productId) {
-      (it as Record<string, unknown>)['unitCost'] = 0;
+      (it as any)['unitCost'] = 0;
       continue;
     }
     try {
       const prod = await getById<Product>(companyId, 'products', it.productId);
       const unitCost =
-        typeof (it as Record<string, unknown>)['unitCost'] === 'number'
-          ? ((it as Record<string, unknown>)['unitCost'] as number)
+        typeof (it as any)['unitCost'] === 'number'
+          ? ((it as any)['unitCost'] as number)
           : prod && typeof prod.averageCost === 'number'
             ? (prod.averageCost as number)
             : prod && typeof prod.defaultCost === 'number'
               ? (prod.defaultCost as number)
               : 0;
-      (it as Record<string, unknown>)['unitCost'] = unitCost;
+      (it as any)['unitCost'] = unitCost;
       costTotal += unitCost * it.quantity;
     } catch (err) {
-      (it as Record<string, unknown>)['unitCost'] = 0;
+      (it as any)['unitCost'] = 0;
     }
   }
   invoiceToSave.costTotal = Math.round(costTotal * 100) / 100;
@@ -1147,7 +1143,7 @@ export const duplicateLastInvoice = async (companyId: string): Promise<Invoice> 
   delete cloneObj.updatedAt;
   (cloneObj as Record<string, unknown>)['date'] = Timestamp.now();
   // Use existing saveInvoice which will assign a new invoice number and perform stock adjustments
-  return saveInvoice(companyId, clone as Omit<Invoice, 'id'>);
+  return saveInvoice(companyId, cloneObj as Omit<Invoice, 'id'>);
 };
 
 export const duplicateInvoice = async (companyId: string, invoiceId: string): Promise<Invoice> => {

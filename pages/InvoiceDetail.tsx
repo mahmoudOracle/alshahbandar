@@ -49,14 +49,14 @@ const InvoiceDetail: React.FC = () => {
     if (!invoiceRef.current || !invoice) return;
 
     // Dynamically import heavy libs only when needed to reduce initial bundle size
-    const [html2canvasMod, jspdfMod] = await Promise.all([
+    const [html2canvasMod, jspdfMod] = (await Promise.all([
       import('html2canvas'),
       import('jspdf').catch(() => ({})),
-    ]);
-    const html2canvas = html2canvasMod && (html2canvasMod.default || html2canvasMod);
-    const jsPDF = jspdfMod && (jspdfMod.jsPDF || jspdfMod.default);
+    ])) as any[];
+    const html2canvas = (html2canvasMod as any)?.default || (html2canvasMod as any);
+    const jsPDF = (jspdfMod as any)?.jsPDF || (jspdfMod as any)?.default;
 
-    const canvas = await html2canvas(invoiceRef.current, { scale: 2 });
+    const canvas = await (html2canvas as any)(invoiceRef.current, { scale: 2 });
 
     if (format === 'png') {
       const image = canvas.toDataURL('image/png');

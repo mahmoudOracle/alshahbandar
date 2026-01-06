@@ -51,8 +51,8 @@ const IncomingReceiptsPage: React.FC = () => {
     [products, productSearch]
   );
 
-  const addItem = (product?: unknown) => {
-    const prod = product;
+  const addItem = (product?: Product) => {
+    const prod = product as Product | undefined;
     setItems((prev) => [
       ...prev,
       {
@@ -87,7 +87,7 @@ const IncomingReceiptsPage: React.FC = () => {
         })),
         receivedBy: user?.uid,
       };
-      await saveIncomingReceipt(activeCompanyId, payload as unknown);
+      await saveIncomingReceipt(activeCompanyId, payload as any);
       addNotification('Receipt saved and stock updated', 'success');
       setSelectedSupplierId(undefined);
       setItems([]);

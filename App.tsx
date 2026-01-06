@@ -38,8 +38,8 @@ const HeaderUserMenu: React.FC = () => {
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!menuRef.current) return;
-    const focusables = Array.from(menuRef.current.querySelectorAll<HTMLElement>('a,button'));
-    const idx = focusables.indexOf(document.activeElement as HTMLElement);
+    const focusables = Array.from(menuRef.current.querySelectorAll('a,button')) as HTMLElement[];
+    const idx = focusables.indexOf((document.activeElement as HTMLElement) || (null as any));
 
     if (e.key === 'Escape') {
       setOpen(false);
@@ -50,13 +50,13 @@ const HeaderUserMenu: React.FC = () => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       const next = focusables[(idx + 1) % focusables.length];
-      next?.focus();
+      (next as HTMLElement | undefined)?.focus();
       return;
     }
     if (e.key === 'ArrowUp') {
       e.preventDefault();
       const prev = focusables[(idx - 1 + focusables.length) % focusables.length];
-      prev?.focus();
+      (prev as HTMLElement | undefined)?.focus();
       return;
     }
     // trap tab within menu
@@ -64,10 +64,10 @@ const HeaderUserMenu: React.FC = () => {
       if (focusables.length === 0) return;
       if (e.shiftKey && idx === 0) {
         e.preventDefault();
-        focusables[focusables.length - 1].focus();
+        (focusables[focusables.length - 1] as HTMLElement | undefined)?.focus();
       } else if (!e.shiftKey && idx === focusables.length - 1) {
         e.preventDefault();
-        focusables[0].focus();
+        (focusables[0] as HTMLElement | undefined)?.focus();
       }
     }
   };
