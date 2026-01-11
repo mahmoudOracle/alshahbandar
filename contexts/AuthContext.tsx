@@ -1,37 +1,32 @@
+
 import React, { createContext, useContext, ReactNode, useState, useEffect, useCallback } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
-import { UserRole, CompanyMembership } from '../types';
+import { UserRole } from '../types';
 import * as authService from '../services/authService';
-import * as dataService from '../services/dataService';
-import { FullPageSpinner } from '../components/Spinner';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../services/firebase';
 
 export type WriteableSection = 'invoices' | 'customers' | 'products' | 'expenses' | 'settings' | 'users' | 'quotes' | 'recurring' | 'payments' | 'reports';
 
 interface AuthContextType {
     firebaseUser: FirebaseUser | null;
     authLoading: boolean;
-    isPlatformAdmin: boolean;
-    companyMemberships: CompanyMembership[];
     activeCompanyId: string | null;
     activeRole: UserRole | null;
-    setActiveCompanyId: (companyId: string) => void;
     signOutUser: () => Promise<void>;
+    setActiveCompanyId: (companyId: string) => void; // Keep for future flexibility
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const ACTIVE_COMPANY_ID_KEY = 'app:activeCompanyId';
-const ACTIVE_ROLE_KEY = 'app:activeRole'; // For insecure UI logic
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
     const [authLoading, setAuthLoading] = useState(true);
-    const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
-    const [companyMemberships, setCompanyMemberships] = useState<CompanyMembership[]>([]);
     const [activeCompanyId, setActiveCompanyIdState] = useState<string | null>(() => localStorage.getItem(ACTIVE_COMPANY_ID_KEY));
-    
+    const [activeRole, setActiveRole] = useState<UserRole | null>(null);
+
     const setActiveCompanyId = useCallback((companyId: string) => {
         localStorage.setItem(ACTIVE_COMPANY_ID_KEY, companyId);
         setActiveCompanyIdState(companyId);
@@ -44,56 +39,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
             if (!user) {
                 // User is logged out
-                setIsPlatformAdmin(false);
-                setCompanyMemberships([]);
                 setActiveCompanyIdState(null);
+                setActiveRole(null);
                 localStorage.removeItem(ACTIVE_COMPANY_ID_KEY);
-                localStorage.removeItem(ACTIVE_ROLE_KEY);
                 setAuthLoading(false);
                 return;
             }
 
-            // User is logged in, process their roles and memberships
+            // User is logged in, fetch their user profile and company
             try {
-                // 1. Check for Platform Admin status
-                const isAdmin = await dataService.checkIfPlatformAdmin(user.uid);
-                setIsPlatformAdmin(isAdmin);
-                if(isAdmin) {
-                    setAuthLoading(false);
-                    return;
-                }
+                const userDocRef = doc(db, 'users', user.uid);
+                const userDoc = await getDoc(userDocRef);
 
-                // 2. Resolve first-time owner claims and invitations
-                const justResolved = await dataService.resolveFirstLogin(user);
-
-                // 3. Get all company memberships
-                let memberships = await dataService.getCompanyMemberships(user.uid);
-
-                // FIX for eventual consistency on collectionGroup query
-                if (justResolved && memberships.length === 0) {
-                    console.log("New membership detected, but query returned empty. Retrying after delay...");
-                    await delay(1500); // Wait for Firestore index to update
-                    memberships = await dataService.getCompanyMemberships(user.uid);
-                    console.log("Retry fetch memberships result:", memberships);
-                }
-
-                setCompanyMemberships(memberships);
-
-                // 4. Determine active company
-                if (memberships.length === 1) {
-                    setActiveCompanyId(memberships[0].companyId);
+                if (userDoc.exists()) {
+                    const userData = userDoc.data();
+                    setActiveCompanyId(userData.companyId);
+                    setActiveRole(userData.role || UserRole.Owner); // Default to Owner
                 } else {
-                    const storedCompanyId = localStorage.getItem(ACTIVE_COMPANY_ID_KEY);
-                    if (storedCompanyId && memberships.some(m => m.companyId === storedCompanyId)) {
-                        setActiveCompanyIdState(storedCompanyId);
-                    } else {
-                        // User has multiple companies but no active one selected, or stored one is invalid
-                        setActiveCompanyIdState(null);
-                    }
+                    // This case might happen for a brand new user
+                    // The registration flow should have created a user doc.
+                    console.log("User document not found, waiting for creation...");
                 }
             } catch (error) {
-                console.error("Error during auth processing:", error);
-                // Handle error state if necessary
+                console.error("Error fetching user data:", error);
             } finally {
                 setAuthLoading(false);
             }
@@ -102,32 +70,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return () => unsubscribe();
     }, [setActiveCompanyId]);
 
-    const activeMembership = companyMemberships.find(m => m.companyId === activeCompanyId);
-    const activeRole = activeMembership ? activeMembership.role : null;
-    
-    // This is insecure and for UI hints only. Do not use for write logic.
-    useEffect(() => {
-        if (activeRole) {
-            localStorage.setItem(ACTIVE_ROLE_KEY, activeRole);
-        } else {
-            localStorage.removeItem(ACTIVE_ROLE_KEY);
-        }
-    }, [activeRole]);
-
     const value: AuthContextType = {
         firebaseUser,
         authLoading,
-        isPlatformAdmin,
-        companyMemberships,
         activeCompanyId,
         activeRole,
-        setActiveCompanyId,
         signOutUser: authService.signOutUser,
+        setActiveCompanyId
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-
 
 export const useAuth = () => {
     const context = useContext(AuthContext);
@@ -141,7 +94,6 @@ export function useCanWrite(section: WriteableSection): boolean {
   const { activeRole } = useAuth();
   if (!activeRole) return false;
   
-  if (activeRole === UserRole.Owner || activeRole === UserRole.Manager) return true;
-  if (activeRole === UserRole.Employee) return section !== 'settings' && section !== 'users';
-  return false; // viewer
+  // For a single-user-per-company model, the user is always the owner/admin
+  return true;
 }

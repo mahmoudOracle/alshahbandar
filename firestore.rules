@@ -1,1 +1,18 @@
-®é^³ûÞ®È¨œ
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow create, update: if request.auth.uid == userId;
+      allow read: if request.auth.uid == userId;
+    }
+
+    match /companies/{companyId} {
+      allow create: if request.auth.uid == request.resource.data.ownerUid;
+      allow read, update, delete: if request.auth.uid == resource.data.ownerUid;
+
+      match /{collection}/{docId} {
+        allow read, write, create, delete: if get(/databases/$(database)/documents/companies/$(companyId)).data.ownerUid == request.auth.uid;
+      }
+    }
+  }
+}

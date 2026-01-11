@@ -1,0 +1,15 @@
+{
+  "name": "Test Company",
+  "ownerEmail": "hoodaalawamry@gmail.com",
+  "plan": "free",
+  "isActive": true,
+  "ownerUid": null,
+  "createdAt": {
+    "_seconds": 1700000000,
+    "_nanoseconds": 0
+  },
+  "updatedAt": {
+    "_seconds": 1700000000,
+    "_nanoseconds": 0
+  }
+}

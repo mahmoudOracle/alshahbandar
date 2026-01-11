@@ -31,7 +31,6 @@ const RecurringInvoiceForm = lazy(() => import('./pages/RecurringInvoiceForm'));
 const ExpenseList = lazy(() => import('./pages/ExpenseList'));
 const ExpenseForm = lazy(() => import('./pages/ExpenseForm'));
 const Reports = lazy(() => import('./pages/Reports'));
-const NotAuthorizedPage = lazy(() => import('./pages/NotAuthorizedPage'));
 
 interface PageTitlePermissions {
     invoices: boolean;
@@ -73,7 +72,6 @@ const getPageTitle = (path: string, permissions: PageTitlePermissions): string =
     // Other
     if (path.startsWith('/reports')) return 'التقارير';
     if (path.startsWith('/settings')) return 'الإعدادات';
-    if (path.startsWith('/admin')) return 'وصول غير مصرح به';
     return 'ملخص'; // Fallback
 };
 
@@ -103,7 +101,6 @@ const AppRoutes: React.FC = () => (
         <Route path="/expenses/new" element={<ExpenseForm />} />
         <Route path="/expenses/edit/:id" element={<ExpenseForm />} />
         <Route path="/reports" element={<Reports />} />
-        <Route path="/admin/*" element={<NotAuthorizedPage />} />
     </Routes>
 )
 

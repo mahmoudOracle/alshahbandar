@@ -1,0 +1,19 @@
+{
+  "fields": {
+    "name": {
+      "stringValue": "My Company"
+    },
+    "ownerEmail": {
+      "stringValue": "hoodaalawamry@gmail.com"
+    },
+    "plan": {
+      "stringValue": "free"
+    },
+    "isActive": {
+      "booleanValue": true
+    },
+    "ownerUid": {
+      "nullValue": null
+    }
+  }
+}
