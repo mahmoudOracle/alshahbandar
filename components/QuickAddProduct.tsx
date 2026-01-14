@@ -3,23 +3,30 @@ import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 
 interface Props {
-  onAdd: (product: { name: string; price: number; stock: number }) => void;
+  onAdd: (product: { name: string; price: number; stock: number; reorderLevel?: number }) => void;
 }
 
 const QuickAddProduct: React.FC<Props> = ({ onAdd }) => {
   const [name, setName] = useState('');
   const [price, setPrice] = useState<string>('');
   const [stock, setStock] = useState<string>('');
+  const [reorderLevel, setReorderLevel] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
   const submit = async () => {
     if (!name || !price) return;
     setLoading(true);
     try {
-      onAdd({ name: name.trim(), price: parseFloat(price || '0'), stock: parseInt(stock || '0') });
+      onAdd({
+        name: name.trim(),
+        price: parseFloat(price || '0'),
+        stock: parseInt(stock || '0'),
+        reorderLevel: reorderLevel ? parseInt(reorderLevel || '0') : undefined,
+      });
       setName('');
       setPrice('');
       setStock('');
+      setReorderLevel('');
     } finally {
       setLoading(false);
     }
@@ -37,9 +44,15 @@ const QuickAddProduct: React.FC<Props> = ({ onAdd }) => {
           type="number"
         />
         <Input
-          label="الكمية"
+          label="المخزون"
           value={stock}
           onChange={(e) => setStock(e.target.value)}
+          type="number"
+        />
+        <Input
+          label="حد إعادة الطلب (اختياري)"
+          value={reorderLevel}
+          onChange={(e) => setReorderLevel(e.target.value)}
           type="number"
         />
         <div className="flex justify-end">

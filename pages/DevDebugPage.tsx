@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { getInvoices, getCustomers, getExpenses, getProducts } from '../services/dataService';
 
 export default function DevDebugPage() {
   const { user, companyId } = useAuth();
@@ -13,6 +14,14 @@ export default function DevDebugPage() {
   const [creatingProfile, setCreatingProfile] = useState(false);
   const [approvingCompany, setApprovingCompany] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [diagLoading, setDiagLoading] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<
+    | {
+        companyId: string;
+        queries: { path: string; count: number }[];
+      }
+    | null
+  >(null);
 
   useEffect(() => {
     const load = async () => {
@@ -42,13 +51,59 @@ export default function DevDebugPage() {
   // Hide page when running in production
   const meta = import.meta as unknown as { env?: Record<string, unknown> };
   const isProd = Boolean(meta.env && meta.env.PROD);
+  const isDev = Boolean(meta.env && meta.env.DEV);
   if (isProd) return <div className="p-6">Dev debug is disabled in production.</div>;
+
+  useEffect(() => {
+    const loadDiagnostics = async () => {
+      if (!isDev || !companyId) return;
+      setDiagLoading(true);
+      try {
+        const [invoicesRes, customersRes, expensesRes, productsRes] = await Promise.all([
+          getInvoices(companyId),
+          getCustomers(companyId),
+          getExpenses(companyId),
+          getProducts(companyId),
+        ]);
+        setDiagnostics({
+          companyId,
+          queries: [
+            { path: `companies/${companyId}/invoices`, count: (invoicesRes.data || []).length },
+            { path: `companies/${companyId}/customers`, count: (customersRes.data || []).length },
+            { path: `companies/${companyId}/expenses`, count: (expensesRes.data || []).length },
+            { path: `companies/${companyId}/products`, count: (productsRes.data || []).length },
+          ],
+        });
+      } catch (e) {
+        setDiagnostics(null);
+      } finally {
+        setDiagLoading(false);
+      }
+    };
+    loadDiagnostics();
+  }, [companyId, isDev]);
 
   return (
     <div className="p-6">
       <h2 className="text-xl font-bold mb-4">Dev Debug</h2>
       {error && <div className="mb-4 text-red-600">Error: {error}</div>}
       {success && <div className="mb-4 text-green-600">{success}</div>}
+      {isDev && (
+        <div className="mb-4">
+          <h3 className="font-semibold">Diagnostics (dev only)</h3>
+          {diagLoading && <div className="text-sm text-gray-500">Loading diagnostics...</div>}
+          {!diagLoading && diagnostics && (
+            <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+              <div>companyId: {diagnostics.companyId}</div>
+              {diagnostics.queries.map((q) => (
+                <div key={q.path}>
+                  {q.path} - {q.count}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <div className="mb-4">
         <h3 className="font-semibold">Auth User</h3>
         <pre className="bg-gray-100 p-3 rounded">{JSON.stringify(user || null, null, 2)}</pre>

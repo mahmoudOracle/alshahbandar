@@ -1,6 +1,6 @@
 // Simple runtime config for diagnostics
-// Toggle DEBUG_MODE to enable/disable verbose diagnostic logs across the app.
-export const DEBUG_MODE = true; // set to false to silence debug logs
+// Enable debug-only behavior in development builds only.
+export const DEBUG_MODE = import.meta.env.DEV;
 
-// Environment hint (can be overridden by build env)
-export const APP_ENV = process.env.NODE_ENV || 'development';
+// Environment hint (from Vite)
+export const APP_ENV = import.meta.env.MODE || 'development';

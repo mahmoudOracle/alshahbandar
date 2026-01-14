@@ -2,6 +2,10 @@
   --transition-fast: 160ms;
 }
 
+body {
+  font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+}
+
 /* Page transition used by App.tsx */
 .page-transition {
   animation: fadeIn var(--transition-fast) ease-in;

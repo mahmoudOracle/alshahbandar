@@ -6,6 +6,9 @@ import {
   Product,
   Invoice,
   Payment,
+  ReturnDoc,
+  SupplierPayment,
+  Purchase,
   Settings,
   Expense,
   Quote,
@@ -28,6 +31,9 @@ let customers: Customer[] = [];
 let products: Product[] = [];
 let invoices: Invoice[] = [];
 let payments: Payment[] = [];
+let returnsList: any[] = [];
+let supplierPayments: any[] = [];
+let purchases: Purchase[] = [];
 let settings: Settings | null = null;
 let expenses: Expense[] = [];
 let quotes: Quote[] = [];
@@ -551,9 +557,66 @@ export const getPaymentsByCustomerId = async (
   const filtered = payments.filter((p) => p.customerId === customerId);
   return { data: deepClone(filtered) };
 };
+export const getPaymentsByInvoiceId = async (
+  _companyId: string,
+  invoiceId: string
+): Promise<PaginatedData<Payment>> => {
+  await delay(100);
+  const filtered = payments.filter((p) => p.invoiceId === invoiceId);
+  return { data: deepClone(filtered) };
+};
+export const getReturns = async (
+  _companyId: string,
+  options: { limit?: number; startAfter?: number } = {}
+): Promise<PaginatedData<ReturnDoc>> => {
+  await delay(100);
+  return paginate(returnsList, options);
+};
+export const getReturnsByInvoiceId = async (
+  _companyId: string,
+  invoiceId: string
+): Promise<PaginatedData<ReturnDoc>> => {
+  await delay(100);
+  const filtered = returnsList.filter((r) => r.invoiceId === invoiceId);
+  return { data: deepClone(filtered) };
+};
+export const createReturnAtomic = async (
+  _companyId: string,
+  payload: {
+    invoiceId: string;
+    customerId: string;
+    items: { productId: string; nameSnapshot: string; quantity: number; unitPriceSnapshot: number; lineTotal: number }[];
+    totalReturnAmount: number;
+    date: string | unknown;
+    reason?: string;
+    mode?: 'refund_cash' | 'credit_note';
+  }
+): Promise<{ id: string }> => {
+  await delay(150);
+  const returnId = `mock_return_${Date.now()}`;
+  // update stock
+  for (const it of payload.items) {
+    const prod = products.find((p) => p.id === it.productId);
+    if (prod) {
+      prod.stock = Number(prod.stock || 0) + Number(it.quantity || 0);
+    }
+  }
+  returnsList.push({
+    id: returnId,
+    ...payload,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+  return { id: returnId };
+};
 export const savePayment = async (_companyId: string, payment: Omit<Payment, 'id'> | Payment) => {
   await delay(150);
-  const saved = saveAndClone(payments, payment as any);
+  const now = new Date();
+  const payload =
+    'id' in payment && payment.id
+      ? { ...payment, updatedAt: now }
+      : { ...payment, createdAt: now, updatedAt: now };
+  const saved = saveAndClone(payments, payload as any);
 
   // Update related invoice paymentsSummary and status in mock
   try {
@@ -576,6 +639,66 @@ export const savePayment = async (_companyId: string, payment: Omit<Payment, 'id
   }
 
   return saved;
+};
+
+export const totalPaidForInvoice = async (
+  _companyId: string,
+  invoiceId: string
+): Promise<number> => {
+  await delay(50);
+  return payments
+    .filter((p) => p.invoiceId === invoiceId)
+    .reduce((sum, p) => sum + (p.amount || 0), 0);
+};
+
+export const customerBalance = async (
+  _companyId: string,
+  customerId: string
+): Promise<number> => {
+  await delay(50);
+  const totalInvoices = invoices
+    .filter((inv) => inv.customerId === customerId)
+    .reduce((sum, inv) => sum + (inv.total || 0), 0);
+  const totalPayments = payments
+    .filter((p) => p.customerId === customerId)
+    .reduce((sum, p) => sum + (p.amount || 0), 0);
+  return totalInvoices - totalPayments;
+};
+
+export const getPurchases = async (
+  _companyId: string,
+  options: { limit?: number; startAfter?: number } = {}
+): Promise<PaginatedData<Purchase>> => {
+  await delay(100);
+  return paginate(purchases, options);
+};
+
+export const getSupplierPayments = async (
+  _companyId: string,
+  options: { limit?: number; startAfter?: number } = {}
+): Promise<PaginatedData<SupplierPayment>> => {
+  await delay(100);
+  return paginate(supplierPayments, options);
+};
+export const getSupplierPaymentsBySupplierId = async (
+  _companyId: string,
+  supplierId: string
+): Promise<PaginatedData<SupplierPayment>> => {
+  await delay(100);
+  const filtered = supplierPayments.filter((p) => p.supplierId === supplierId);
+  return { data: deepClone(filtered) };
+};
+export const saveSupplierPayment = async (
+  _companyId: string,
+  payment: Omit<SupplierPayment, 'id'> | SupplierPayment
+) => {
+  await delay(150);
+  const now = new Date();
+  const payload =
+    'id' in payment && payment.id
+      ? { ...payment, updatedAt: now }
+      : { ...payment, createdAt: now, updatedAt: now };
+  return saveAndClone(supplierPayments, payload as any);
 };
 
 export const getSettings = async (_companyId: string): Promise<Settings | null> => {
@@ -718,6 +841,9 @@ export const deleteAllCompanyData = async (_companyId: string) => {
   products = [];
   invoices = [];
   payments = [];
+  returnsList = [];
+  supplierPayments = [];
+  purchases = [];
   expenses = [];
   quotes = [];
   recurringInvoices = [];
@@ -739,6 +865,21 @@ export const createPurchase = async (
   await delay(150);
   if (!purchase || !purchase.supplierId) throw new Error('Purchase requires supplierId');
   const purchaseId = `mock_purchase_${Date.now()}`;
+
+  purchases.push({
+    id: purchaseId,
+    supplierId: purchase.supplierId,
+    supplierName: purchase.supplierName,
+    items: purchase.items.map((it) => ({
+      productId: it.productId,
+      productName: it.productName,
+      quantity: it.quantity,
+      unitCost: it.unitPrice,
+    })),
+    subtotal: purchase.totalAmount,
+    total: purchase.totalAmount,
+    createdAt: new Date(),
+  } as Purchase);
 
   // update stocks and ledger
   for (const it of purchase.items) {
@@ -775,4 +916,28 @@ export const createPurchase = async (
   }
 
   return { id: purchaseId } as { id: string };
+};
+
+export const createPlatformCompanyWithManager = async (payload: {
+  companyName: string;
+  managerFullName: string;
+  managerEmail: string;
+  managerPassword: string;
+  maxUsers?: number;
+  status?: 'approved' | 'pending' | 'rejected';
+}): Promise<{
+  success: boolean;
+  companyId?: string;
+  managerUid?: string;
+  managerEmail?: string;
+  tempPassword?: string;
+}> => {
+  await delay(150);
+  return {
+    success: true,
+    companyId: `mock-${Date.now()}`,
+    managerUid: 'mock-manager',
+    managerEmail: payload.managerEmail,
+    tempPassword: payload.managerPassword,
+  };
 };

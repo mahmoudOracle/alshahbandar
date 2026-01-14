@@ -1,67 +1,97 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  getInvoices,
-  getCustomers,
-  getPayments,
-  getExpenses,
-  generateInvoicesFromRecurring,
-  getProducts,
-} from '../services/dataService';
-import { Invoice, Customer, Payment, InvoiceStatus, Expense, Product } from '../types';
+import { getInvoices, getCustomers, getExpenses, getProducts } from '../services/dataService';
+import { Invoice, Customer, Expense, Product } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import {
   UsersIcon,
   BanknotesIcon,
-  ExclamationTriangleIcon,
   CurrencyDollarIcon,
-  ArrowPathIcon,
   DocumentPlusIcon,
   UserPlusIcon,
+  ArchiveBoxIcon,
 } from '@heroicons/react/24/outline';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
-import { mapFirestoreError } from '../services/firebaseErrors';
 import { Card } from '../components/ui/Card';
 import { StatCard } from '../components/ui/StatCard';
-import { Button } from '../components/ui/Button';
 import { CardSkeleton } from '../components/ui/CardSkeleton';
 
 const LOW_STOCK_THRESHOLD = 10;
+const SALES_PERIOD_DAYS = 30;
+
+const getInvoiceTotal = (inv: Invoice) => {
+  const maybe = inv as unknown as {
+    total?: number;
+    grandTotal?: number;
+    amount?: number;
+    net?: number;
+    totalAmount?: number;
+  };
+  if (typeof maybe.total === 'number') return maybe.total;
+  if (typeof maybe.grandTotal === 'number') return maybe.grandTotal;
+  if (typeof maybe.totalAmount === 'number') return maybe.totalAmount;
+  if (typeof maybe.amount === 'number') return maybe.amount;
+  if (typeof maybe.net === 'number') return maybe.net;
+  return 0;
+};
+
+const toDateValue = (value: unknown): Date | null => {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  const maybe = value as { toDate?: () => Date };
+  if (typeof maybe.toDate === 'function') return maybe.toDate();
+  return null;
+};
+
+const statusToLabel = (status: string) => {
+  if (status === 'approved') return 'معتمدة';
+  if (status === 'pending') return 'قيد المراجعة';
+  if (status === 'blocked') return 'موقوفة';
+  return status || 'غير معروف';
+};
 
 const Dashboard: React.FC = () => {
-  const { activeCompanyId } = useAuth();
+  const { activeCompanyId, activeCompany, companyMemberships, onboardingError, firebaseUser, signOutUser } =
+    useAuth();
   const canWrite = useCanWrite('invoices');
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
   const { settings, loading: settingsLoading } = useSettings();
   const { addNotification } = useNotification();
 
   const fetchData = useCallback(async () => {
-    if (!activeCompanyId) return;
+    if (!activeCompanyId) {
+      setInvoices([]);
+      setCustomers([]);
+      setExpenses([]);
+      setProducts([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const [invoicesRes, customersRes, paymentsRes, expensesRes, productsRes] = await Promise.all([
+      const [invoicesRes, customersRes, expensesRes, productsRes] = await Promise.all([
         getInvoices(activeCompanyId),
         getCustomers(activeCompanyId),
-        getPayments(activeCompanyId),
         getExpenses(activeCompanyId),
         getProducts(activeCompanyId),
       ]);
       setInvoices(invoicesRes.data || []);
       setCustomers(customersRes.data || []);
-      setPayments(paymentsRes.data || []);
       setExpenses(expensesRes.data || []);
       setProducts(productsRes.data || []);
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error('Failed to fetch dashboard data:', { message: msg });
-      addNotification('فشل تحميل بيانات الملخص.', 'error');
+      addNotification('تعذر تحميل الملخّص الآن. حاول مرة أخرى.', 'error');
     } finally {
       setLoading(false);
     }
@@ -71,100 +101,68 @@ const Dashboard: React.FC = () => {
     fetchData();
   }, [fetchData]);
 
-  const handleGenerateRecurring = async () => {
-    if (!activeCompanyId || !canWrite) return;
-    setGenerating(true);
-    try {
-      const generated = await generateInvoicesFromRecurring(activeCompanyId);
-      if (generated.length > 0) {
-        addNotification(`تم إنشاء ${generated.length} فاتورة متكررة بنجاح!`, 'success');
-        fetchData();
-      } else {
-        addNotification('لا توجد فواتير متكررة مستحقة للإنشاء اليوم.', 'info');
-      }
-    } catch (error) {
-      addNotification(mapFirestoreError(error), 'error');
-    } finally {
-      setGenerating(false);
-    }
-  };
+  const {
+    totalInvoices,
+    totalCustomers,
+    totalSalesPeriod,
+    totalExpenses,
+    lowStockCount,
+    recentInvoices,
+    hasProducts,
+  } = useMemo(() => {
+    const periodStart = new Date();
+    periodStart.setDate(periodStart.getDate() - SALES_PERIOD_DAYS);
+    periodStart.setHours(0, 0, 0, 0);
 
-  const { overdueInvoices, lowStockProducts, totalRevenue, totalExpenses, newCustomersCount } =
-    useMemo(() => {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const totalInvoices = invoices.length;
+    const totalCustomers = customers.length;
+    const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+    const hasProducts = products.length > 0;
+    const lowStockCount = products.filter(
+      (p) => Number(p.reorderLevel || 0) > 0 && Number(p.stock || 0) <= Number(p.reorderLevel)
+    ).length;
 
-      const newCustomersCount = customers.filter(
-        (c) => c.createdAt && new Date(c.createdAt) >= thirtyDaysAgo
-      ).length;
-      const overdueInvoices = invoices
-        .filter((inv) => inv.status === InvoiceStatus.Due && new Date(inv.dueDate) < new Date())
-        .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-      const lowStockProducts = products
-        .filter((p) => p.stock <= LOW_STOCK_THRESHOLD)
-        .sort((a, b) => a.stock - b.stock);
+    const invoicesWithDate = invoices
+      .map((inv) => ({ inv, date: toDateValue(inv.date) }))
+      .filter((item) => item.date);
 
-      const totalRevenue = payments.reduce((sum, payment) => sum + payment.amount, 0);
-      const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+    const totalSalesPeriod = invoicesWithDate.reduce((sum, item) => {
+      if (!item.date) return sum;
+      return item.date >= periodStart ? sum + getInvoiceTotal(item.inv) : sum;
+    }, 0);
 
-      return { overdueInvoices, lowStockProducts, totalRevenue, totalExpenses, newCustomersCount };
-    }, [invoices, products, payments, expenses, customers]);
+    const recentInvoices = invoicesWithDate
+      .sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0))
+      .slice(0, 5)
+      .map((item) => item.inv);
 
-  const cashFlowData = useMemo(() => {
-    const data = Array.from({ length: 6 }, (_, i) => {
-      const d = new Date();
-      d.setMonth(d.getMonth() - i);
-      return {
-        name: d.toLocaleString('default', { month: 'short', year: '2-digit' }),
-        moneyIn: 0,
-        moneyOut: 0,
-      };
-    }).reverse();
-
-    payments.forEach((payment) => {
-      const monthName = new Date(payment.date).toLocaleString('default', {
-        month: 'short',
-        year: '2-digit',
-      });
-      const monthData = data.find((d) => d.name === monthName);
-      if (monthData) monthData.moneyIn += payment.amount;
-    });
-
-    expenses.forEach((expense) => {
-      const monthName = new Date(expense.date).toLocaleString('default', {
-        month: 'short',
-        year: '2-digit',
-      });
-      const monthData = data.find((d) => d.name === monthName);
-      if (monthData) monthData.moneyOut += expense.amount;
-    });
-
-    return data;
-  }, [payments, expenses]);
-
-  const [Recharts, setRecharts] = useState<unknown | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    import('recharts')
-      .then((mod) => {
-        if (mounted) setRecharts(mod);
-      })
-      .catch(() => {});
-    return () => {
-      mounted = false;
+    return {
+      totalInvoices,
+      totalCustomers,
+      totalSalesPeriod,
+      totalExpenses,
+      lowStockCount,
+      recentInvoices,
+      hasProducts,
     };
-  }, []);
+  }, [invoices, customers, expenses, products]);
+
+  const companyName = useMemo(() => {
+    const membershipName =
+      companyMemberships.find((m) => m.companyId === activeCompanyId)?.companyName || '';
+    const companyDoc = activeCompany as { companyName?: string } | null;
+    return settings?.businessName || companyDoc?.companyName || membershipName || 'شركة بدون اسم';
+  }, [settings?.businessName, activeCompany, companyMemberships, activeCompanyId]);
+
+  const companyStatus = (activeCompany as { status?: string } | null)?.status || 'unknown';
 
   if (loading || settingsLoading) {
     return (
       <div className="space-y-6">
+        <CardSkeleton />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[...Array(4)].map((_, i) => (
-            <CardSkeleton key={i} />
-          ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <CardSkeleton />
+          <CardSkeleton />
           <CardSkeleton />
           <CardSkeleton />
         </div>
@@ -172,172 +170,131 @@ const Dashboard: React.FC = () => {
     );
   }
 
+  if (!activeCompanyId) {
+    const email = firebaseUser?.email || '';
+    return (
+      <Card header={<h2 className="text-xl font-bold">لا يوجد حساب شركة مرتبط</h2>}>
+        <div className="space-y-3">
+          <p className="text-gray-600 dark:text-gray-400 whitespace-pre-line">
+            {`مرحبًا ${email || ''}\nلا يوجد حساب شركة مرتبط بحسابك.`}
+          </p>
+          <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line">
+            يرجى التواصل مع مدير الشركة لإضافة حسابك، أو التواصل مع الدعم لإكمال البيانات.
+          </p>
+          {onboardingError && <p className="text-sm text-danger-600">{onboardingError}</p>}
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={signOutUser}
+              className="inline-flex items-center rounded-md bg-primary-600 text-white px-4 py-2 text-sm font-medium hover:bg-primary-700"
+            >
+              تسجيل الخروج
+            </button>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      <Card header={<h2 className="text-xl font-bold">ملخّص</h2>}>
+        <div className="flex flex-col md:flex-row justify-between gap-4">
+          <div>
+            <p className="text-sm text-gray-500 dark:text-gray-400">الشركة</p>
+            <p className="text-lg font-semibold text-gray-900 dark:text-white">{companyName}</p>
+          </div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            الحالة: {statusToLabel(String(companyStatus))}
+          </div>
+        </div>
+      </Card>
+
       {canWrite && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Link
             to="/invoices/new"
-            className="bg-primary-600 text-white rounded-lg shadow-lg hover:bg-primary-700 transition-colors p-6 flex items-center justify-center"
+            className="bg-primary-600 text-white rounded-lg shadow hover:bg-primary-700 transition-colors p-5 flex items-center justify-center"
           >
-            <DocumentPlusIcon className="h-8 w-8 me-4" />
-            <span className="text-xl font-bold">إنشاء فاتورة جديدة</span>
+            <DocumentPlusIcon className="h-7 w-7 me-3" />
+            <span className="text-lg font-semibold">إنشاء فاتورة</span>
           </Link>
           <Link
             to="/customers/new"
-            className="bg-success-600 text-white rounded-lg shadow-lg hover:bg-success-700 transition-colors p-6 flex items-center justify-center"
+            className="bg-success-600 text-white rounded-lg shadow hover:bg-success-700 transition-colors p-5 flex items-center justify-center"
           >
-            <UserPlusIcon className="h-8 w-8 me-4" />
-            <span className="text-xl font-bold">إضافة عميل جديد</span>
+            <UserPlusIcon className="h-7 w-7 me-3" />
+            <span className="text-lg font-semibold">إضافة عميل</span>
           </Link>
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <StatCard
-          title="إجمالي الإيرادات"
-          value={`${totalRevenue.toFixed(2)} ${settings?.currency}`}
+          title="الفواتير"
+          value={String(totalInvoices)}
           icon={<BanknotesIcon className="h-6 w-6 text-primary-600" />}
         />
         <StatCard
-          title="إجمالي المصروفات"
-          value={`${totalExpenses.toFixed(2)} ${settings?.currency}`}
-          icon={<CurrencyDollarIcon className="h-6 w-6 text-primary-600" />}
-        />
-        <StatCard
-          title="العملاء الجدد (آخر 30 يوم)"
-          value={String(newCustomersCount)}
+          title="العملاء"
+          value={String(totalCustomers)}
           icon={<UsersIcon className="h-6 w-6 text-primary-600" />}
         />
         <StatCard
-          title="الفواتير المتأخرة"
-          value={String(overdueInvoices.length)}
-          icon={<ExclamationTriangleIcon className="h-6 w-6 text-primary-600" />}
+          title="مبيعات آخر 30 يوم"
+          value={`${totalSalesPeriod.toFixed(2)} ${settings?.currency || ''}`.trim()}
+          icon={<BanknotesIcon className="h-6 w-6 text-primary-600" />}
         />
+        <StatCard
+          title="المصروفات"
+          value={`${totalExpenses.toFixed(2)} ${settings?.currency || ''}`.trim()}
+          icon={<CurrencyDollarIcon className="h-6 w-6 text-primary-600" />}
+        />
+        <Link to="/products?filter=low">
+          <StatCard
+            title="تنبيه مخزون منخفض"
+            value={
+              !hasProducts
+                ? 'لا توجد منتجات'
+                : lowStockCount > 0
+                  ? `منخفض: ${lowStockCount}`
+                  : 'لا توجد أصناف منخفضة حالياً'
+            }
+            icon={<ArchiveBoxIcon className="h-6 w-6 text-primary-600" />}
+          />
+        </Link>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card header={<h3 className="font-bold text-xl">الفواتير المتأخرة</h3>}>
-          <div className="space-y-3">
-            {overdueInvoices.length > 0 ? (
-              overdueInvoices.slice(0, 5).map((inv) => (
-                <Link
-                  to={`/invoices/${inv.id}`}
-                  key={inv.id}
-                  className="flex justify-between items-center p-3 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                >
-                  <div>
-                    <p className="font-semibold">{inv.customerName}</p>
-                    <p className="text-sm text-gray-500">{inv.invoiceNumber}</p>
-                  </div>
-                  <div className="text-left">
-                    <p className="font-bold text-danger-600">
-                      {inv.total.toFixed(2)} {settings?.currency}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      مستحقة منذ{' '}
-                      {Math.floor(
-                        (new Date().getTime() - new Date(inv.dueDate).getTime()) /
-                          (1000 * 3600 * 24)
-                      )}{' '}
-                      يوم
-                    </p>
-                  </div>
-                </Link>
-              ))
-            ) : (
-              <p className="text-center text-gray-500 py-4">لا توجد فواتير متأخرة. عمل رائع!</p>
-            )}
+      <Card header={<h3 className="text-lg font-bold">أحدث الفواتير</h3>}>
+        {recentInvoices.length === 0 ? (
+          <p className="text-gray-600 dark:text-gray-400">لا توجد فواتير بعد.</p>
+        ) : (
+          <div className="divide-y divide-gray-100 dark:divide-gray-700">
+            {recentInvoices.map((inv) => (
+              <div key={inv.id} className="flex items-center justify-between py-3">
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-900 dark:text-white truncate">
+                    {inv.customerName || 'عميل'}
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {toDateValue(inv.date)?.toLocaleDateString('ar-EG') || '—'}
+                  </p>
+                </div>
+                <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  {getInvoiceTotal(inv).toFixed(2)} {settings?.currency || ''}
+                </div>
+              </div>
+            ))}
           </div>
-        </Card>
-        <Card header={<h3 className="font-bold text-xl">المنتجات ذات المخزون المنخفض</h3>}>
-          <div className="space-y-3">
-            {lowStockProducts.length > 0 ? (
-              lowStockProducts.slice(0, 5).map((product) => (
-                <Link
-                  to={`/products/edit/${product.id}`}
-                  key={product.id}
-                  className="flex justify-between items-center p-3 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                >
-                  <p className="font-semibold">{product.name}</p>
-                  <span className="font-bold text-warning-700 bg-warning-100 dark:bg-warning-900/50 px-2 py-1 text-xs rounded-full">
-                    {product.stock} متبقي
-                  </span>
-                </Link>
-              ))
-            ) : (
-              <p className="text-gray-500 dark:text-gray-400 text-center py-4">
-                لا توجد منتجات منخفضة المخزون.
-              </p>
-            )}
-          </div>
-        </Card>
-      </div>
+        )}
+      </Card>
 
-      {canWrite && (
+      {totalInvoices === 0 && totalCustomers === 0 && totalExpenses === 0 && (
         <Card>
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div>
-              <h2 className="text-xl font-bold">الفواتير المتكررة</h2>
-              <p className="text-gray-600 dark:text-gray-400 mt-1">
-                انقر على الزر لإنشاء أي فواتير متكررة حان موعد إصدارها اليوم.
-              </p>
-            </div>
-            <Button onClick={handleGenerateRecurring} loading={generating} size="md">
-              <ArrowPathIcon className={`h-5 w-5 me-2 ${generating ? 'animate-spin' : ''}`} />
-              {generating ? 'جاري الإنشاء...' : 'إنشاء الفواتير المستحقة'}
-            </Button>
-          </div>
+          <p className="text-gray-600 dark:text-gray-400">
+            ابدأ بإضافة عميل أو فاتورة لتظهر البيانات هنا.
+          </p>
         </Card>
       )}
-
-      <Card header={<h2 className="text-xl font-bold">ملخص التدفق النقدي (آخر 6 أشهر)</h2>}>
-        <div style={{ width: '100%', height: 300 }}>
-          {Recharts ? (
-            (() => {
-              const {
-                ResponsiveContainer: RC,
-                LineChart: LC,
-                CartesianGrid: CG,
-                XAxis: X,
-                YAxis: Y,
-                Tooltip: T,
-                Legend: L,
-                Line: LN,
-              } = Recharts;
-              return (
-                <RC width="100%" height={300}>
-                  <LC data={cashFlowData}>
-                    <CG strokeDasharray="3 3" strokeOpacity={0.2} />
-                    <X dataKey="name" />
-                    <Y />
-                    <T formatter={(value: number) => `${value.toFixed(2)} ${settings?.currency}`} />
-                    <L />
-                    <LN
-                      type="monotone"
-                      dataKey="moneyIn"
-                      name="الأموال الداخلة"
-                      stroke="#16a34a"
-                      strokeWidth={2}
-                    />
-                    <LN
-                      type="monotone"
-                      dataKey="moneyOut"
-                      name="الأموال الخارجة"
-                      stroke="#dc2626"
-                      strokeWidth={2}
-                    />
-                  </LC>
-                </RC>
-              );
-            })()
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <CardSkeleton />
-            </div>
-          )}
-        </div>
-      </Card>
     </div>
   );
 };

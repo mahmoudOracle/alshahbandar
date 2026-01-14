@@ -101,6 +101,14 @@ const SettingsPage: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
+      {!canWrite && (
+        <Card header={<h2 className="text-xl font-bold">Access denied</h2>}>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            You do not have permission to edit settings. Contact an owner or manager to request
+            access.
+          </p>
+        </Card>
+      )}
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card header={<h2 className="text-xl font-bold">إعدادات العمل</h2>}>
           <fieldset disabled={!canWrite} className="space-y-6">

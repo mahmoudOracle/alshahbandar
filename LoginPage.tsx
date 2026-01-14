@@ -21,7 +21,10 @@ const LoginPage: React.FC = () => {
       await signInWithEmail(email.trim(), password);
       navigate('/');
     } catch (err: unknown) {
-      addNotification((err as Error).message || 'فشل تسجيل الدخول', 'error');
+      addNotification(
+        (err as Error).message || 'تعذر تسجيل الدخول. تأكد من البريد وكلمة المرور.',
+        'error'
+      );
     } finally {
       setLoading(false);
     }
@@ -32,10 +35,10 @@ const LoginPage: React.FC = () => {
       <div className="w-full max-w-md">
         <Card>
           <div className="flex flex-col items-center gap-4">
-            <LogoPlaceholder size={72} ariaLabel="Alshahbandar logo" />
-            <h1 className="text-2xl font-bold text-center">Alshahbandar Accounting</h1>
+            <LogoPlaceholder size={72} ariaLabel="شعار الشاهبندر" />
+            <h1 className="text-2xl font-bold text-center">الشاهبندر</h1>
             <p className="text-sm text-center text-gray-600 dark:text-gray-300">
-              نظام محاسبي سهل وآمن مُصمم للأعمال الصغيرة والمتوسطة. سجّل الدخول للبدء.
+              نظام إدارة بسيط للتجارة والحسابات
             </p>
           </div>
 

@@ -6,7 +6,7 @@ describe('App (smoke)', () => {
   it('renders without crashing', () => {
     render(<App />);
     // Basic smoke: expect the app to render something root-ish
-    const el = screen.queryByText(/Alshabandar|تجاري|Login|Dashboard/i);
+    const el = screen.queryByText(/Alshabandar|تجاري|Login|ملخّص/i);
     expect(el === null || el).toBeDefined();
   });
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense } from 'react';
+﻿import React, { useState, useEffect, Suspense } from 'react';
 import { HashRouter, Routes, Route, useLocation, matchPath } from 'react-router-dom';
 import { Bars3Icon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 
@@ -169,7 +169,7 @@ const getPageTitle = (pathname: string): string => {
 
 function App() {
   const location = useLocation();
-  const [pageTitle, setPageTitle] = useState('ملخص');
+  const [pageTitle, setPageTitle] = useState('ملخّص');
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false);
 
@@ -243,10 +243,8 @@ function App() {
               aria-label="Open command bar"
             >
               <MagnifyingGlassIcon className="h-5 w-5" />
-              <span className="hidden sm:inline">بحث وتنقل سريع...</span>
-              <kbd className="hidden sm:inline text-xs font-sans border dark:border-gray-500 rounded px-1.5 py-1">
-                ⌘K
-              </kbd>
+              <span className="hidden sm:inline">ابحث في الفواتير والعملاء والمنتجات...</span>
+              <kbd className="hidden sm:inline text-xs font-sans border dark:border-gray-500 rounded px-1.5 py-1">\n                Ctrl+K\n              </kbd>
             </button>
             <ThemeToggle />
           </div>
@@ -280,3 +278,4 @@ const AppWrapper: React.FC = () => {
 };
 
 export default AppWrapper;
+

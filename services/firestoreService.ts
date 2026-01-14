@@ -1,4 +1,4 @@
-import {
+﻿import {
   collection,
   getDocs,
   doc,
@@ -26,6 +26,9 @@ import {
   Customer,
   Product,
   Payment,
+  ReturnDoc,
+  ReturnItem,
+  SupplierPayment,
   Settings,
   Expense,
   Quote,
@@ -42,10 +45,10 @@ import {
   CompanyUser,
   CompanyInvitation,
   Company,
-  IncomingReceipt,
   InventoryItem,
   StockLedgerEntry,
   JournalEntry,
+  Purchase,
 } from '../types';
 import { db, functions } from './firebase';
 import { enqueueOperation } from './syncService';
@@ -78,7 +81,7 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 3, baseDelay = 400)
       const delay = baseDelay * Math.pow(2, i);
       if (DEBUG_MODE)
         console.warn(
-          `🟡 [FIRESTORE][RETRY] transient error, retrying in ${delay}ms`,
+          `ðŸŸ¡ [FIRESTORE][RETRY] transient error, retrying in ${delay}ms`,
           err?.message || err
         );
       await sleep(delay);
@@ -162,6 +165,40 @@ export const createCompany = async (
   } catch (error) {
     console.error('[DEBUG][CreateCompany] Cloud function failed:', error);
     // Re-throw the error to be caught and mapped by the UI
+    throw error;
+  }
+};
+
+export const createPlatformCompanyWithManager = async (payload: {
+  companyName: string;
+  managerFullName: string;
+  managerEmail: string;
+  managerPassword: string;
+  maxUsers?: number;
+  status?: 'approved' | 'pending' | 'rejected';
+}): Promise<{
+  success: boolean;
+  companyId?: string;
+  managerUid?: string;
+  managerEmail?: string;
+  tempPassword?: string;
+}> => {
+  const fn = httpsCallable(functions, 'createPlatformCompanyWithManager');
+  try {
+    const res = await fn(payload);
+    const data =
+      res && (res as unknown as Record<string, unknown>)['data']
+        ? (res as unknown as Record<string, unknown>)['data']
+        : res;
+    return (data || {}) as {
+      success: boolean;
+      companyId?: string;
+      managerUid?: string;
+      managerEmail?: string;
+      tempPassword?: string;
+    };
+  } catch (error) {
+    console.error('[DEBUG][CreateCompany] createPlatformCompanyWithManager failed:', error);
     throw error;
   }
 };
@@ -261,24 +298,6 @@ export const createGoodsReceiptAtomic = async (
     return payload;
   } catch (err) {
     console.error('[FIRESTORE] createGoodsReceiptAtomic failed', err);
-    throw err;
-  }
-};
-
-export const createIncomingReceiptAtomic = async (
-  companyId: string,
-  receipt: Record<string, unknown>
-): Promise<any> => {
-  try {
-    const fn = httpsCallable(functions, 'createIncomingReceiptAtomic');
-    const res = await fn({ companyId, receipt });
-    const payload =
-      res && (res as unknown as Record<string, unknown>)['data']
-        ? (res as unknown as Record<string, unknown>)['data']
-        : res;
-    return payload;
-  } catch (err) {
-    console.error('[FIRESTORE] createIncomingReceiptAtomic failed', err);
     throw err;
   }
 };
@@ -524,7 +543,15 @@ export const checkIfPlatformAdmin = async (uid: string): Promise<boolean> => {
 
     const adminRef = doc(db, 'platformAdmins', uid);
     const adminSnap = await withRetry(() => getDoc(adminRef));
-    const isAdmin = adminSnap.exists();
+    if (adminSnap.exists()) {
+      console.log('[DEBUG][AUTHZ] uid', uid, 'isPlatformAdmin? true (platformAdmins)');
+      return true;
+    }
+
+    const userRef = doc(db, 'platformUsers', uid);
+    const userSnap = await withRetry(() => getDoc(userRef));
+    const userData = userSnap.exists() ? (userSnap.data() as Record<string, unknown>) : null;
+    const isAdmin = Boolean(userData && userData.platformAdmin === true);
     console.log('[DEBUG][AUTHZ] uid', uid, 'isPlatformAdmin?', isAdmin);
     return isAdmin;
   } catch (err) {
@@ -537,7 +564,7 @@ export const getCompanyMemberships = async (uid: string): Promise<CompanyMembers
   const memberships: CompanyMembership[] = [];
   if (DEBUG_MODE)
     console.log(
-      `🔍 [FIRESTORE] Reading membership documents for uid: ${uid} (collectionGroup users)`
+      `ðŸ” [FIRESTORE] Reading membership documents for uid: ${uid} (collectionGroup users)`
     );
   const usersQuery = query(collectionGroup(db, 'users'), where('uid', '==', uid));
   const querySnapshot = await withRetry(() => getDocs(usersQuery));
@@ -568,14 +595,14 @@ export const getCompanyMemberships = async (uid: string): Promise<CompanyMembers
     if (snap && typeof snapLike.exists === 'function' && snapLike.exists()) {
       companyMap.set(id, (snapLike.data && snapLike.data()) || undefined);
       if (DEBUG_MODE)
-        console.log(`🟢 [FIRESTORE] Found company doc for companyId=${id}`, {
+        console.log(`ðŸŸ¢ [FIRESTORE] Found company doc for companyId=${id}`, {
           id,
           data: (snap as any).data(),
         });
     } else {
       if (DEBUG_MODE)
         console.warn(
-          `🟡 [FIRESTORE] Company doc not found for companyId=${id} while resolving memberships`
+          `ðŸŸ¡ [FIRESTORE] Company doc not found for companyId=${id} while resolving memberships`
         );
     }
   }
@@ -618,7 +645,7 @@ export const createCompanyWithOwner = async (
 ): Promise<{ companyId: string }> => {
   try {
     if (DEBUG_MODE)
-      console.log(`🔍 [FIRESTORE] createCompanyWithOwner called for uid=${uid}, email=${email}`, {
+      console.log(`ðŸ” [FIRESTORE] createCompanyWithOwner called for uid=${uid}, email=${email}`, {
         payload: data,
       });
     const companyRef = doc(collection(db, 'companies'));
@@ -660,10 +687,10 @@ export const createCompanyWithOwner = async (
     });
 
     await withRetry(() => batch.commit());
-    console.log('🟢 [FIRESTORE] Company created with id', companyId, 'ownerUid=', uid);
+    console.log('ðŸŸ¢ [FIRESTORE] Company created with id', companyId, 'ownerUid=', uid);
     return { companyId };
   } catch (err) {
-    console.error('🔴 [FIRESTORE] createCompanyWithOwner failed:', {
+    console.error('ðŸ”´ [FIRESTORE] createCompanyWithOwner failed:', {
       uid,
       email,
       error: err?.message || err,
@@ -674,26 +701,26 @@ export const createCompanyWithOwner = async (
 
 export const getUserProfile = async (uid: string): Promise<any | null> => {
   const ref = doc(db, 'users', uid);
-  if (DEBUG_MODE) console.log(`🔍 [FIRESTORE] Reading users/${uid}`);
+  if (DEBUG_MODE) console.log(`ðŸ” [FIRESTORE] Reading users/${uid}`);
   const snap = await withRetry(() => getDoc(ref));
   if (snap.exists()) {
-    if (DEBUG_MODE) console.log('🟢 [FIRESTORE] User profile found:', { uid, data: snap.data() });
+    if (DEBUG_MODE) console.log('ðŸŸ¢ [FIRESTORE] User profile found:', { uid, data: snap.data() });
     return snap.data();
   }
-  if (DEBUG_MODE) console.warn('🟡 [FIRESTORE] User profile not found:', uid);
+  if (DEBUG_MODE) console.warn('ðŸŸ¡ [FIRESTORE] User profile not found:', uid);
   return null;
 };
 
 export const getCompany = async (companyId: string): Promise<Company | null> => {
   const ref = doc(db, 'companies', companyId);
-  if (DEBUG_MODE) console.log(`🔍 [FIRESTORE] Reading companies/${companyId}`);
+  if (DEBUG_MODE) console.log(`ðŸ” [FIRESTORE] Reading companies/${companyId}`);
   const snap = await withRetry(() => getDoc(ref));
   if (snap.exists()) {
     if (DEBUG_MODE)
-      console.log('🟢 [FIRESTORE] Company document found:', { companyId, data: snap.data() });
+      console.log('ðŸŸ¢ [FIRESTORE] Company document found:', { companyId, data: snap.data() });
     return { id: snap.id, ...(snap.data() as unknown as Record<string, unknown>) } as Company;
   }
-  if (DEBUG_MODE) console.warn('🟡 [FIRESTORE] Company document not found:', companyId);
+  if (DEBUG_MODE) console.warn('ðŸŸ¡ [FIRESTORE] Company document not found:', companyId);
   return null;
 };
 
@@ -703,7 +730,7 @@ export const updateCompanyStatusDirect = async (
 ) => {
   const ref = doc(db, 'companies', companyId);
   if (DEBUG_MODE)
-    console.log(`🔍 [FIRESTORE] updateCompanyStatusDirect: ${companyId} -> ${status}`);
+    console.log(`ðŸ” [FIRESTORE] updateCompanyStatusDirect: ${companyId} -> ${status}`);
   await updateDoc(ref, { status: status, updatedAt: serverTimestamp() });
 };
 
@@ -761,11 +788,11 @@ export const resolveFirstLogin = async (
 // --- USER MANAGEMENT (MULTI-TENANT) ---
 export const getCompanyUsers = async (companyId: string): Promise<CompanyUser[]> => {
   if (DEBUG_MODE)
-    console.log(`🔍 [FIRESTORE] getCompanyUsers: reading companies/${companyId}/users`);
+    console.log(`ðŸ” [FIRESTORE] getCompanyUsers: reading companies/${companyId}/users`);
   const result = await getData<CompanyUser>(companyId, 'users');
   if (DEBUG_MODE)
     console.log(
-      `🟢 [FIRESTORE] getCompanyUsers: found ${result.data.length} users for companyId=${companyId}`
+      `ðŸŸ¢ [FIRESTORE] getCompanyUsers: found ${result.data.length} users for companyId=${companyId}`
     );
   return result.data;
 };
@@ -777,13 +804,13 @@ export const getCompanyMembershipByUid = async (
   try {
     if (DEBUG_MODE)
       console.log(
-        `🔍 [FIRESTORE] getCompanyMembershipByUid: reading companies/${companyId}/users/${uid}`
+        `ðŸ” [FIRESTORE] getCompanyMembershipByUid: reading companies/${companyId}/users/${uid}`
       );
     const ref = doc(db, 'companies', companyId, 'users', uid);
     const snap = await withRetry(() => getDoc(ref));
     if (snap.exists()) {
       if (DEBUG_MODE)
-        console.log('🟢 [FIRESTORE] Membership document found:', {
+        console.log('ðŸŸ¢ [FIRESTORE] Membership document found:', {
           companyId,
           uid,
           data: snap.data(),
@@ -791,11 +818,49 @@ export const getCompanyMembershipByUid = async (
       return snap.data() as CompanyUser;
     }
     if (DEBUG_MODE)
-      console.warn('🟡 [FIRESTORE] Membership document not found:', { companyId, uid });
+      console.warn('ðŸŸ¡ [FIRESTORE] Membership document not found:', { companyId, uid });
     return null;
   } catch (err) {
     console.error('[DEBUG][AUTHZ] getCompanyMembershipByUid failed', { companyId, uid, err });
     throw err;
+  }
+};
+
+export const createOwnerMembershipIfMissing = async (
+  companyId: string,
+  user: User,
+  role: UserRole = UserRole.Owner
+): Promise<CompanyUser | null> => {
+  try {
+    ensureWriteAllowed('users');
+    const ref = doc(db, 'companies', companyId, 'users', user.uid);
+    const displayName = user.displayName || user.email || 'Owner';
+    const nameParts = displayName.split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ');
+    const payload: CompanyUser = {
+      uid: user.uid,
+      email: user.email || '',
+      firstName,
+      lastName,
+      fullName: displayName,
+      role,
+      status: 'active',
+      profileCompleted: false,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+    await withRetry(() => setDoc(ref, payload, { merge: true }));
+    if (DEBUG_MODE)
+      console.log('[DEBUG][AUTHZ] Created missing membership document', { companyId, uid: user.uid });
+    return payload;
+  } catch (err) {
+    console.error('[DEBUG][AUTHZ] Failed to create membership document', {
+      companyId,
+      uid: user.uid,
+      err,
+    });
+    return null;
   }
 };
 
@@ -809,18 +874,9 @@ export const getPendingInvitations = async (companyId: string): Promise<CompanyI
     return ((payload as any).invites || []) as CompanyInvitation[];
   } catch (err) {
     console.error('[DEBUG][Invite] getCompanyInvitations failed', err);
-    // Provide a clearer error code when the callable is not deployed or functions not reachable
-    const msg = String((err as unknown as { message?: unknown })?.message ?? '').toLowerCase();
-    if (
-      msg.includes('not found') ||
-      msg.includes('unimplemented') ||
-      (err as unknown as { code?: unknown })?.code === 'not-found'
-    ) {
-      const e = new Error('Invitations callable not available') as Error & { code?: string };
-      e.code = 'callable-unavailable';
-      throw e;
-    }
-    throw err;
+    if (DEBUG_MODE)
+      console.warn('[DEBUG][Invite] Falling back to empty invitations list', err?.message || err);
+    return [];
   }
 };
 
@@ -829,30 +885,20 @@ export const inviteUser = async (
   email: string,
   role: UserRole,
   invitedBy: { uid: string; email: string }
-): Promise<CompanyInvitation> => {
-  // Use server-side callable to create invitations — client-side writes to invitations are blocked by rules.
+): Promise<{ success?: boolean; inviteId?: string }> => {
   const fn = httpsCallable(functions, 'createCompanyInvitation');
   try {
-    console.log('[DEBUG][Invite] Calling createCompanyInvitation', { companyId, email, role });
-    const res = await fn({ companyId, email, role, notes: null });
+    const res = await fn({
+      companyId,
+      email,
+      role,
+      notes: `invitedBy:${invitedBy.uid}:${invitedBy.email}`,
+    });
     const payload =
       res && (res as unknown as Record<string, unknown>)['data']
         ? (res as unknown as Record<string, unknown>)['data']
-        : {};
-    const inviteId =
-      payload && (payload as Record<string, unknown>)['inviteId']
-        ? String((payload as Record<string, unknown>)['inviteId'])
-        : '';
-    return {
-      id: inviteId,
-      email,
-      emailLower: email.trim().toLowerCase(),
-      role,
-      invitedByUid: invitedBy.uid,
-      invitedByEmail: invitedBy.email,
-      createdAt: Timestamp.now(),
-      used: false,
-    } as CompanyInvitation;
+        : res;
+    return (payload as { success?: boolean; inviteId?: string }) || {};
   } catch (err) {
     console.error('[DEBUG][Invite] createCompanyInvitation failed', err);
     throw err;
@@ -1188,20 +1234,66 @@ export const getPaymentsByCustomerId = (companyId: string, customerId: string) =
     orderBy: 'date',
   });
 };
+export const getPaymentsByInvoiceId = (companyId: string, invoiceId: string) => {
+  return getData<Payment>(companyId, 'payments', {
+    filters: [['invoiceId', '==', invoiceId]],
+    orderBy: 'date',
+  });
+};
+
+export const getReturns = (companyId: string, options: QueryOptions = {}) =>
+  getData<ReturnDoc>(companyId, 'returns', { orderBy: 'date', ...options });
+export const getReturnsByInvoiceId = (companyId: string, invoiceId: string) => {
+  return getData<ReturnDoc>(companyId, 'returns', {
+    filters: [['invoiceId', '==', invoiceId]],
+    orderBy: 'date',
+  });
+};
+
+export const createReturnAtomic = async (
+  companyId: string,
+  payload: {
+    invoiceId: string;
+    customerId: string;
+    items: ReturnItem[];
+    totalReturnAmount: number;
+    date: string | unknown;
+    reason?: string;
+    mode?: 'refund_cash' | 'credit_note';
+  }
+): Promise<{ id: string }> => {
+  try {
+    const fn = httpsCallable(functions, 'createReturnAtomic');
+    const res = await fn({ companyId, returnDoc: payload });
+    const data =
+      res && (res as unknown as Record<string, unknown>)['data']
+        ? (res as unknown as Record<string, unknown>)['data']
+        : res;
+    const id = data && (data as Record<string, unknown>)['id'];
+    if (typeof id === 'string') return { id };
+    throw new Error('Invalid return response');
+  } catch (err) {
+    console.error('[FIRESTORE] createReturnAtomic failed', err);
+    throw err;
+  }
+};
 
 export const savePayment = async (
   companyId: string,
   payment: Omit<Payment, 'id'> | Payment
 ): Promise<Payment> => {
-  const savedPayment = await saveData<Payment>(companyId, 'payments', payment, 'payments');
+  const now = serverTimestamp();
+  const payload =
+    'id' in payment && payment.id
+      ? { ...payment, updatedAt: now }
+      : { ...payment, createdAt: now, updatedAt: now };
+  const savedPayment = await saveData<Payment>(companyId, 'payments', payload, 'payments');
 
   if (savedPayment.invoiceId) {
     const invoice = await getById<Invoice>(companyId, 'invoices', savedPayment.invoiceId);
     if (invoice && invoice.status !== InvoiceStatus.Paid) {
-      const paymentsResult = await getPaymentsByCustomerId(companyId, invoice.customerId);
-      const totalPaid = paymentsResult.data
-        .filter((p) => p.invoiceId === savedPayment.invoiceId)
-        .reduce((sum, p) => sum + p.amount, 0);
+      const paymentsResult = await getPaymentsByInvoiceId(companyId, savedPayment.invoiceId);
+      const totalPaid = paymentsResult.data.reduce((sum, p) => sum + p.amount, 0);
 
       // Update paymentsSummary and status on the invoice document
       const paid = totalPaid;
@@ -1223,6 +1315,23 @@ export const savePayment = async (
   return savedPayment;
 };
 
+export const totalPaidForInvoice = async (companyId: string, invoiceId: string): Promise<number> => {
+  const paymentsResult = await getPaymentsByInvoiceId(companyId, invoiceId);
+  return paymentsResult.data.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+};
+
+export const customerBalance = async (companyId: string, customerId: string): Promise<number> => {
+  const [invoicesRes, paymentsRes] = await Promise.all([
+    getInvoices(companyId, { filters: [['customerId', '==', customerId]] }),
+    getPaymentsByCustomerId(companyId, customerId),
+  ]);
+  const invoices = invoicesRes.data || [];
+  const payments = paymentsRes.data || [];
+  const totalInvoices = invoices.reduce((sum, inv) => sum + (Number(inv.total) || 0), 0);
+  const totalPayments = payments.reduce((sum, pay) => sum + (Number(pay.amount) || 0), 0);
+  return totalInvoices - totalPayments;
+};
+
 export const getExpenses = (companyId: string, options: QueryOptions = {}) =>
   getData<Expense>(companyId, 'expenses', { orderBy: 'date', ...options });
 export const getExpenseById = (companyId: string, id: string) =>
@@ -1231,6 +1340,30 @@ export const saveExpense = (companyId: string, expense: Omit<Expense, 'id'> | Ex
   saveData<Expense>(companyId, 'expenses', expense, 'expenses');
 export const deleteExpense = (companyId: string, id: string) =>
   deleteData(companyId, 'expenses', id, 'expenses');
+
+export const getPurchases = (companyId: string, options: QueryOptions = {}) =>
+  getData<Purchase>(companyId, 'purchases', { orderBy: 'createdAt', ...options });
+
+export const getSupplierPayments = (companyId: string, options: QueryOptions = {}) =>
+  getData<SupplierPayment>(companyId, 'supplierPayments', { orderBy: 'date', ...options });
+export const getSupplierPaymentsBySupplierId = (companyId: string, supplierId: string) => {
+  return getData<SupplierPayment>(companyId, 'supplierPayments', {
+    filters: [['supplierId', '==', supplierId]],
+    orderBy: 'date',
+  });
+};
+
+export const saveSupplierPayment = async (
+  companyId: string,
+  payment: Omit<SupplierPayment, 'id'> | SupplierPayment
+): Promise<SupplierPayment> => {
+  const now = serverTimestamp();
+  const payload =
+    'id' in payment && payment.id
+      ? { ...payment, updatedAt: now }
+      : { ...payment, createdAt: now, updatedAt: now };
+  return saveData<SupplierPayment>(companyId, 'supplierPayments', payload, 'expenses');
+};
 
 // Journal entries (accounting source of truth)
 export const getJournalEntries = (companyId: string, options: QueryOptions = {}) =>
@@ -1349,17 +1482,6 @@ export const exportSalesCsv = async (
 };
 
 // --- Incoming Receipts (Supplier receiving) ---
-export const getIncomingReceipts = (
-  companyId: string,
-  options: QueryOptions = {}
-): Promise<PaginatedData<IncomingReceipt>> =>
-  getData<IncomingReceipt>(companyId, 'incomingReceipts', { orderBy: 'receivedAt', ...options });
-export const getIncomingReceiptById = (
-  companyId: string,
-  id: string
-): Promise<IncomingReceipt | undefined> =>
-  getById<IncomingReceipt>(companyId, 'incomingReceipts', id);
-
 // Inventory & Ledger reads
 export const getInventory = (
   companyId: string,
@@ -1389,60 +1511,6 @@ export const getReports = (
     orderDirection: 'desc',
     ...options,
   });
-};
-
-export const saveIncomingReceipt = async (
-  companyId: string,
-  receipt: Omit<IncomingReceipt, 'id'> | IncomingReceipt
-): Promise<IncomingReceipt> => {
-  ensureWriteAllowed('products');
-
-  // Basic validation
-  if (!receipt || !receipt.supplierId) throw new Error('Cannot save receipt without supplier');
-  if (!receipt.products || !Array.isArray(receipt.products) || receipt.products.length === 0)
-    throw new Error('Receipt must include at least one product');
-  for (const p of receipt.products) {
-    if (!p.productId) throw new Error('Product id missing in receipt');
-    if (typeof p.quantityReceived !== 'number' || p.quantityReceived <= 0)
-      throw new Error('Quantity must be > 0');
-  }
-
-  // We do not support editing receipts in this function (to avoid complex delta logic).
-  if ('id' in receipt && receipt.id)
-    throw new Error('Editing receipts is not supported in this operation');
-
-  // Run transaction to create receipt and update product stocks atomically
-  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
-  const _idempotencyKey = (receipt as unknown as Record<string, unknown>)['idempotencyKey'] as
-    | string
-    | undefined;
-  // keyRef intentionally unused in client-side flow; server-side callable handles idempotency
-
-  // Prefer server-side callable for atomic incoming receipt processing
-  try {
-    const payload = await createIncomingReceiptAtomic(
-      companyId,
-      receipt as unknown as Record<string, unknown>
-    );
-    const id =
-      payload && (payload.receiptId || payload.id ? payload.receiptId || payload.id : undefined);
-    if (id) {
-      return {
-        id,
-        ...(receipt as IncomingReceipt),
-        receivedAt: Timestamp.now(),
-        createdAt: Timestamp.now(),
-      } as IncomingReceipt;
-    }
-  } catch (callErr) {
-    console.error(
-      '[FIRESTORE] createIncomingReceiptAtomic unavailable or failed; server-side callable is required to perform incoming receipts due to security rules',
-      callErr?.message || callErr
-    );
-    throw new Error(
-      'createIncomingReceiptAtomic callable required: cannot perform incoming receipt client-side'
-    );
-  }
 };
 
 // --- Drafts (client-side editable drafts backed by Firestore) ---
@@ -1483,79 +1551,6 @@ export const deleteDraft = async (companyId: string, key: string): Promise<boole
   } catch (err) {
     console.warn('[FIRESTORE] deleteDraft failed', err);
     return false;
-  }
-};
-
-// Edit existing receipt: compute deltas and apply atomically
-export const editIncomingReceipt = async (
-  companyId: string,
-  receiptId: string,
-  updated: Omit<IncomingReceipt, 'id'> | IncomingReceipt
-): Promise<IncomingReceipt> => {
-  ensureWriteAllowed('products');
-  if (!receiptId) throw new Error('receiptId is required');
-
-  const receiptRef = doc(db, 'companies', companyId, 'incomingReceipts', receiptId);
-
-  try {
-    await runTransaction(db, async (tx) => {
-      const oldSnap = await tx.get(receiptRef);
-      if (!oldSnap.exists()) throw new Error('Receipt not found');
-      const old = oldSnap.data() as Record<string, unknown>;
-
-      // Validate updated payload
-      if (!updated.supplierId) throw new Error('Cannot save receipt without supplier');
-      if (!updated.products || !Array.isArray(updated.products) || updated.products.length === 0)
-        throw new Error('Receipt must include at least one product');
-
-      // Build maps of old and new quantities
-      const oldMap: Record<string, number> = {};
-      for (const p of ((old.products as any[]) || []))
-        oldMap[(p as any).productId] = (oldMap[(p as any).productId] || 0) + ((p as any).quantityReceived || 0);
-      const newMap: Record<string, number> = {};
-      for (const p of ((updated.products as any[]) || []))
-        newMap[(p as any).productId] = (newMap[(p as any).productId] || 0) + ((p as any).quantityReceived || 0);
-
-      // Determine all productIds involved
-      const productIds = Array.from(new Set([...Object.keys(oldMap), ...Object.keys(newMap)]));
-
-      // Apply deltas per product
-      for (const pid of productIds) {
-        const oldQty = oldMap[pid] || 0;
-        const newQty = newMap[pid] || 0;
-        const delta = newQty - oldQty; // positive => increase stock, negative => decrease stock
-        if (delta === 0) continue;
-
-        const prodRef = doc(db, 'companies', companyId, 'products', pid);
-        const prodSnap = await tx.get(prodRef);
-        if (!prodSnap.exists()) throw new Error(`Product not found: ${pid}`);
-        const currentStock = prodSnap.data().stock || 0;
-        const newStock = currentStock + delta;
-        if (newStock < 0)
-          throw new Error(
-            `Insufficient stock for product ${pid}. Current: ${currentStock}, delta: ${delta}`
-          );
-        tx.update(prodRef, { stock: newStock, updatedAt: Timestamp.now() } as unknown as Record<
-          string,
-          unknown
-        >);
-        console.log('🟢 Stock updated for product (edit):', pid, 'delta', delta);
-      }
-
-      // Update the receipt document
-      const payload = { ...updated, updatedAt: serverTimestamp() } as unknown as Record<
-        string,
-        unknown
-      >;
-      tx.set(receiptRef, payload, { merge: true });
-    });
-
-    console.log('🟢 Transaction success: incoming receipt edited', receiptId);
-    const snap = await getDoc(receiptRef);
-    return { id: receiptId, ...(snap.exists() ? snap.data() : updated) } as IncomingReceipt;
-  } catch (err) {
-    console.error('🔴 Edit transaction failed:', err);
-    throw err;
   }
 };
 
@@ -1608,11 +1603,11 @@ export const saveGoodsReceipt = async (
       } as { id: string; ledgerEntries?: StockLedgerEntry[] };
   } catch (callErr) {
     console.error(
-      '[FIRESTORE] createGoodsReceiptAtomic unavailable or failed; server-side callable is required to perform goods receipts due to security rules',
+      '[FIRESTORE] createGoodsReceiptAtomic unavailable or failed; server-side callable is required to perform goods intake due to security rules',
       callErr?.message || callErr
     );
     throw new Error(
-      'createGoodsReceiptAtomic callable required: cannot perform goods receipt client-side'
+      'createGoodsReceiptAtomic callable required: cannot perform goods intake client-side'
     );
   }
 };
@@ -1745,7 +1740,7 @@ export const createPurchaseReturn = async (
     });
     return { id: ref.id };
   } catch (err) {
-    console.error('🔴 createPurchaseReturn failed:', err);
+    console.error('ðŸ”´ createPurchaseReturn failed:', err);
     throw err;
   }
 };
@@ -1797,7 +1792,7 @@ export const createSalesReturn = async (
     });
     return { id: ref.id };
   } catch (err) {
-    console.error('🔴 createSalesReturn failed:', err);
+    console.error('ðŸ”´ createSalesReturn failed:', err);
     throw err;
   }
 };
@@ -1977,3 +1972,6 @@ export const undeleteDocument = async (
 
 // This function is not applicable in Firestore mode, it's for mocks.
 export const populateDummyData = (_companyId: string): Promise<boolean> => Promise.resolve(false);
+
+
+

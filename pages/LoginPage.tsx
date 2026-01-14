@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { signInWithEmail } from '../services/authService';
 import { useNotification } from '../contexts/NotificationContext';
@@ -20,12 +20,11 @@ const LoginPage: React.FC = () => {
     setLoading(true);
     try {
       await signInWithEmail(email, password);
-      // AuthProvider will handle navigation
     } catch (error: unknown) {
-      let message = 'فشل تسجيل الدخول. يرجى التحقق من بريدك الإلكتروني وكلمة المرور.';
+      let message = 'تعذر تسجيل الدخول. تحقق من البريد وكلمة المرور.';
       const code = (error as Record<string, unknown>)?.code as string | undefined;
       if (code === 'auth/invalid-email') {
-        message = 'صيغة البريد الإلكتروني المدخلة غير صحيحة.';
+        message = 'البريد الإلكتروني غير صحيح.';
       } else if (
         code === 'auth/user-not-found' ||
         code === 'auth/wrong-password' ||
@@ -33,7 +32,7 @@ const LoginPage: React.FC = () => {
       ) {
         message = 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
       } else if (code === 'auth/user-disabled') {
-        message = 'تم تعطيل هذا الحساب.';
+        message = 'تم تعطيل حسابك مؤقتًا.';
       }
       addNotification(message, 'error');
       console.error(error instanceof Error ? error.message : String(error));
@@ -43,6 +42,7 @@ const LoginPage: React.FC = () => {
   };
 
   const { config } = useTenantConfig();
+  const lang = config?.language || 'ar';
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-900 flex items-center justify-center p-6">
@@ -50,27 +50,26 @@ const LoginPage: React.FC = () => {
         <div className="hidden md:flex flex-col items-start justify-center space-y-6 p-8 rounded-lg bg-gradient-to-br from-slate-50 to-white shadow">
           <LogoPlaceholder size={84} />
           <h2 className="text-3xl font-extrabold text-slate-900">
-            {config?.businessName || t('app_name', config?.language || 'ar')}
+            {t('app_name', lang)}
           </h2>
           <p className="text-slate-600">
-            {t('login_tagline', config?.language || 'ar') ||
-              'Professional accounting, simple workflows.'}
+            {t('login_tagline', lang) || 'إدارة أعمال احترافية وتجربة بسيطة.'}
           </p>
           <div className="w-full mt-4">
             <ul className="space-y-2 text-sm text-slate-600">
-              <li>• Multi-tenant accounting</li>
-              <li>• Audit trails & period locking</li>
-              <li>• Fast invoicing & inventory</li>
+              <li>• متابعة المبيعات والعملاء</li>
+              <li>• تقارير واضحة في الوقت الحقيقي</li>
+              <li>• إدارة مخزون دقيقة</li>
             </ul>
           </div>
         </div>
         <div className="w-full">
           <div className="text-center mb-6 md:mb-8">
             <h1 className="text-2xl font-semibold text-slate-900">
-              {t('sign_in', config?.language || 'ar') || 'Sign in to your account'}
+              {t('sign_in', lang) || 'تسجيل الدخول'}
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              {t('sign_in_sub', config?.language || 'ar') || 'Enter your credentials to continue'}
+              {t('sign_in_sub', lang) || 'أدخل بياناتك للمتابعة'}
             </p>
           </div>
           <Card>
@@ -100,7 +99,7 @@ const LoginPage: React.FC = () => {
             <p className="mt-4 text-center text-sm text-slate-500">
               ليس لديك حساب؟{' '}
               <Link to="/register" className="font-medium text-primary-600 hover:text-primary-500">
-                أنشئ حساباً جديداً
+                إنشاء حساب جديد
               </Link>
             </p>
           </Card>
@@ -111,3 +110,4 @@ const LoginPage: React.FC = () => {
 };
 
 export default LoginPage;
+

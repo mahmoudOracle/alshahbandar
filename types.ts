@@ -7,8 +7,8 @@ export enum InvoiceStatus {
 }
 
 export enum PaymentType {
-  Cash = 'كاش',
-  Credit = 'آجل',
+  Cash = 'Cash',
+  Credit = 'Credit',
 }
 
 export interface InvoiceItem {
@@ -56,6 +56,7 @@ export interface Product {
   description: string;
   price: number;
   stock: number;
+  reorderLevel?: number;
   sku?: string;
   unit?: string; // e.g., pcs, box
   defaultCost?: number; // suggested purchase cost
@@ -63,12 +64,61 @@ export interface Product {
   attributes?: Record<string, string>;
 }
 
+export type PaymentMethod =
+  | 'كاش'
+  | 'محفظة'
+  | 'إنستاباي'
+  | 'تحويل بنكي'
+  | 'أخرى';
+
 export interface Payment {
+  id: string;
+  customerId: string;
+  customerName?: string;
+  invoiceId?: string;
+  invoiceNumber?: string;
+  amount: number;
+  method: PaymentMethod;
+  date: string | unknown; // ISO 8601 or Firestore Timestamp
+  notes?: string;
+  reference?: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export interface ReturnItem {
+  productId: string;
+  nameSnapshot: string;
+  quantity: number;
+  unitPriceSnapshot: number;
+  lineTotal: number;
+}
+
+export interface ReturnDoc {
   id: string;
   invoiceId: string;
   customerId: string;
+  items: ReturnItem[];
+  totalReturnAmount: number;
+  date: string | unknown;
+  reason?: string;
+  mode?: 'refund_cash' | 'credit_note';
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export interface SupplierPayment {
+  id: string;
+  supplierId: string;
+  supplierName?: string;
+  purchaseId?: string;
   amount: number;
-  date: string; // ISO 8601 format
+  method: PaymentMethod;
+  date: string | unknown;
+  notes?: string;
+  reference?: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
 }
 
 // --- Inventory / Ledger Types ---
@@ -194,9 +244,9 @@ export interface Quote {
 }
 
 export enum Frequency {
-  Weekly = 'أسبوعي',
-  Monthly = 'شهري',
-  Yearly = 'سنوي',
+  Weekly = 'Weekly',
+  Monthly = 'Monthly',
+  Yearly = 'Yearly',
 }
 
 export interface RecurringInvoice {
@@ -228,16 +278,30 @@ export interface PlatformAdmin {
   createdAt: unknown; // serverTimestamp
 }
 
+export interface PlatformUser {
+  uid: string;
+  name: string;
+  email: string;
+  platformAdmin: boolean;
+  createdAt: unknown; // serverTimestamp
+}
+
 export interface Company {
   id: string;
   companyName: string;
-  ownerName: string;
-  phone: string;
-  email: string;
-  country: string;
-  city: string;
+  companyAddress?: string;
+  address?: string;
+  logo?: string;
+  ownerName?: string;
+  phone?: string;
+  email?: string;
+  emailLower?: string;
+  country?: string;
+  city?: string;
   businessType?: string;
   status: 'pending' | 'approved' | 'rejected';
+  plan?: { maxUsers: number };
+  ownerUid?: string | null;
   createdAt: unknown; // serverTimestamp
   updatedAt?: unknown;
 }
@@ -300,25 +364,6 @@ export interface Supplier {
   address?: string;
   notes?: string;
   createdAt?: unknown;
-}
-
-export interface IncomingReceiptProduct {
-  productId: string;
-  productName?: string;
-  quantityReceived: number;
-  note?: string;
-}
-
-export interface IncomingReceipt {
-  id: string;
-  receiptId?: string;
-  supplierId: string;
-  supplierName?: string;
-  products: IncomingReceiptProduct[];
-  receivedBy?: string;
-  receivedAt?: unknown;
-  createdAt?: unknown;
-  idempotencyKey?: string;
 }
 
 // --- Accounting / Journal ---

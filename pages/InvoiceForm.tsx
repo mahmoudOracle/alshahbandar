@@ -143,7 +143,7 @@ const InvoiceForm: React.FC = () => {
       // Allow viewing existing invoices
     } else if (!canWrite) {
       // Disallow creating new ones
-      addNotification('ليس لديك الصلاحية للوصول لهذه الصفحة.', 'error');
+      addNotification('لا تملك صلاحية إنشاء الفاتورة.', 'error');
       navigate('/invoices');
     }
   }, [canWrite, id, navigate, addNotification]);
@@ -172,7 +172,7 @@ const InvoiceForm: React.FC = () => {
             void _total;
             dispatch({ type: 'SET_INITIAL_INVOICE', payload: invoiceData as State });
           } else {
-            addNotification('Invoice not found', 'error');
+            addNotification('لم يتم العثور على الفاتورة.', 'error');
           }
         }
         // Restore draft for new invoices
@@ -244,16 +244,18 @@ const InvoiceForm: React.FC = () => {
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
-    if (!invoice.customerId) newErrors.customerId = 'العميل مطلوب.';
-    if (!invoice.paymentType) newErrors.paymentType = 'نوع الفاتورة مطلوب.';
-    if (!invoice.date) newErrors.date = 'تاريخ الفاتورة مطلوب.';
+    if (!invoice.customerId) newErrors.customerId = 'اختر العميل.';
+    if (!invoice.paymentType) newErrors.paymentType = 'اختر طريقة الدفع.';
+    if (!invoice.date) newErrors.date = 'أدخل تاريخ الفاتورة.';
     else if (isNaN(new Date(invoice.date).getTime())) newErrors.date = 'تاريخ غير صالح.';
-    if (invoice.items.length === 0) newErrors.items = 'يجب إضافة بند واحد على الأقل.';
+    if (invoice.items.length === 0) newErrors.items = 'أضف بندًا واحدًا على الأقل.';
     invoice.items.forEach((item, index) => {
-      if (!item.productId) newErrors[`item_${index}_product`] = 'المنتج مطلوب.';
-      if (item.quantity <= 0)
-        newErrors[`item_${index}_quantity`] = 'الكمية يجب أن تكون أكبر من صفر.';
-      if (item.price < 0) newErrors[`item_${index}_price`] = 'السعر لا يمكن أن يكون سالب.';
+      const productKey = `item_${index}_product`;
+      const qtyKey = `item_${index}_quantity`;
+      const priceKey = `item_${index}_price`;
+      if (!item.productId) newErrors[productKey] = 'اختر الصنف.';
+      if (item.quantity <= 0) newErrors[qtyKey] = 'أدخل كمية صحيحة.';
+      if (item.price < 0) newErrors[priceKey] = 'أدخل سعرًا صحيحًا.';
     });
 
     setErrors(newErrors);
@@ -268,7 +270,7 @@ const InvoiceForm: React.FC = () => {
     });
     setDraftAvailable(false);
     setDraftData(null);
-    addNotification('تم استعادة المسودة.', 'info');
+    addNotification('تمت استعادة المسودة.', 'info');
   };
 
   const handleDiscardDraft = () => {
@@ -285,41 +287,30 @@ const InvoiceForm: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canWrite) {
-      addNotification('صلاحية غير كافية.', 'error');
+      addNotification('لا تملك صلاحية الحفظ.', 'error');
       return;
     }
     if (!validateForm()) {
-      addNotification('يرجى ملء جميع الحقول المطلوبة بشكل صحيح.', 'error');
+      addNotification('تحقق من البيانات قبل الحفظ.', 'error');
       return;
     }
     if (!activeCompanyId) {
-      addNotification('Authentication error. Cannot save invoice.', 'error');
+      addNotification('لا يمكن حفظ الفاتورة بدون شركة فعّالة.', 'error');
       return;
     }
     setSaving(true);
     const invoiceToSave = { ...invoice, subtotal, total };
-    console.log('🟢 [INVOICE] Saving invoice', {
-      companyId: activeCompanyId,
-      id: id || null,
-      invoice: invoiceToSave,
-    });
     try {
       const result = id
         ? await saveInvoice(activeCompanyId, { ...invoiceToSave, id })
         : await saveInvoice(activeCompanyId, invoiceToSave);
       if (result) {
-        console.log('🟢 [INVOICE] Invoice saved', result);
-        addNotification(id ? 'تم تحديث الفاتورة بنجاح!' : 'تم إنشاء الفاتورة بنجاح!', 'success');
+        addNotification(id ? 'تم حفظ التعديل بنجاح.' : 'تم حفظ الفاتورة بنجاح.', 'success');
         navigate('/invoices');
       } else {
-        console.warn('🟡 [INVOICE] saveInvoice returned falsy', result);
-        addNotification('فشل حفظ الفاتورة.', 'error');
+        addNotification('تعذر حفظ الفاتورة.', 'error');
       }
     } catch (error: unknown) {
-      console.error(
-        '🔴 [INVOICE] saveInvoice error',
-        error instanceof Error ? error.message : String(error)
-      );
       addNotification(mapFirestoreError(error), 'error');
     } finally {
       setSaving(false);
@@ -339,7 +330,7 @@ const InvoiceForm: React.FC = () => {
         {draftAvailable && (
           <div className="mb-4 p-3 border-l-4 border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 rounded">
             <div className="flex justify-between items-center">
-              <div>مسودة محفوظة موجودة لهذه الفاتورة. هل تريد استعادتها؟</div>
+              <div>وجدنا مسودة محفوظة. هل تريد استعادتها؟</div>
               <div className="flex gap-2">
                 <Button type="button" onClick={handleRestoreDraft}>
                   استعادة المسودة
@@ -352,7 +343,7 @@ const InvoiceForm: React.FC = () => {
           </div>
         )}
         <fieldset disabled={!canWrite} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <SearchableSelect
               label="العميل"
               required
@@ -365,7 +356,7 @@ const InvoiceForm: React.FC = () => {
             />
 
             <Select
-              label="نوع الفاتورة"
+              label="طريقة الدفع"
               name="paymentType"
               required
               value={invoice.paymentType}
@@ -373,7 +364,7 @@ const InvoiceForm: React.FC = () => {
               error={errors.paymentType}
               options={[
                 { value: PaymentType.Credit, label: 'آجل' },
-                { value: PaymentType.Cash, label: 'كاش' },
+                { value: PaymentType.Cash, label: 'نقدي' },
               ]}
             />
 
@@ -409,9 +400,9 @@ const InvoiceForm: React.FC = () => {
                     error={errors[`item_${index}_product`]}
                     options={products.map((p) => ({
                       value: p.id,
-                      label: `${p.name} (المتاح: ${p.stock})`,
+                      label: `${p.name} (المخزون: ${p.stock})`,
                     }))}
-                    placeholder="ابحث عن منتج"
+                    placeholder="ابحث عن صنف"
                     name={`product_${index}`}
                   />
                   <div className="mt-2">
@@ -423,7 +414,7 @@ const InvoiceForm: React.FC = () => {
                       }}
                       className="text-sm text-primary-600 hover:underline"
                     >
-                      إضافة سريع
+                      إضافة صنف سريع
                     </button>
                   </div>
                 </div>
@@ -506,13 +497,14 @@ const InvoiceForm: React.FC = () => {
                   onAdd={async (p) => {
                     if (!activeCompanyId) return;
                     try {
-                        const saved = await saveProduct(
-                          activeCompanyId,
-                          ({
+                      const saved = await saveProduct(
+                        activeCompanyId,
+                        ({
                             name: p.name,
                             description: p.description || '',
                             price: p.price,
                             stock: p.stock,
+                            reorderLevel: p.reorderLevel ?? 0,
                             sku: p.sku,
                           } as unknown) as Omit<import('../types').Product, 'id'>
                         );
@@ -533,10 +525,10 @@ const InvoiceForm: React.FC = () => {
                       if (quickAddTargetIndex !== null) {
                         handleItemChange(quickAddTargetIndex, 'productId', saved.id);
                       }
-                      addNotification('تم إضافة المنتج بنجاح.', 'success');
+                      addNotification('تمت إضافة الصنف بنجاح.', 'success');
                     } catch (err: unknown) {
                       const msg = err instanceof Error ? err.message : String(err);
-                      addNotification(msg || 'فشل إضافة المنتج.', 'error');
+                      addNotification(msg || 'تعذر إضافة الصنف.', 'error');
                     } finally {
                       setQuickAddVisible(false);
                       setQuickAddTargetIndex(null);
@@ -552,13 +544,13 @@ const InvoiceForm: React.FC = () => {
         <div className="flex flex-col md:flex-row justify-end items-start gap-6 mt-6">
           <div className="w-full md:w-1/3 space-y-2 text-lg">
             <div className="flex justify-between">
-              <span>المجموع الفرعي:</span>
+              <span>الإجمالي الفرعي:</span>
               <span>
                 {subtotal.toFixed(2)} {settings?.currency}
               </span>
             </div>
             <div className="flex justify-between">
-              <span>تكلفة البضاعة المباعة (COGS):</span>
+              <span>تكلفة البضاعة:</span>
               <span>
                 {costTotal.toFixed(2)} {settings?.currency}
               </span>
@@ -570,7 +562,7 @@ const InvoiceForm: React.FC = () => {
               </span>
             </div>
             <div className="flex justify-between text-sm">
-              <span>الربح المتوقع:</span>
+              <span>الربح التقريبي:</span>
               <span>
                 {profit.toFixed(2)} {settings?.currency}
               </span>
@@ -581,7 +573,7 @@ const InvoiceForm: React.FC = () => {
         {canWrite && (
           <div className="flex justify-start pt-6 border-t dark:border-gray-700 mt-6">
             <Button type="submit" loading={saving} size="lg" disabled={saving}>
-              {id ? 'حفظ التعديلات' : 'إنشاء فاتورة'}
+              {id ? 'حفظ التعديل' : 'حفظ الفاتورة'}
             </Button>
           </div>
         )}

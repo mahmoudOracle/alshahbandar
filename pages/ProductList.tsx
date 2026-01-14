@@ -1,15 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { getProducts, deleteProduct, undeleteDocument, saveProduct } from '../services/dataService';
 import { Product } from '../types';
-import {
-  PlusIcon,
-  PencilIcon,
-  TrashIcon,
-  ArchiveBoxIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-} from '@heroicons/react/24/outline';
+import { PlusIcon, PencilIcon, TrashIcon, ArchiveBoxIcon } from '@heroicons/react/24/outline';
 import { useSettings } from '../contexts/SettingsContext';
 import TableSkeleton from '../components/TableSkeleton';
 import EmptyState from '../components/EmptyState';
@@ -23,14 +16,33 @@ import { mapFirestoreError } from '../services/firebaseErrors';
 import QuickAddProduct from '../components/QuickAddProduct';
 import { clearProductCache } from '../services/repositories/products';
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 1000;
+
+const isLowStock = (product: Product) => {
+  const level = Number(product.reorderLevel || 0);
+  if (level <= 0) return false;
+  return Number(product.stock || 0) <= level;
+};
 
 const ProductCard: React.FC<{
   product: Product;
   currency?: string;
   canWrite: boolean;
   onDelete: (id: string) => void;
-}> = ({ product, currency, canWrite, onDelete }) => (
+  onAdjust: (product: Product, delta: number) => void;
+  lowStock: boolean;
+  adjustmentValue: number;
+  onAdjustmentChange: (id: string, value: number) => void;
+}> = ({
+  product,
+  currency,
+  canWrite,
+  onDelete,
+  onAdjust,
+  lowStock,
+  adjustmentValue,
+  onAdjustmentChange,
+}) => (
   <Card padding="sm" className="md:hidden">
     <div className="flex justify-between items-start mb-2">
       <div>
@@ -39,22 +51,70 @@ const ProductCard: React.FC<{
           {product.price.toFixed(2)} {currency}
         </p>
       </div>
-      <span className="font-bold text-primary-600 bg-primary-100 dark:bg-primary-900/50 px-2 py-1 text-xs rounded-full">
-        {product.stock} متبقي
+      <span
+        className={`font-bold px-2 py-1 text-xs rounded-full ${
+          lowStock
+            ? 'text-danger-700 bg-danger-100 dark:bg-danger-900/40'
+            : 'text-primary-600 bg-primary-100 dark:bg-primary-900/50'
+        }`}
+      >
+        المخزون: {product.stock}
       </span>
     </div>
     <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 truncate">{product.description}</p>
+    {Number(product.reorderLevel || 0) > 0 && (
+      <p className="text-xs text-gray-500 mt-1">حد إعادة الطلب: {product.reorderLevel}</p>
+    )}
     {canWrite && (
-      <div className="flex gap-2 mt-3 border-t border-gray-200 dark:border-gray-700 pt-3">
-        <Link to={`/products/edit/${product.id}`} className="flex-1">
-          <Button variant="secondary" size="sm" className="w-full">
-            <PencilIcon className="h-4 w-4 me-2" /> تعديل
+      <>
+        <div className="flex gap-2 mt-3">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="flex-1"
+            onClick={() => onAdjust(product, -1)}
+          >
+            -1
           </Button>
-        </Link>
-        <Button variant="danger" size="sm" className="flex-1" onClick={() => onDelete(product.id)}>
-          <TrashIcon className="h-4 w-4 me-2" /> حذف
-        </Button>
-      </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="flex-1"
+            onClick={() => onAdjust(product, 1)}
+          >
+            +1
+          </Button>
+          <Input
+            type="number"
+            value={String(adjustmentValue)}
+            onChange={(e) => onAdjustmentChange(product.id, Number(e.target.value || 0))}
+            className="flex-1"
+          />
+          <Button
+            variant="primary"
+            size="sm"
+            className="flex-1"
+            onClick={() => onAdjust(product, adjustmentValue)}
+          >
+            تطبيق
+          </Button>
+        </div>
+        <div className="flex gap-2 mt-3 border-t border-gray-200 dark:border-gray-700 pt-3">
+          <Link to={`/products/edit/${product.id}`} className="flex-1">
+            <Button variant="secondary" size="sm" className="w-full">
+              <PencilIcon className="h-4 w-4 me-2" /> تعديل
+            </Button>
+          </Link>
+          <Button
+            variant="danger"
+            size="sm"
+            className="flex-1"
+            onClick={() => onDelete(product.id)}
+          >
+            <TrashIcon className="h-4 w-4 me-2" /> حذف
+          </Button>
+        </div>
+      </>
     )}
   </Card>
 );
@@ -65,14 +125,13 @@ const ProductList: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const location = useLocation();
+  const [filter, setFilter] = useState<'all' | 'low'>('all');
   const [sortBy, setSortBy] = useState<'name_asc' | 'name_desc' | 'price_asc' | 'price_desc'>(
     'name_asc'
   );
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
-
-  const [nextCursor, setNextCursor] = useState<unknown | null>(null);
-  const [prevCursors, setPrevCursors] = useState<unknown[]>([]);
-  const [isLastPage, setIsLastPage] = useState(false);
+  const [stockAdjustments, setStockAdjustments] = useState<Record<string, number>>({});
 
   const { settings, loading: settingsLoading } = useSettings();
   const navigate = useNavigate();
@@ -80,55 +139,42 @@ const ProductList: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editedProduct, setEditedProduct] = useState<Partial<Product> | null>(null);
 
-  const fetchProducts = useCallback(
-    async (cursor?: unknown, direction: 'next' | 'prev' = 'next') => {
-      if (!activeCompanyId) return;
-      setLoading(true);
-      try {
-        const result = await getProducts(activeCompanyId, {
-          limit: PAGE_SIZE,
-          startAfter: cursor as any,
-        });
-
-        // `getProducts` may return either PaginatedData<T> or a plain T[] depending on implementation.
-        if (Array.isArray(result)) {
-          setProducts(result);
-          setNextCursor(null);
-          setIsLastPage(result.length < PAGE_SIZE);
-        } else {
-          const paginated = result as { data?: Product[]; nextCursor?: unknown };
-          setProducts(paginated.data || []);
-          setNextCursor(paginated.nextCursor || null);
-          setIsLastPage(!paginated.nextCursor || (paginated.data || []).length < PAGE_SIZE);
-        }
-
-        if (direction === 'next') {
-          if (cursor) setPrevCursors((prev) => [...prev, cursor]);
-        } else {
-          setPrevCursors((prev) => prev.slice(0, prev.length - 1));
-        }
-      } catch (error: unknown) {
-        addNotification(mapFirestoreError(error), 'error');
-        setProducts([]);
-      } finally {
-        setLoading(false);
+  const fetchProducts = useCallback(async () => {
+    if (!activeCompanyId) return;
+    setLoading(true);
+    try {
+      const result = await getProducts(activeCompanyId, { limit: PAGE_SIZE });
+      if (Array.isArray(result)) {
+        setProducts(result);
+      } else {
+        const paginated = result as { data?: Product[]; nextCursor?: unknown };
+        setProducts(paginated.data || []);
       }
-    },
-    [activeCompanyId, addNotification]
-  );
+    } catch (error: unknown) {
+      addNotification(mapFirestoreError(error), 'error');
+      setProducts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeCompanyId, addNotification]);
 
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
-  const handleNextPage = () => {
-    if (nextCursor) fetchProducts(nextCursor, 'next');
-  };
-  const handlePrevPage = () => {
-    if (prevCursors.length > 0) {
-      fetchProducts(prevCursors[prevCursors.length - 2], 'prev');
-    } else {
-      fetchProducts(undefined, 'prev');
+  const applyStockAdjustment = async (product: Product, delta: number) => {
+    if (!activeCompanyId || !canWrite) return;
+    const nextStock = Number(product.stock || 0) + delta;
+    try {
+      await saveProduct(activeCompanyId, { ...product, stock: Math.max(0, nextStock) });
+      clearProductCache(activeCompanyId);
+      setStockAdjustments((prev) => ({ ...prev, [product.id]: 0 }));
+      setProducts((prev) =>
+        prev.map((p) => (p.id === product.id ? { ...p, stock: Math.max(0, nextStock) } : p))
+      );
+      addNotification('تم تحديث المخزون بنجاح.', 'success');
+    } catch (err: unknown) {
+      addNotification(mapFirestoreError(err), 'error');
     }
   };
 
@@ -137,23 +183,22 @@ const ProductList: React.FC = () => {
       try {
         const result = await deleteProduct(activeCompanyId, productToDelete.id);
         if (result) {
-          addNotification('تم حذف المنتج بنجاح!', 'success');
-          addNotification('تم حذف المنتج بنجاح.', 'success', {
+          addNotification('تم حذف المنتج.', 'success', {
             label: 'تراجع',
             onClick: async () => {
               try {
                 const ok = await undeleteDocument(activeCompanyId, 'products', productToDelete.id);
                 if (ok) {
-                  await fetchProducts(prevCursors[prevCursors.length - 1] || undefined);
+                  await fetchProducts();
                 }
               } catch (e) {
                 console.error(e);
               }
             },
           });
-          fetchProducts(prevCursors[prevCursors.length - 1] || undefined);
+          fetchProducts();
         } else {
-          addNotification('فشل حذف المنتج.', 'error');
+          addNotification('تعذر حذف المنتج.', 'error');
         }
       } catch (error: unknown) {
         addNotification(mapFirestoreError(error), 'error');
@@ -162,10 +207,19 @@ const ProductList: React.FC = () => {
     setProductToDelete(null);
   };
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const f = params.get('filter');
+    if (f === 'low') setFilter('low');
+  }, [location.search]);
+
   const filteredProducts = useMemo(() => {
     let list = products.filter((product) =>
       (product.name || '').toLowerCase().includes((searchTerm || '').toLowerCase())
     );
+    if (filter === 'low') {
+      list = list.filter((p) => isLowStock(p));
+    }
     if (sortBy === 'name_asc')
       list = list.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
     if (sortBy === 'name_desc')
@@ -173,7 +227,7 @@ const ProductList: React.FC = () => {
     if (sortBy === 'price_asc') list = list.sort((a, b) => (a.price || 0) - (b.price || 0));
     if (sortBy === 'price_desc') list = list.sort((a, b) => (b.price || 0) - (a.price || 0));
     return list;
-  }, [products, searchTerm, sortBy]);
+  }, [products, searchTerm, sortBy, filter]);
 
   if (loading || settingsLoading) return <TableSkeleton cols={5} rows={PAGE_SIZE} />;
 
@@ -181,21 +235,25 @@ const ProductList: React.FC = () => {
     return (
       <EmptyState
         icon={<ArchiveBoxIcon className="h-8 w-8" />}
-        title="لا توجد منتجات بعد"
+        title="لا توجد منتجات"
         message={
           canWrite
-            ? 'ابدأ بإضافة أول منتج أو خدمة لإنشاء الفواتير.'
-            : 'لم يتم إضافة أي منتجات حتى الآن.'
+            ? 'ابدأ بإضافة منتج جديد لإدارة المخزون.'
+            : 'لا توجد منتجات متاحة للعرض.'
         }
-        action={
-          canWrite ? { text: 'إضافة منتج', onClick: () => navigate('/products/new') } : undefined
-        }
+        action={canWrite ? { text: 'إضافة منتج', onClick: () => navigate('/products/new') } : undefined}
       />
     );
   }
 
   return (
     <Card>
+      <div className="mb-4">
+        <h2 className="text-xl font-bold">المنتجات والمخزون</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          تتبع المنتجات وكميات المخزون وإدارة الأسعار بشكل عملي.
+        </p>
+      </div>
       <div className="flex flex-col md:flex-row justify-between items-start mb-4 gap-4">
         {canWrite && (
           <div className="w-full md:w-80 mb-2 md:mb-0">
@@ -208,10 +266,11 @@ const ProductList: React.FC = () => {
                     description: p.description || '',
                     price: p.price,
                     stock: p.stock,
+                    reorderLevel: p.reorderLevel ?? 0,
                   } as any);
                   clearProductCache(activeCompanyId);
-                  addNotification('تمت إضافة المنتج بنجاح', 'success');
-                  fetchProducts(prevCursors[prevCursors.length - 1] || undefined);
+                  addNotification('تمت إضافة المنتج بنجاح.', 'success');
+                  fetchProducts();
                 } catch (err: unknown) {
                   addNotification(mapFirestoreError(err), 'error');
                 }
@@ -240,8 +299,16 @@ const ProductList: React.FC = () => {
           >
             <option value="name_asc">الاسم (أ-ي)</option>
             <option value="name_desc">الاسم (ي-أ)</option>
-            <option value="price_asc">السعر (من الأقل)</option>
-            <option value="price_desc">السعر (من الأعلى)</option>
+            <option value="price_asc">السعر (الأقل أولاً)</option>
+            <option value="price_desc">السعر (الأعلى أولاً)</option>
+          </select>
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as 'all' | 'low')}
+            className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700"
+          >
+            <option value="all">الكل</option>
+            <option value="low">منخفض</option>
           </select>
         </div>
         {canWrite && (
@@ -259,7 +326,7 @@ const ProductList: React.FC = () => {
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                اسم المنتج
+                المنتج
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
                 السعر
@@ -267,6 +334,14 @@ const ProductList: React.FC = () => {
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
                 المخزون
               </th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                حد إعادة الطلب
+              </th>
+              {canWrite && (
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                  تعديل المخزون
+                </th>
+              )}
               {canWrite && (
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
                   إجراءات
@@ -313,6 +388,17 @@ const ProductList: React.FC = () => {
                         }
                       />
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <Input
+                        value={String(editedProduct?.reorderLevel ?? product.reorderLevel ?? 0)}
+                        onChange={(e) =>
+                          setEditedProduct((p) => ({
+                            ...(p || {}),
+                            reorderLevel: parseInt(e.target.value || '0'),
+                          }))
+                        }
+                      />
+                    </td>
                     {canWrite && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center gap-2">
@@ -327,6 +413,9 @@ const ProductList: React.FC = () => {
                                   name: editedProduct.name ?? product.name,
                                   price: Number(editedProduct.price ?? product.price),
                                   stock: Number(editedProduct.stock ?? product.stock),
+                                  reorderLevel: Number(
+                                    editedProduct.reorderLevel ?? product.reorderLevel ?? 0
+                                  ),
                                 } as Product;
                                 await saveProduct(activeCompanyId, toSave);
                                 try {
@@ -334,12 +423,10 @@ const ProductList: React.FC = () => {
                                 } catch (e) {
                                   /* ignore cache clear errors */
                                 }
-                                addNotification('تم حفظ المنتج بنجاح.', 'success');
+                                addNotification('تم حفظ التعديل.', 'success');
                                 setEditingId(null);
                                 setEditedProduct(null);
-                                await fetchProducts(
-                                  prevCursors[prevCursors.length - 1] || undefined
-                                );
+                                await fetchProducts();
                               } catch (err: unknown) {
                                 addNotification(mapFirestoreError(err), 'error');
                               }
@@ -367,7 +454,60 @@ const ProductList: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       {product.price.toFixed(2)} {settings?.currency}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">{product.stock}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`px-2 py-1 text-xs rounded-full ${
+                          isLowStock(product)
+                            ? 'text-danger-700 bg-danger-100 dark:bg-danger-900/40'
+                            : 'text-primary-600 bg-primary-100 dark:bg-primary-900/50'
+                        }`}
+                      >
+                        {product.stock}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {Number(product.reorderLevel || 0) > 0 ? product.reorderLevel : 'غير محدد'}
+                    </td>
+                    {canWrite && (
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => applyStockAdjustment(product, -1)}
+                          >
+                            -1
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => applyStockAdjustment(product, 1)}
+                          >
+                            +1
+                          </Button>
+                          <Input
+                            type="number"
+                            value={String(stockAdjustments[product.id] ?? 0)}
+                            onChange={(e) =>
+                              setStockAdjustments((prev) => ({
+                                ...prev,
+                                [product.id]: Number(e.target.value || 0),
+                              }))
+                            }
+                            className="w-20"
+                          />
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() =>
+                              applyStockAdjustment(product, stockAdjustments[product.id] ?? 0)
+                            }
+                          >
+                            تطبيق
+                          </Button>
+                        </div>
+                      </td>
+                    )}
                     {canWrite && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center gap-2">
@@ -378,6 +518,7 @@ const ProductList: React.FC = () => {
                                 name: product.name,
                                 price: product.price,
                                 stock: product.stock,
+                                reorderLevel: product.reorderLevel ?? 0,
                               });
                             }}
                             className="text-gray-600 hover:text-gray-900 p-2"
@@ -411,45 +552,30 @@ const ProductList: React.FC = () => {
             currency={settings?.currency}
             canWrite={canWrite}
             onDelete={() => setProductToDelete(product)}
+            onAdjust={applyStockAdjustment}
+            lowStock={isLowStock(product)}
+            adjustmentValue={stockAdjustments[product.id] ?? 0}
+            onAdjustmentChange={(id, value) =>
+              setStockAdjustments((prev) => ({ ...prev, [id]: value }))
+            }
           />
         ))}
       </div>
 
-      <div className="flex justify-center items-center mt-6 gap-2">
-        <Button
-          onClick={handlePrevPage}
-          disabled={prevCursors.length === 0}
-          variant="secondary"
-          size="sm"
-          aria-label="Previous Page"
-        >
-          <ChevronRightIcon className="h-5 w-5" />
-        </Button>
-        <Button
-          onClick={handleNextPage}
-          disabled={isLastPage}
-          variant="secondary"
-          size="sm"
-          aria-label="Next Page"
-        >
-          <ChevronLeftIcon className="h-5 w-5" />
-        </Button>
-      </div>
-
       {filteredProducts.length === 0 && (
         <div className="text-center py-10">
-          <p>لا توجد منتجات تطابق بحثك.</p>
+          <p>
+            {filter === 'low'
+              ? 'لا توجد أصناف منخفضة حالياً.'
+              : 'لا توجد نتائج مطابقة للبحث.'}
+          </p>
         </div>
       )}
 
-      <Modal
-        isOpen={!!productToDelete}
-        onClose={() => setProductToDelete(null)}
-        title="تأكيد الحذف"
-      >
+      <Modal isOpen={!!productToDelete} onClose={() => setProductToDelete(null)} title="تأكيد الحذف">
         <p>
-          هل أنت متأكد من رغبتك في حذف المنتج "{productToDelete?.name}"؟ لا يمكن التراجع عن هذا
-          الإجراء.
+          هل أنت متأكد من حذف المنتج &quot;{productToDelete?.name}&quot;؟ يمكنك التراجع عن الحذف
+          لاحقًا.
         </p>
         <div className="flex justify-end gap-4 mt-6">
           <Button variant="secondary" onClick={() => setProductToDelete(null)}>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getCustomers } from '../services/dataService';
-import { Customer } from '../types';
+import { Customer, UserRole } from '../types';
 import {
   PlusIcon,
   EyeIcon,
@@ -27,10 +27,11 @@ const PAGE_SIZE = 15;
 
 const CustomerCard: React.FC<{
   customer: Customer;
-  canWrite: boolean;
+  canCreatePayments: boolean;
+  canWriteCustomers: boolean;
   onAddPayment: (customer: Customer) => void;
   onNavigate: (path: string) => void;
-}> = ({ customer, canWrite, onAddPayment, onNavigate }) => (
+}> = ({ customer, canCreatePayments, canWriteCustomers, onAddPayment, onNavigate }) => (
   <Card
     padding="sm"
     className="md:hidden cursor-pointer"
@@ -46,7 +47,7 @@ const CustomerCard: React.FC<{
       </Badge>
     </div>
     <div className="flex gap-2 mt-3 border-t border-gray-200 dark:border-gray-700 pt-3">
-      {canWrite && (
+      {canCreatePayments && (
         <Button
           variant="secondary"
           size="sm"
@@ -57,26 +58,32 @@ const CustomerCard: React.FC<{
           }}
         >
           <WalletIcon className="h-4 w-4 me-2" />
-          إضافة دفعة
+          تسجيل دفعة
         </Button>
       )}
-      <Link
-        to={`/customers/edit/${customer.id}`}
-        className="w-full"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Button variant="ghost" size="sm" className="w-full">
-          <PencilIcon className="h-4 w-4 me-2" />
-          تعديل
-        </Button>
-      </Link>
+      {canWriteCustomers && (
+        <Link
+          to={`/customers/edit/${customer.id}`}
+          className="w-full"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Button variant="ghost" size="sm" className="w-full">
+            <PencilIcon className="h-4 w-4 me-2" />
+            تعديل
+          </Button>
+        </Link>
+      )}
     </div>
   </Card>
 );
 
 const CustomerList: React.FC = () => {
-  const { activeCompanyId } = useAuth();
-  const canWrite = useCanWrite('customers');
+  const { activeCompanyId, activeRole } = useAuth();
+  const canCreatePayments =
+    activeRole === UserRole.Owner ||
+    activeRole === UserRole.Manager ||
+    activeRole === UserRole.Employee;
+  const canWriteCustomers = useCanWrite('customers');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInactive, setShowInactive] = useState(false);
@@ -160,6 +167,10 @@ const CustomerList: React.FC = () => {
   }, [customers, showInactive, searchTerm, sortBy]);
 
   const handleOpenPaymentModal = (customer: Customer) => {
+    if (!canCreatePayments) {
+      addNotification('لا تملك صلاحية تسجيل الدفعات.', 'error');
+      return;
+    }
     setSelectedCustomer(customer);
     setIsPaymentModalOpen(true);
   };
@@ -177,9 +188,11 @@ const CustomerList: React.FC = () => {
       <EmptyState
         icon={<UsersIcon className="h-8 w-8" />}
         title="لا يوجد عملاء بعد"
-        message="ابدأ بإضافة عميلك الأول لتتمكن من إنشاء فواتير له."
+        message="ابدأ بإضافة أول عميل لتتبع الفواتير والمدفوعات."
         action={
-          canWrite ? { text: 'إضافة عميل', onClick: () => navigate('/customers/new') } : undefined
+          canWriteCustomers
+            ? { text: 'إضافة عميل', onClick: () => navigate('/customers/new') }
+            : undefined
         }
       />
     );
@@ -194,14 +207,14 @@ const CustomerList: React.FC = () => {
             className="w-full md:w-64"
             onChange={(e) => setSearchTerm(e.target.value)}
           />
-          <label className="flex items-center gap-2 cursor-pointer">
+          <label className="flex items-center gap-2 cursor-pointer text-sm">
             <input
               type="checkbox"
               checked={showInactive}
               onChange={() => setShowInactive(!showInactive)}
               className="form-checkbox h-5 w-5 text-primary-600 rounded"
             />
-            <span className="text-sm">إظهار العملاء غير النشطين</span>
+            إظهار العملاء غير النشطين
           </label>
         </div>
         <div className="flex items-center gap-2 w-full md:w-auto">
@@ -217,7 +230,7 @@ const CustomerList: React.FC = () => {
             <option value="name_desc">الاسم (ي-أ)</option>
             <option value="recent">الأحدث</option>
           </select>
-          {canWrite && (
+          {canWriteCustomers && (
             <Link to="/customers/new" className="w-full md:w-auto">
               <Button variant="primary" className="w-full">
                 <PlusIcon className="h-5 w-5 me-2" />
@@ -227,6 +240,12 @@ const CustomerList: React.FC = () => {
           )}
         </div>
       </div>
+
+      {!canCreatePayments && (
+        <div className="mb-4 text-sm text-warning-700 bg-warning-50 border border-warning-200 rounded p-3">
+          لا تملك صلاحية تسجيل الدفعات.
+        </div>
+      )}
 
       <div className="hidden md:block overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -269,11 +288,11 @@ const CustomerList: React.FC = () => {
                         e.stopPropagation();
                         navigate(`/customers/${customer.id}`);
                       }}
-                      aria-label="عرض التفاصيل"
+                      aria-label="عرض العميل"
                     >
                       <EyeIcon className="h-5 w-5" />
                     </Button>
-                    {canWrite && (
+                    {canCreatePayments && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -281,7 +300,7 @@ const CustomerList: React.FC = () => {
                           e.stopPropagation();
                           handleOpenPaymentModal(customer);
                         }}
-                        aria-label="إضافة دفعة"
+                        aria-label="تسجيل دفعة"
                       >
                         <WalletIcon className="h-5 w-5" />
                       </Button>
@@ -299,7 +318,8 @@ const CustomerList: React.FC = () => {
           <CustomerCard
             key={customer.id}
             customer={customer}
-            canWrite={canWrite}
+            canCreatePayments={canCreatePayments}
+            canWriteCustomers={canWriteCustomers}
             onAddPayment={handleOpenPaymentModal}
             onNavigate={navigate}
           />
@@ -330,7 +350,7 @@ const CustomerList: React.FC = () => {
       <Modal
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
-        title={`إضافة دفعة لـ ${selectedCustomer?.name}`}
+        title={`تسجيل دفعة - ${selectedCustomer?.name}`}
       >
         {selectedCustomer && (
           <PaymentForm

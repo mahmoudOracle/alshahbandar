@@ -1,37 +1,75 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import TableSkeleton from '../components/TableSkeleton';
 import EmptyState from '../components/EmptyState';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import {
   getSuppliers,
   saveSupplier,
   deleteSupplier,
-  saveIncomingReceipt,
+  getPurchases,
+  getSupplierPaymentsBySupplierId,
+  saveSupplierPayment,
 } from '../services/dataService';
-import useProducts from '../hooks/useProducts';
-import { Product, IncomingReceipt } from '../types';
+import { Supplier, SupplierPayment } from '../types';
+import { mapFirestoreError } from '../services/firebaseErrors';
+import { Modal } from '../components/ui/Modal';
+import DateInput from '../components/ui/DateInput';
+import { Select } from '../components/ui/Select';
+import PrintableReport from '../components/PrintableReport';
+import { exportElementAs } from '../services/exportUtils';
+import { Timestamp } from 'firebase/firestore';
+import { useSettings } from '../contexts/SettingsContext';
+
+const PAYMENT_METHODS = ['كاش', 'محفظة', 'إنستاباي', 'تحويل بنكي', 'أخرى'] as const;
+
+const toIsoDate = (date: Date) => date.toISOString().split('T')[0];
+
+const toDateValue = (value: unknown): Date | null => {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  const maybe = value as { toDate?: () => Date };
+  if (typeof maybe.toDate === 'function') return maybe.toDate();
+  return null;
+};
 
 const SuppliersPage: React.FC = () => {
   const { activeCompanyId } = useAuth();
+  const canWriteSuppliers = useCanWrite('settings');
+  const canManagePayments = useCanWrite('expenses');
+  const { settings } = useSettings();
   const { addNotification } = useNotification();
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [suppliers, setSuppliers] = useState<Record<string, unknown>[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [editing, setEditing] = useState<Partial<Supplier> | null>(null);
   const [saving, setSaving] = useState(false);
-  const [showReceiptModal, setShowReceiptModal] = useState(false);
-  const [receiptItems, setReceiptItems] = useState<Record<string, unknown>[]>([]);
-  const { products } = useProducts(activeCompanyId);
-  const [submittingReceipt, setSubmittingReceipt] = useState(false);
+  const [statementOpen, setStatementOpen] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([]);
+  const [purchases, setPurchases] = useState<any[]>([]);
+  const [dateRange, setDateRange] = useState(() => ({
+    start: toIsoDate(new Date(new Date().setDate(new Date().getDate() - 90))),
+    end: toIsoDate(new Date()),
+  }));
+  const printableRef = useRef<HTMLDivElement | null>(null);
 
-  const fetch = async () => {
+  const [paymentAmount, setPaymentAmount] = useState(0);
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentMethod, setPaymentMethod] = useState<(typeof PAYMENT_METHODS)[number] | ''>('');
+  const [paymentNotes, setPaymentNotes] = useState('');
+  const [paymentReference, setPaymentReference] = useState('');
+  const [paymentSaving, setPaymentSaving] = useState(false);
+
+  const fetchSuppliers = async () => {
     if (!activeCompanyId) return;
     setLoading(true);
     try {
@@ -39,7 +77,7 @@ const SuppliersPage: React.FC = () => {
       setSuppliers(res.data || []);
     } catch (err: unknown) {
       addNotification(
-        String((err as unknown as { message?: unknown })?.message ?? 'Failed to load suppliers'),
+        String((err as unknown as { message?: unknown })?.message ?? 'تعذر تحميل الموردين'),
         'error'
       );
       setSuppliers([]);
@@ -49,7 +87,7 @@ const SuppliersPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetch();
+    fetchSuppliers();
   }, [activeCompanyId]);
 
   const handleSave = async (e?: React.FormEvent) => {
@@ -57,14 +95,14 @@ const SuppliersPage: React.FC = () => {
     if (!activeCompanyId || !editing) return;
     setSaving(true);
     try {
-      await saveSupplier(activeCompanyId, editing as unknown as Record<string, unknown>);
-      addNotification('Supplier saved', 'success');
+      await saveSupplier(activeCompanyId, editing as Record<string, unknown>);
+      addNotification('تم حفظ المورد.', 'success');
       setFormOpen(false);
       setEditing(null);
-      await fetch();
+      await fetchSuppliers();
     } catch (err: unknown) {
       addNotification(
-        String((err as unknown as { message?: unknown })?.message ?? 'Failed to save supplier'),
+        String((err as unknown as { message?: unknown })?.message ?? 'تعذر حفظ المورد'),
         'error'
       );
     } finally {
@@ -76,72 +114,134 @@ const SuppliersPage: React.FC = () => {
     if (!activeCompanyId) return;
     try {
       await deleteSupplier(activeCompanyId, id);
-      addNotification('Supplier deleted', 'success');
-      await fetch();
+      addNotification('تم حذف المورد.', 'success');
+      await fetchSuppliers();
     } catch (err: unknown) {
       addNotification(
-        String((err as unknown as { message?: unknown })?.message ?? 'Failed to delete supplier'),
+        String((err as unknown as { message?: unknown })?.message ?? 'تعذر حذف المورد'),
         'error'
       );
     }
   };
 
-  const addReceiptRow = (product?: Product) => {
-    setReceiptItems((prev) => [
-      ...prev,
-      {
-        productId: product?.id || '',
-        productName: product?.name || '',
-        quantityReceived: 1,
-        note: '',
-      },
-    ]);
-  };
+  const filtered = suppliers.filter((s) =>
+    String(s.supplierName || '').toLowerCase().includes(search.toLowerCase())
+  );
 
-  const updateReceiptRow = (index: number, changes: Partial<Record<string, unknown>>) =>
-    setReceiptItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...changes } : it)));
-
-  const submitReceipt = async () => {
-    if (!activeCompanyId || !editing) return addNotification('בחר ספק', 'error');
-    if (!receiptItems || receiptItems.length === 0)
-      return addNotification('أضف منتجًا واحدًا على الأقل', 'error');
-    setSubmittingReceipt(true);
+  const openStatement = async (supplier: Supplier) => {
+    if (!activeCompanyId) return;
+    setSelectedSupplier(supplier);
+    setStatementOpen(true);
     try {
-      const cryptoWithRandom =
-        typeof crypto !== 'undefined'
-          ? (crypto as unknown as { randomUUID?: () => string })
-          : undefined;
-      const idempotencyKey = cryptoWithRandom?.randomUUID
-        ? cryptoWithRandom.randomUUID()
-        : String(Date.now());
-      const payload = {
-        supplierId: (editing as Record<string, unknown>)['id'],
-        products: receiptItems.map((r) => ({
-          productId: (r as Record<string, unknown>)['productId'],
-          productName: (r as Record<string, unknown>)['productName'],
-          quantityReceived: Number((r as Record<string, unknown>)['quantityReceived']),
-          note: (r as Record<string, unknown>)['note'],
-        })),
-        idempotencyKey,
-      };
-      await saveIncomingReceipt(activeCompanyId, (payload as unknown) as Omit<IncomingReceipt, 'id'>);
-      addNotification('تم حفظ السند وتحديث المخزون', 'success');
-      setShowReceiptModal(false);
-      setReceiptItems([]);
-      await fetch();
+      const [purchaseRes, paymentRes] = await Promise.all([
+        getPurchases(activeCompanyId, { filters: [['supplierId', '==', supplier.id]] }),
+        getSupplierPaymentsBySupplierId(activeCompanyId, supplier.id),
+      ]);
+      setPurchases((purchaseRes as any).data || []);
+      setSupplierPayments(paymentRes.data || []);
     } catch (err: unknown) {
-      const code = (err as unknown as { code?: unknown })?.code;
-      const msg = String((err as unknown as { message?: unknown })?.message ?? 'فشل حفظ السند');
-      if (code === 'duplicate-receipt') addNotification('تم إرسال هذا السند من قبل', 'error');
-      else addNotification(msg, 'error');
-    } finally {
-      setSubmittingReceipt(false);
+      addNotification(mapFirestoreError(err), 'error');
     }
   };
 
-  const filtered = suppliers.filter((s) =>
-    (s.supplierName || '').toLowerCase().includes(search.toLowerCase())
-  );
+  const statement = useMemo(() => {
+    const start = new Date(dateRange.start);
+    const end = new Date(dateRange.end);
+    end.setHours(23, 59, 59, 999);
+
+    const purchaseRows = purchases
+      .map((p) => ({ p, date: toDateValue(p.createdAt) }))
+      .filter((item) => item.date && item.date >= start && item.date <= end)
+      .map((item) => item.p);
+
+    const paymentRows = supplierPayments
+      .map((p) => ({ p, date: toDateValue(p.date) }))
+      .filter((item) => item.date && item.date >= start && item.date <= end)
+      .map((item) => item.p);
+
+    const rows = [
+      ...purchaseRows.map((p) => ({
+        date: toDateValue(p.createdAt) || new Date(),
+        description: `مشتريات${p.invoiceNumber ? ` #${p.invoiceNumber}` : ''}`,
+        debit: Number(p.totalAmount || p.total || 0),
+        credit: 0,
+      })),
+      ...paymentRows.map((p) => ({
+        date: toDateValue(p.date) || new Date(),
+        description: `دفعة (${p.method || 'أخرى'})${p.notes ? ` - ${p.notes}` : ''}`,
+        debit: 0,
+        credit: Number(p.amount || 0),
+      })),
+    ].sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    let running = 0;
+    const withBalance = rows.map((row) => {
+      running += row.debit - row.credit;
+      return { ...row, balance: running };
+    });
+
+    const totalPurchases = purchaseRows.reduce(
+      (sum, p) => sum + Number(p.totalAmount || p.total || 0),
+      0
+    );
+    const totalPaid = paymentRows.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+    return {
+      rows: withBalance,
+      totalPurchases,
+      totalPaid,
+      remaining: totalPurchases - totalPaid,
+    };
+  }, [purchases, supplierPayments, dateRange]);
+
+  const exportStatement = async (format: 'pdf' | 'png') => {
+    if (!printableRef.current || !selectedSupplier) return;
+    await exportElementAs(
+      printableRef.current,
+      `supplier-statement-${selectedSupplier.id}-${dateRange.start}-${dateRange.end}`,
+      format
+    );
+  };
+
+  const saveSupplierPay = async () => {
+    if (!activeCompanyId || !selectedSupplier) return;
+    if (!paymentMethod) {
+      addNotification('اختر طريقة الدفع.', 'error');
+      return;
+    }
+    if (paymentAmount <= 0) {
+      addNotification('أدخل مبلغًا صحيحًا.', 'error');
+      return;
+    }
+    const parsed = new Date(paymentDate);
+    if (Number.isNaN(parsed.getTime())) {
+      addNotification('تاريخ الدفع غير صالح.', 'error');
+      return;
+    }
+    setPaymentSaving(true);
+    try {
+      await saveSupplierPayment(activeCompanyId, {
+        supplierId: selectedSupplier.id,
+        supplierName: selectedSupplier.supplierName,
+        amount: Number(paymentAmount),
+        method: paymentMethod,
+        date: Timestamp.fromDate(parsed),
+        notes: paymentNotes || undefined,
+        reference: paymentReference || undefined,
+      });
+      setPaymentAmount(0);
+      setPaymentNotes('');
+      setPaymentReference('');
+      setPaymentMethod('');
+      const paymentRes = await getSupplierPaymentsBySupplierId(activeCompanyId, selectedSupplier.id);
+      setSupplierPayments(paymentRes.data || []);
+      addNotification('تم تسجيل دفعة المورد.', 'success');
+    } catch (err: unknown) {
+      addNotification(mapFirestoreError(err), 'error');
+    } finally {
+      setPaymentSaving(false);
+    }
+  };
 
   if (loading) return <TableSkeleton cols={4} rows={8} />;
 
@@ -151,28 +251,34 @@ const SuppliersPage: React.FC = () => {
         <h2 className="text-xl font-bold">الموردون</h2>
         <div className="flex gap-2">
           <Input placeholder="ابحث..." value={search} onChange={(e) => setSearch(e.target.value)} />
-          <Button
-            onClick={() => {
-              setEditing({});
-              setFormOpen(true);
-            }}
-          >
-            إضافة مورد
-          </Button>
+          {canWriteSuppliers && (
+            <Button
+              onClick={() => {
+                setEditing({});
+                setFormOpen(true);
+              }}
+            >
+              إضافة مورد
+            </Button>
+          )}
         </div>
       </div>
 
       {filtered.length === 0 && (
         <EmptyState
-          title="لا توجد موردين"
-          message="أضف موردًا جديدًا لبدء تسجيل الواردات."
-          action={{
-            text: 'إضافة مورد',
-            onClick: () => {
-              setEditing({});
-              setFormOpen(true);
-            },
-          }}
+          title="لا يوجد موردون بعد"
+          message="أضف موردًا لتسجيل المشتريات وتتبع المدفوعات."
+          action={
+            canWriteSuppliers
+              ? {
+                  text: 'إضافة مورد',
+                  onClick: () => {
+                    setEditing({});
+                    setFormOpen(true);
+                  },
+                }
+              : undefined
+          }
         />
       )}
 
@@ -185,36 +291,37 @@ const SuppliersPage: React.FC = () => {
                 <th className="px-4 py-2 text-right">الشركة</th>
                 <th className="px-4 py-2 text-right">الهاتف</th>
                 <th className="px-4 py-2 text-right">البريد</th>
-                <th className="px-4 py-2 text-right">إجراءات</th>
+                <th className="px-4 py-2 text-right">الإجراءات</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((s) => (
-                <tr key={s.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2">{s.supplierName}</td>
-                  <td className="px-4 py-2">{s.companyName}</td>
-                  <td className="px-4 py-2">{s.phone}</td>
-                  <td className="px-4 py-2">{s.email}</td>
+                <tr key={String(s.id)} className="hover:bg-gray-50">
+                  <td className="px-4 py-2">{String(s.supplierName || '')}</td>
+                  <td className="px-4 py-2">{String(s.companyName || '')}</td>
+                  <td className="px-4 py-2">{String(s.phone || '')}</td>
+                  <td className="px-4 py-2">{String(s.email || '')}</td>
                   <td className="px-4 py-2">
                     <div className="flex gap-2">
-                      <Button
-                        variant="secondary"
-                        onClick={() => navigate(`/receipts?supplierId=${s.id}`)}
-                      >
-                        عرض السندات
+                      <Button variant="secondary" onClick={() => openStatement(s)}>
+                        كشف الحساب
                       </Button>
-                      <Button
-                        variant="secondary"
-                        onClick={() => {
-                          setEditing(s);
-                          setFormOpen(true);
-                        }}
-                      >
-                        تعديل
-                      </Button>
-                      <Button variant="danger" onClick={() => handleDelete(s.id)}>
-                        حذف
-                      </Button>
+                      {canWriteSuppliers && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            setEditing(s);
+                            setFormOpen(true);
+                          }}
+                        >
+                          تعديل
+                        </Button>
+                      )}
+                      {canWriteSuppliers && (
+                        <Button variant="danger" onClick={() => handleDelete(String(s.id))}>
+                          حذف
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -238,12 +345,12 @@ const SuppliersPage: React.FC = () => {
             onChange={(e) => setEditing({ ...editing, companyName: e.target.value })}
           />
           <Input
-            placeholder="الهاتف"
+            placeholder="رقم الهاتف"
             value={editing?.phone || ''}
             onChange={(e) => setEditing({ ...editing, phone: e.target.value })}
           />
           <Input
-            placeholder="البريد"
+            placeholder="البريد الإلكتروني"
             value={editing?.email || ''}
             onChange={(e) => setEditing({ ...editing, email: e.target.value })}
           />
@@ -254,7 +361,7 @@ const SuppliersPage: React.FC = () => {
           />
           <div className="flex gap-2">
             <Button type="submit" disabled={saving}>
-              {saving ? 'جارٍ الحفظ...' : 'حفظ'}
+              {saving ? 'جاري الحفظ...' : 'حفظ'}
             </Button>
             <Button
               variant="secondary"
@@ -269,107 +376,161 @@ const SuppliersPage: React.FC = () => {
         </form>
       )}
 
-      {/* Receipt Modal */}
-      {showReceiptModal && (
-        <div>
-          <div
-            className="fixed inset-0 z-40 bg-black bg-opacity-50"
-            onClick={() => setShowReceiptModal(false)}
-          />
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-3xl p-6">
-              <h3 className="text-lg font-bold mb-4">تسجيل وارد للمورد: {editing?.supplierName}</h3>
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <select
-                    className="p-2 border rounded flex-1"
-                    onChange={(e) => {
-                      const prod = products.find((p) => p.id === e.target.value);
-                      addReceiptRow(prod);
-                    }}
-                  >
-                    <option value="">إضافة منتج</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} - ({p.stock})
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    className="px-3 py-2 bg-gray-100 rounded"
-                    onClick={() => addReceiptRow()}
-                  >
-                    أضف صف فارغ
-                  </button>
+      <Modal
+        isOpen={statementOpen}
+        onClose={() => setStatementOpen(false)}
+        title={`كشف حساب المورد - ${selectedSupplier?.supplierName || ''}`}
+      >
+        {selectedSupplier && (
+          <div className="space-y-4">
+            <div className="flex flex-col md:flex-row gap-3">
+              <DateInput
+                label="من"
+                name="supplierStart"
+                value={dateRange.start}
+                onChange={(e) => setDateRange((prev) => ({ ...prev, start: e.target.value }))}
+              />
+              <DateInput
+                label="إلى"
+                name="supplierEnd"
+                value={dateRange.end}
+                onChange={(e) => setDateRange((prev) => ({ ...prev, end: e.target.value }))}
+              />
+              <div className="flex gap-2 items-end">
+                <Button variant="secondary" onClick={() => exportStatement('pdf')}>
+                  تصدير PDF
+                </Button>
+                <Button variant="secondary" onClick={() => exportStatement('png')}>
+                  تصدير PNG
+                </Button>
+              </div>
+            </div>
+
+            {canManagePayments && (
+              <div className="border border-gray-200 rounded p-3">
+                <h4 className="font-semibold mb-2">تسجيل دفعة للمورد</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Input
+                    label="المبلغ"
+                    type="number"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(Number(e.target.value))}
+                  />
+                  <DateInput
+                    label="تاريخ الدفع"
+                    name="supplierPayDate"
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                  />
+                  <Select
+                    label="طريقة الدفع"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value as (typeof PAYMENT_METHODS)[number])}
+                    options={PAYMENT_METHODS.map((m) => ({ value: m, label: m }))}
+                  />
+                  <Input
+                    label="مرجع التحويل (اختياري)"
+                    value={paymentReference}
+                    onChange={(e) => setPaymentReference(e.target.value)}
+                  />
+                  <Input
+                    label="ملاحظات (اختياري)"
+                    value={paymentNotes}
+                    onChange={(e) => setPaymentNotes(e.target.value)}
+                  />
                 </div>
-                <div className="space-y-2 max-h-64 overflow-auto">
-                  {receiptItems.map((it, idx) => (
-                    <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                      <div className="col-span-5">
-                        <select
-                          className="w-full p-2 border rounded"
-                          value={it.productId}
-                          onChange={(e) => {
-                            const prod = products.find((p) => p.id === e.target.value);
-                            updateReceiptRow(idx, {
-                              productId: e.target.value,
-                              productName: prod?.name || '',
-                            });
-                          }}
-                        >
-                          <option value="">اختر منتجًا</option>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="col-span-3">
-                        <Input
-                          type="number"
-                          min={1}
-                          value={it.quantityReceived}
-                          onChange={(e) =>
-                            updateReceiptRow(idx, { quantityReceived: Number(e.target.value) })
-                          }
-                        />
-                      </div>
-                      <div className="col-span-3">
-                        <Input
-                          placeholder="ملاحظة"
-                          value={it.note}
-                          onChange={(e) => updateReceiptRow(idx, { note: e.target.value })}
-                        />
-                      </div>
-                      <div className="col-span-1">
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() =>
-                            setReceiptItems((prev) => prev.filter((_, i) => i !== idx))
-                          }
-                        >
-                          حذف
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex gap-2 justify-end mt-4">
-                  <Button variant="secondary" onClick={() => setShowReceiptModal(false)}>
-                    إلغاء
-                  </Button>
-                  <Button onClick={submitReceipt} loading={submittingReceipt}>
-                    {submittingReceipt ? 'جارٍ الحفظ...' : 'حفظ السند'}
+                <div className="flex justify-end mt-3">
+                  <Button onClick={saveSupplierPay} loading={paymentSaving}>
+                    حفظ الدفعة
                   </Button>
                 </div>
               </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-center">
+              <div className="border border-gray-200 rounded-lg p-3">
+                <div className="text-xs text-gray-500">إجمالي المشتريات</div>
+                <div className="text-lg font-semibold">
+                  {statement.totalPurchases.toFixed(2)} {settings?.currency || ''}
+                </div>
+              </div>
+              <div className="border border-gray-200 rounded-lg p-3">
+                <div className="text-xs text-gray-500">إجمالي المدفوع</div>
+                <div className="text-lg font-semibold">
+                  {statement.totalPaid.toFixed(2)} {settings?.currency || ''}
+                </div>
+              </div>
+              <div className="border border-gray-200 rounded-lg p-3">
+                <div className="text-xs text-gray-500">المتبقي</div>
+                <div className="text-lg font-semibold">
+                  {statement.remaining.toFixed(2)} {settings?.currency || ''}
+                </div>
+              </div>
+            </div>
+
+            <div ref={printableRef}>
+              <PrintableReport
+                reportTitle="كشف حساب مورد"
+                companyName={settings?.businessName || 'الشركة'}
+                logoUrl={settings?.logo}
+                address={settings?.address}
+                phone={settings?.contactInfo}
+                dateRangeLabel={`الفترة من ${dateRange.start} إلى ${dateRange.end}`}
+                summaryItems={[
+                  { label: 'إجمالي المشتريات', value: `${statement.totalPurchases.toFixed(2)} ${settings?.currency || ''}` },
+                  { label: 'إجمالي المدفوع', value: `${statement.totalPaid.toFixed(2)} ${settings?.currency || ''}` },
+                  { label: 'المتبقي', value: `${statement.remaining.toFixed(2)} ${settings?.currency || ''}` },
+                ]}
+              >
+                {statement.rows.length === 0 ? (
+                  <p className="text-gray-600 text-center py-6">لا توجد حركات خلال هذه الفترة.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-right text-sm font-semibold text-gray-600">
+                            التاريخ
+                          </th>
+                          <th className="px-4 py-2 text-right text-sm font-semibold text-gray-600">
+                            البيان
+                          </th>
+                          <th className="px-4 py-2 text-right text-sm font-semibold text-gray-600">
+                            مدين
+                          </th>
+                          <th className="px-4 py-2 text-right text-sm font-semibold text-gray-600">
+                            دائن
+                          </th>
+                          <th className="px-4 py-2 text-right text-sm font-semibold text-gray-600">
+                            الرصيد
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {statement.rows.map((row, idx) => (
+                          <tr key={`${row.description}-${idx}`}>
+                            <td className="px-4 py-2 text-right">
+                              {row.date.toLocaleDateString('ar-EG')}
+                            </td>
+                            <td className="px-4 py-2 text-right">{row.description}</td>
+                            <td className="px-4 py-2 text-right">
+                              {row.debit ? row.debit.toFixed(2) : '—'}
+                            </td>
+                            <td className="px-4 py-2 text-right">
+                              {row.credit ? row.credit.toFixed(2) : '—'}
+                            </td>
+                            <td className="px-4 py-2 text-right">{row.balance.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </PrintableReport>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </Card>
   );
 };

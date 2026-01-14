@@ -8,7 +8,11 @@ service cloud.firestore {
     }
 
     function isPlatformAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/platformAdmins/$(request.auth.uid));
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/platformAdmins/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/platformUsers/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/platformUsers/$(request.auth.uid)).data.platformAdmin == true)
+      );
     }
 
     function companyUserDoc(companyId) {
@@ -33,10 +37,37 @@ service cloud.firestore {
       allow write: if isPlatformAdmin();
     }
 
+    match /platformUsers/{adminId} {
+      allow read: if request.auth != null && request.auth.uid == adminId;
+      allow write: if isPlatformAdmin();
+    }
+
     // Companies
     match /companies/{companyId} {
       // Allow platform admins to fully manage companies
-      allow create, update, delete: if isPlatformAdmin();
+      allow create, delete: if isPlatformAdmin();
+
+      function isCompanyProfileUpdate() {
+        return (
+          request.resource.data.status == resource.data.status &&
+          request.resource.data.plan == resource.data.plan &&
+          request.resource.data.ownerUid == resource.data.ownerUid &&
+          request.resource.data.email == resource.data.email &&
+          request.resource.data.emailLower == resource.data.emailLower
+        );
+      }
+
+      allow update: if isPlatformAdmin() || (
+        isSignedIn() && hasCompanyRole(companyId, ['owner', 'manager']) && isCompanyProfileUpdate()
+      );
+
+      function isManagerRole(companyId) {
+        return hasCompanyRole(companyId, ['owner', 'manager', 'company_owner']);
+      }
+
+      function isStaffRole(companyId) {
+        return hasCompanyRole(companyId, ['employee', 'staff']);
+      }
 
       // Allow authenticated users to create their own company record during registration
       // but only if the incoming document sets status to 'pending' and the email matches auth email
@@ -53,6 +84,51 @@ service cloud.firestore {
       allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
 
       // Company scoped subcollections
+      match /customers/{docId} {
+        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+        allow create: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId) || isStaffRole(companyId));
+        allow update: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId));
+        allow delete: if false;
+      }
+
+      match /products/{docId} {
+        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+        allow create: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId) || isStaffRole(companyId));
+        allow update: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId));
+        allow delete: if false;
+      }
+
+      match /expenses/{docId} {
+        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+        allow create: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId) || isStaffRole(companyId));
+        allow update: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId));
+        allow delete: if false;
+      }
+
+      match /payments/{docId} {
+        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+        allow create: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId) || isStaffRole(companyId));
+        allow update: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId));
+        allow delete: if false;
+      }
+
+      match /returns/{docId} {
+        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+        allow create, update, delete: if false;
+      }
+
+      match /supplierPayments/{docId} {
+        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+        allow create, update: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId));
+        allow delete: if false;
+      }
+
+      match /settings/{docId} {
+        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+        allow create, update: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId));
+        allow delete: if false;
+      }
+
       match /{document=**} {
         // Reads allowed for members or platform admins
         allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
@@ -60,7 +136,7 @@ service cloud.firestore {
         // Writes allowed only for platform admins or members with sufficient role
         // For destructive operations (deletes) require server-side callable to set `isDeleted` flag.
         allow create, update: if isSignedIn() && (
-          isPlatformAdmin() || hasCompanyRole(companyId, ['owner', 'manager', 'editor'])
+          isPlatformAdmin() || isManagerRole(companyId)
         );
 
         // Prevent client-side hard deletes; require server-side callable to mark `isDeleted`.
@@ -86,10 +162,10 @@ service cloud.firestore {
           return locked;
         }
 
-        allow create: if isSignedIn() && (isPlatformAdmin() || hasCompanyRole(companyId, ['owner', 'manager', 'editor']));
+        allow create: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId) || isStaffRole(companyId));
 
         allow update: if isSignedIn() && (
-          (isPlatformAdmin() || hasCompanyRole(companyId, ['owner', 'manager', 'editor'])) &&
+          (isPlatformAdmin() || isManagerRole(companyId)) &&
           // Disallow updating if invoice already posted
           !(resource.data.posted == true || resource.data.isPosted == true || resource.data.isFinal == true) &&
           // Disallow if period locked
@@ -165,10 +241,10 @@ service cloud.firestore {
     match /companies/{companyId}/users/{userId} {
       allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
       allow create: if isSignedIn() && (
-        request.auth.uid == userId || isPlatformAdmin() || hasCompanyRole(companyId, ['owner', 'manager'])
+        request.auth.uid == userId || isPlatformAdmin()
       );
       allow update, delete: if isSignedIn() && (
-        request.auth.uid == userId || isPlatformAdmin() || hasCompanyRole(companyId, ['owner', 'manager'])
+        request.auth.uid == userId || isPlatformAdmin()
       );
     }
 

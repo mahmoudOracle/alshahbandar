@@ -8,9 +8,9 @@ import {
   Cog6ToothIcon,
   XMarkIcon,
   DocumentDuplicateIcon,
-  ArrowPathIcon,
   CurrencyDollarIcon,
   ChartPieIcon,
+  BuildingOffice2Icon,
 } from '@heroicons/react/24/outline';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -27,7 +27,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { settings } = useSettings();
-  const { user, signOutUser, activeRole } = useAuth();
+  const { user, signOutUser, activeRole, isPlatformAdmin } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -42,41 +42,42 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   const groups = [
     {
-      title: t('sales', lang) || 'Sales',
+      title: 'الرئيسية',
+      items: [{ to: '/', text: 'ملخّص', icon: HomeIcon }],
+    },
+    {
+      title: 'البيع والعملاء',
       items: [
-        { to: '/', text: t('dashboard', lang), icon: HomeIcon },
-        { to: '/customers', text: t('customers', lang), icon: UsersIcon },
-        { to: '/quotes', text: t('quotes', lang), icon: DocumentDuplicateIcon },
+        { to: '/invoices', text: 'الفواتير', icon: DocumentTextIcon },
+        { to: '/customers', text: 'العملاء', icon: UsersIcon },
+        { to: '/quotes', text: 'عروض الأسعار', icon: DocumentDuplicateIcon },
       ],
     },
     {
-      title: t('accounting', lang) || 'Accounting',
+      title: 'المخزون',
       items: [
-        { to: '/invoices', text: t('invoices', lang), icon: DocumentTextIcon },
-        { to: '/purchases', text: t('purchases', lang), icon: CurrencyDollarIcon },
-        { to: '/recurring', text: t('recurring', lang), icon: ArrowPathIcon },
-        { to: '/expenses', text: t('expenses', lang), icon: CurrencyDollarIcon },
+        { to: '/products', text: 'المنتجات والمخزون', icon: ArchiveBoxIcon },
+        { to: '/purchases', text: 'المشتريات', icon: CurrencyDollarIcon },
+        { to: '/suppliers', text: 'الموردون', icon: UsersIcon },
       ],
     },
     {
-      title: t('inventory', lang) || 'Inventory',
+      title: 'المال والإعدادات',
       items: [
-        { to: '/products', text: t('products', lang), icon: ArchiveBoxIcon },
-        { to: '/suppliers', text: t('suppliers', lang), icon: UsersIcon },
-        { to: '/receipts', text: t('receipts', lang), icon: DocumentTextIcon },
-        { to: '/warehouse', text: t('warehouse', lang), icon: ArchiveBoxIcon },
-      ],
-    },
-    {
-      title: t('reports', lang) || 'Reports',
-      items: [
-        { to: '/reports', text: t('reports', lang), icon: ChartPieIcon },
-        { to: '/settings', text: t('settings', lang), icon: Cog6ToothIcon },
+        { to: '/expenses', text: 'المصروفات', icon: CurrencyDollarIcon },
+        { to: '/reports', text: 'التقارير', icon: ChartPieIcon },
+        { to: '/settings', text: t('settings', lang) || 'الإعدادات', icon: Cog6ToothIcon },
       ],
     },
   ];
 
-  // When collapsed we switch to a compact narrow column on md+ screens.
+  if (isPlatformAdmin) {
+    groups.push({
+      title: 'المنصة',
+      items: [{ to: '/platform', text: 'شركات المنصة', icon: BuildingOffice2Icon }],
+    });
+  }
+
   const sidebarClasses = `
     ${isCollapsed ? 'w-20' : 'w-64'} bg-white dark:bg-gray-800 shadow-lg flex flex-col p-3
     fixed inset-y-0 start-0 h-screen z-30
@@ -98,8 +99,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               />
             ) : (
               <div className="me-2">
-                {/* Use initials when available for compact presentation */}
-                {/* `LogoPlaceholder` already handles initials if provided elsewhere */}
                 <h1
                   className={`font-bold ${isCollapsed ? 'text-lg' : 'text-2xl'} text-primary-600`}
                 >
@@ -116,7 +115,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             className="text-gray-500 dark:text-gray-400 rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-700 md:inline-flex hidden"
             aria-pressed={isCollapsed}
           >
-            {/* simple chevron implemented with SVG to avoid adding new deps */}
             {isCollapsed ? (
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path

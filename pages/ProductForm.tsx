@@ -27,10 +27,12 @@ const ViewMode: React.FC<{ product: Omit<Product, 'id'> }> = ({ product }) => (
         <p className="mt-1 text-lg">{product.price}</p>
       </div>
       <div>
-        <p className="block text-sm font-medium text-gray-500 dark:text-gray-400">
-          الكمية في المخزون
-        </p>
+        <p className="block text-sm font-medium text-gray-500 dark:text-gray-400">المخزون</p>
         <p className="mt-1 text-lg">{product.stock}</p>
+      </div>
+      <div>
+        <p className="block text-sm font-medium text-gray-500 dark:text-gray-400">حد إعادة الطلب</p>
+        <p className="mt-1 text-lg">{product.reorderLevel ?? 0}</p>
       </div>
     </div>
   </div>
@@ -47,6 +49,7 @@ const ProductForm: React.FC = () => {
     description: '',
     price: 0,
     stock: 0,
+    reorderLevel: 0,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -56,7 +59,7 @@ const ProductForm: React.FC = () => {
     if (!canWrite && id) {
       // allow viewing
     } else if (!canWrite) {
-      addNotification('ليس لديك الصلاحية للوصول لهذه الصفحة.', 'error');
+      addNotification('لا تملك صلاحية إضافة المنتجات.', 'error');
       navigate('/products');
     }
   }, [canWrite, id, navigate, addNotification]);
@@ -91,7 +94,8 @@ const ProductForm: React.FC = () => {
     const newErrors: Record<string, string> = {};
     if (!product.name.trim()) newErrors.name = 'اسم المنتج مطلوب.';
     if (product.price <= 0) newErrors.price = 'السعر يجب أن يكون أكبر من صفر.';
-    if (product.stock < 0) newErrors.stock = 'الكمية لا يمكن أن تكون أقل من صفر.';
+    if (product.stock < 0) newErrors.stock = 'المخزون لا يمكن أن يكون رقمًا سالبًا.';
+    if ((product.reorderLevel || 0) < 0) newErrors.reorderLevel = 'الحد لا يمكن أن يكون رقمًا سالبًا.';
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -100,38 +104,27 @@ const ProductForm: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canWrite) {
-      addNotification('صلاحية غير كافية.', 'error');
+      addNotification('لا تملك صلاحية الحفظ.', 'error');
       return;
     }
     if (!validateForm()) {
-      addNotification('يرجى تصحيح الأخطاء في النموذج.', 'error');
+      addNotification('تحقق من البيانات قبل الحفظ.', 'error');
       return;
     }
     if (!activeCompanyId) return;
     setSaving(true);
-    console.log('🟢 [PRODUCT] Saving product', {
-      companyId: activeCompanyId,
-      id: id || null,
-      product,
-    });
     try {
       const result = id
         ? await saveProduct(activeCompanyId, { ...product, id })
         : await saveProduct(activeCompanyId, product);
 
       if (result) {
-        console.log('🟢 [PRODUCT] Product saved', result);
-        addNotification('تم حفظ المنتج بنجاح!', 'success');
+        addNotification('تم حفظ المنتج بنجاح.', 'success');
         navigate('/products');
       } else {
-        console.warn('🟡 [PRODUCT] saveProduct returned falsy', result);
-        addNotification('فشل حفظ المنتج.', 'error');
+        addNotification('تعذر حفظ المنتج.', 'error');
       }
     } catch (error: unknown) {
-      console.error(
-        '🔴 [PRODUCT] saveProduct error',
-        error instanceof Error ? error.message : String(error)
-      );
       addNotification(mapFirestoreError(error), 'error');
     } finally {
       setSaving(false);
@@ -149,7 +142,7 @@ const ProductForm: React.FC = () => {
     <Card
       header={
         <h2 className="text-xl font-bold">
-          {id ? (canWrite ? 'تعديل منتج' : 'عرض منتج') : 'إضافة منتج جديد'}
+          {id ? (canWrite ? 'تعديل منتج' : 'عرض المنتج') : 'إضافة منتج جديد'}
         </h2>
       }
     >
@@ -185,7 +178,7 @@ const ProductForm: React.FC = () => {
                 error={errors.price}
               />
               <Input
-                label="الكمية في المخزون"
+                label="المخزون"
                 type="number"
                 name="stock"
                 value={product.stock}
@@ -193,6 +186,15 @@ const ProductForm: React.FC = () => {
                 step="1"
                 required
                 error={errors.stock}
+              />
+              <Input
+                label="حد إعادة الطلب"
+                type="number"
+                name="reorderLevel"
+                value={product.reorderLevel ?? 0}
+                onChange={handleInputChange}
+                step="1"
+                error={errors.reorderLevel}
               />
             </div>
           </fieldset>

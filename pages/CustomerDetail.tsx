@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getCustomerById, getInvoices, getPaymentsByCustomerId } from '../services/dataService';
 import { Customer, Invoice, Payment } from '../types';
@@ -9,6 +9,23 @@ import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import { mapFirestoreError } from '../services/firebaseErrors';
 import { useNotification } from '../contexts/NotificationContext';
 import { Modal } from '../components/ui/Modal';
+import { Card } from '../components/ui/Card';
+import PrintableReport from '../components/PrintableReport';
+import { exportElementAs } from '../services/exportUtils';
+
+const toIsoDate = (date: Date) => date.toISOString().split('T')[0];
+
+const toDateValue = (value: unknown): Date | null => {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  const maybe = value as { toDate?: () => Date };
+  if (typeof maybe.toDate === 'function') return maybe.toDate();
+  return null;
+};
 
 const StatCard: React.FC<{ title: string; value: string }> = ({ title, value }) => (
   <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg shadow-sm text-center">
@@ -17,11 +34,20 @@ const StatCard: React.FC<{ title: string; value: string }> = ({ title, value }) 
   </div>
 );
 
+type StatementRow = {
+  date: Date;
+  description: string;
+  debit: number;
+  credit: number;
+  balance: number;
+};
+
 const CustomerDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { activeCompanyId } = useAuth();
+  const { activeCompanyId, activeRole } = useAuth();
   const canWrite = useCanWrite('customers');
+  const canCreateInvoices = useCanWrite('invoices');
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -30,43 +56,11 @@ const CustomerDetail: React.FC = () => {
   const { settings, loading: settingsLoading } = useSettings();
   const { addNotification } = useNotification();
   const printableRef = useRef<HTMLDivElement | null>(null);
-
-  const handleExportStatement = async (format: 'pdf' | 'png') => {
-    if (!printableRef.current) return;
-    const [html2canvasMod, jspdfMod] = (await Promise.all([
-      import('html2canvas'),
-      import('jspdf').catch(() => ({})),
-    ])) as any[];
-    const html2canvas = (html2canvasMod as any)?.default || (html2canvasMod as any);
-    const jsPDF = (jspdfMod as any)?.jsPDF || (jspdfMod as any)?.default;
-
-    try {
-      const canvas = await (html2canvas as any)(printableRef.current, { scale: 2 });
-      if (format === 'png') {
-        const image = canvas.toDataURL('image/png');
-        const link = document.createElement('a');
-        link.href = image;
-        link.download = `statement-${customer?.id || 'customer'}.png`;
-        link.click();
-      } else {
-        const imgData = canvas.toDataURL('image/png');
-        if (jsPDF) {
-          const pdf = new jsPDF('p', 'mm', 'a4');
-          const pdfWidth = pdf.internal.pageSize.getWidth();
-          const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-          pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-          pdf.save(`statement-${customer?.id || 'customer'}.pdf`);
-        } else {
-          const link = document.createElement('a');
-          link.href = imgData;
-          link.download = `statement-${customer?.id || 'customer'}.png`;
-          link.click();
-        }
-      }
-    } catch (e: unknown) {
-      addNotification(mapFirestoreError(e), 'error');
-    }
-  };
+  const [dateRange, setDateRange] = useState(() => ({
+    start: toIsoDate(new Date(new Date().setDate(new Date().getDate() - 90))),
+    end: toIsoDate(new Date()),
+  }));
+  const [includeOpeningBalance, setIncludeOpeningBalance] = useState(true);
 
   const fetchData = async () => {
     if (!id || !activeCompanyId) return;
@@ -96,169 +90,291 @@ const CustomerDetail: React.FC = () => {
     fetchData();
   };
 
-  const financialSummary = useMemo(() => {
-    const totalBilled = invoices.reduce((sum, inv) => sum + inv.total, 0);
-    const totalPaid = payments.reduce((sum, pay) => sum + pay.amount, 0);
+  const canCreatePayments =
+    activeRole === 'owner' || activeRole === 'manager' || activeRole === 'employee';
+
+  const statement = useMemo(() => {
+    const start = new Date(dateRange.start);
+    const end = new Date(dateRange.end);
+    end.setHours(23, 59, 59, 999);
+
+    const openingInvoices = invoices
+      .map((inv) => ({ inv, date: toDateValue(inv.date) }))
+      .filter((item) => item.date && item.date < start)
+      .map((item) => item.inv);
+
+    const openingPayments = payments
+      .map((pay) => ({ pay, date: toDateValue(pay.date) }))
+      .filter((item) => item.date && item.date < start)
+      .map((item) => item.pay);
+
+    const openingBalance =
+      openingInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0) -
+      openingPayments.reduce((sum, pay) => sum + (pay.amount || 0), 0);
+
+    const filteredInvoices = invoices
+      .map((inv) => ({ inv, date: toDateValue(inv.date) }))
+      .filter((item) => item.date && item.date >= start && item.date <= end)
+      .map((item) => item.inv);
+
+    const filteredPayments = payments
+      .map((pay) => ({ pay, date: toDateValue(pay.date) }))
+      .filter((item) => item.date && item.date >= start && item.date <= end)
+      .map((item) => item.pay);
+
+    const rows = [
+      ...filteredInvoices.map((inv) => ({
+        date: toDateValue(inv.date) || new Date(),
+        description: `فاتورة رقم ${inv.invoiceNumber}`,
+        debit: Number(inv.total || 0),
+        credit: 0,
+      })),
+      ...filteredPayments.map((pay) => ({
+        date: toDateValue(pay.date) || new Date(),
+        description: `دفعة (${pay.method || 'أخرى'})${pay.notes ? ` - ${pay.notes}` : ''}`,
+        debit: 0,
+        credit: Number(pay.amount || 0),
+      })),
+    ].sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    let running = includeOpeningBalance ? openingBalance : 0;
+    const withBalance: StatementRow[] = rows.map((row) => {
+      running += row.debit - row.credit;
+      return { ...row, balance: running };
+    });
+
+    const totalInvoices = filteredInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+    const totalPayments = filteredPayments.reduce((sum, pay) => sum + (pay.amount || 0), 0);
+
     return {
-      totalBilled,
-      totalPaid,
-      balanceDue: totalBilled - totalPaid,
+      rows: withBalance,
+      totalInvoices,
+      totalPayments,
+      remaining: totalInvoices - totalPayments,
+      openingBalance,
+      start,
+      end,
     };
-  }, [invoices, payments]);
+  }, [invoices, payments, dateRange, includeOpeningBalance]);
 
   if (loading || settingsLoading) return <div>جاري التحميل...</div>;
   if (!customer) return <div>لم يتم العثور على العميل.</div>;
 
+  const exportStatement = async (format: 'pdf' | 'png') => {
+    if (!printableRef.current) return;
+    try {
+      await exportElementAs(
+        printableRef.current,
+        `statement-${customer.id}-${dateRange.start}-${dateRange.end}`,
+        format
+      );
+    } catch (e: unknown) {
+      addNotification(mapFirestoreError(e), 'error');
+    }
+  };
+
+  const dateRangeLabel = `الفترة من ${dateRange.start} إلى ${dateRange.end}`;
+
   return (
-    <div className="space-y-6" ref={printableRef}>
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-        <div className="flex justify-between items-start">
+    <div className="space-y-6">
+      <Card>
+        <div className="flex flex-col md:flex-row justify-between items-start gap-4">
           <div>
-            <h1 className="text-3xl font-bold">{customer.name}</h1>
+            <h1 className="text-2xl font-bold">{customer.name}</h1>
             <p className="text-gray-500 dark:text-gray-400">
-              {customer.email} | {customer.mobilePhone}
+              {customer.email || '—'} | {customer.mobilePhone || '—'}
             </p>
-            <p className="text-gray-500 dark:text-gray-400">{customer.address}</p>
+            <p className="text-gray-500 dark:text-gray-400">{customer.address || '—'}</p>
           </div>
           {canWrite && (
-            <div className="flex">
+            <div className="flex flex-wrap gap-2">
               <Link
                 to={`/customers/edit/${customer.id}`}
-                className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 me-2"
+                className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500"
               >
                 <PencilIcon className="h-4 w-4 me-2" /> تعديل
               </Link>
-              <button
-                onClick={() => setIsPaymentModalOpen(true)}
-                disabled={financialSummary.balanceDue <= 0}
-                className="flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                <WalletIcon className="h-4 w-4 me-2" /> إضافة دفعة
-              </button>
+              {canCreateInvoices && (
+                <Link
+                  to="/invoices/new"
+                  className="flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
+                >
+                  فاتورة جديدة
+                </Link>
+              )}
+              {canCreatePayments && (
+                <button
+                  onClick={() => setIsPaymentModalOpen(true)}
+                  className="flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
+                >
+                  <WalletIcon className="h-4 w-4 me-2" /> تسجيل دفعة
+                </button>
+              )}
             </div>
           )}
-          <div className="flex gap-2 ms-4">
-            <button
-              onClick={() => handleExportStatement('pdf')}
-              className="px-3 py-2 bg-red-600 text-white rounded-md"
-            >
-              تصدير كشف (PDF)
-            </button>
-            <button
-              onClick={() => handleExportStatement('png')}
-              className="px-3 py-2 bg-green-600 text-white rounded-md"
-            >
-              تصدير كشف (صورة)
-            </button>
-          </div>
         </div>
+        {!canCreatePayments && (
+          <div className="mt-4 text-sm text-warning-700 bg-warning-50 border border-warning-200 rounded p-3">
+            لا تملك صلاحية تسجيل الدفعات.
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
           <StatCard
             title="إجمالي الفواتير"
-            value={`${financialSummary.totalBilled.toFixed(2)} ${settings?.currency}`}
+            value={`${statement.totalInvoices.toFixed(2)} ${settings?.currency}`}
           />
           <StatCard
-            title="إجمالي المدفوعات"
-            value={`${financialSummary.totalPaid.toFixed(2)} ${settings?.currency}`}
+            title="إجمالي المدفوع"
+            value={`${statement.totalPayments.toFixed(2)} ${settings?.currency}`}
           />
           <StatCard
-            title="الرصيد المستحق"
-            value={`${financialSummary.balanceDue.toFixed(2)} ${settings?.currency}`}
+            title="المتبقي"
+            value={`${statement.remaining.toFixed(2)} ${settings?.currency}`}
           />
         </div>
-      </div>
+      </Card>
 
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-        <h2 className="text-xl font-bold mb-4">سجل الفواتير</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                  رقم الفاتورة
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                  التاريخ
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                  الإجمالي
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                  الحالة
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {invoices.map((invoice) => (
-                <tr
-                  key={invoice.id}
-                  className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                  onClick={() => navigate(`/invoices/${invoice.id}`)}
-                >
-                  <td className="px-6 py-4">{invoice.invoiceNumber}</td>
-                  <td className="px-6 py-4">
-                    {new Date(invoice.date).toLocaleDateString('ar-EG')}
-                  </td>
-                  <td className="px-6 py-4">
-                    {invoice.total.toFixed(2)} ${settings?.currency}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${invoice.status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}
-                    >
-                      {invoice.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <Card>
+        <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-4">
+          <div>
+            <h2 className="text-xl font-bold">كشف حساب العميل</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{dateRangeLabel}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => exportStatement('pdf')}
+              className="px-3 py-2 bg-red-600 text-white rounded-md"
+            >
+              تصدير PDF
+            </button>
+            <button
+              onClick={() => exportStatement('png')}
+              className="px-3 py-2 bg-green-600 text-white rounded-md"
+            >
+              تصدير PNG
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-        <h2 className="text-xl font-bold mb-4">سجل المدفوعات</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                  تاريخ الدفع
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                  رقم الفاتورة المرتبط
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                  المبلغ
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {payments.map((payment) => (
-                <tr
-                  key={payment.id}
-                  className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                >
-                  <td className="px-6 py-4">
-                    {new Date(payment.date).toLocaleDateString('ar-EG')}
-                  </td>
-                  <td className="px-6 py-4">
-                    {invoices.find((i) => i.id === payment.invoiceId)?.invoiceNumber || 'N/A'}
-                  </td>
-                  <td className="px-6 py-4">
-                    {payment.amount.toFixed(2)} ${settings?.currency}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="flex flex-col md:flex-row gap-4 mb-4">
+          <div>
+            <label htmlFor="start" className="block text-sm font-medium">
+              من
+            </label>
+            <input
+              type="date"
+              id="start"
+              value={dateRange.start}
+              onChange={(e) => setDateRange((prev) => ({ ...prev, start: e.target.value }))}
+              className="mt-1 block px-3 py-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600"
+            />
+          </div>
+          <div>
+            <label htmlFor="end" className="block text-sm font-medium">
+              إلى
+            </label>
+            <input
+              type="date"
+              id="end"
+              value={dateRange.end}
+              onChange={(e) => setDateRange((prev) => ({ ...prev, end: e.target.value }))}
+              className="mt-1 block px-3 py-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600"
+            />
+          </div>
         </div>
-      </div>
+        <div className="flex flex-col md:flex-row gap-3 mb-4">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name="openingBalance"
+              checked={!includeOpeningBalance}
+              onChange={() => setIncludeOpeningBalance(false)}
+            />
+            حركات الفترة فقط
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="radio"
+              name="openingBalance"
+              checked={includeOpeningBalance}
+              onChange={() => setIncludeOpeningBalance(true)}
+            />
+            مع رصيد افتتاحي
+          </label>
+        </div>
+
+        <div ref={printableRef}>
+          <PrintableReport
+            reportTitle="كشف حساب العميل"
+            companyName={settings?.businessName || 'الشركة'}
+            logoUrl={settings?.logo}
+            address={settings?.address}
+            phone={settings?.contactInfo}
+            dateRangeLabel={dateRangeLabel}
+            summaryItems={[
+              { label: 'إجمالي الفواتير', value: `${statement.totalInvoices.toFixed(2)} ${settings?.currency}` },
+              { label: 'إجمالي المدفوع', value: `${statement.totalPayments.toFixed(2)} ${settings?.currency}` },
+              { label: 'المتبقي', value: `${statement.remaining.toFixed(2)} ${settings?.currency}` },
+            ]}
+          >
+            <div className="mb-4 text-sm font-semibold">
+              رصيد افتتاحي: {statement.openingBalance.toFixed(2)} {settings?.currency}
+            </div>
+            {statement.rows.length === 0 ? (
+              <p className="text-gray-600 dark:text-gray-400 text-center py-6">
+                لا توجد حركات خلال هذه الفترة.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-right text-sm font-semibold text-gray-600">
+                        التاريخ
+                      </th>
+                      <th className="px-4 py-2 text-right text-sm font-semibold text-gray-600">
+                        البيان
+                      </th>
+                      <th className="px-4 py-2 text-right text-sm font-semibold text-gray-600">
+                        مدين
+                      </th>
+                      <th className="px-4 py-2 text-right text-sm font-semibold text-gray-600">
+                        دائن
+                      </th>
+                      <th className="px-4 py-2 text-right text-sm font-semibold text-gray-600">
+                        الرصيد
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {statement.rows.map((row, idx) => (
+                      <tr key={`${row.description}-${idx}`}>
+                        <td className="px-4 py-2 text-right">
+                          {row.date.toLocaleDateString('ar-EG')}
+                        </td>
+                        <td className="px-4 py-2 text-right">{row.description}</td>
+                        <td className="px-4 py-2 text-right">
+                          {row.debit ? row.debit.toFixed(2) : '—'}
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          {row.credit ? row.credit.toFixed(2) : '—'}
+                        </td>
+                        <td className="px-4 py-2 text-right">{row.balance.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </PrintableReport>
+        </div>
+      </Card>
 
       <Modal
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
-        title={`إضافة دفعة لـ ${customer?.name}`}
+        title={`تسجيل دفعة - ${customer?.name}`}
       >
         {customer && (
           <PaymentForm

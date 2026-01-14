@@ -12,12 +12,6 @@ export const PurchasesPage = lazy(() =>
 export const SuppliersPage = lazy(() =>
   import('@/pages/SuppliersPage').then((m) => ({ default: (m as any).SuppliersPage || m.default }))
 );
-export const IncomingReceiptsList = lazy(() =>
-  import('@/pages/IncomingReceiptsList').then((m) => ({ default: (m as any).IncomingReceiptsList || m.default }))
-);
-export const ReceiptDetailPage = lazy(() =>
-  import('@/pages/ReceiptDetailPage').then((m) => ({ default: (m as any).ReceiptDetailPage || m.default }))
-);
 export const WarehousePage = lazy(() =>
   import('@/pages/WarehousePage').then((m) => ({ default: (m as any).WarehousePage || m.default }))
 );
@@ -30,8 +24,6 @@ export default {
   ProductForm,
   PurchasesPage,
   SuppliersPage,
-  IncomingReceiptsList,
-  ReceiptDetailPage,
   WarehousePage,
   InventoryAudit,
 };

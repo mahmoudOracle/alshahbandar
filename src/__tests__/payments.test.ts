@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as mockService from '../../services/mockService';
 import { setDataServiceImpl, saveInvoice, savePayment } from '../../services/dataService';
+import { PaymentType } from '../../types';
 
 describe('payments and invoice balance (mock)', () => {
   beforeEach(async () => {
@@ -25,7 +26,7 @@ describe('payments and invoice balance (mock)', () => {
       items: [{ id: 'li', productId: prod.id, productName: prod.name, quantity: 2, price: 20 }],
       subtotal: 40,
       total: 40,
-      paymentType: 'كاش' as any,
+      paymentType: PaymentType.Cash,
       status: 'Due' as any,
     } as any;
 
@@ -35,22 +36,28 @@ describe('payments and invoice balance (mock)', () => {
     const p1 = await savePayment('mock-company', {
       invoiceId: savedInv.id,
       customerId: savedInv.customerId,
+      customerName: savedInv.customerName,
       amount: 15,
+      method: 'كاش',
       date: new Date().toISOString(),
     });
     const updatedInv1 = await mockService.getInvoiceById('mock-company', savedInv.id);
     expect(updatedInv1?.paymentsSummary?.paid).toBe(15);
     expect(updatedInv1?.paymentsSummary?.due).toBe(25);
+    expect(p1.amount).toBe(15);
 
     const p2 = await savePayment('mock-company', {
       invoiceId: savedInv.id,
       customerId: savedInv.customerId,
+      customerName: savedInv.customerName,
       amount: 25,
+      method: 'كاش',
       date: new Date().toISOString(),
     });
     const updatedInv2 = await mockService.getInvoiceById('mock-company', savedInv.id);
     expect(updatedInv2?.paymentsSummary?.paid).toBe(40);
     expect(updatedInv2?.paymentsSummary?.due).toBe(0);
     expect(updatedInv2?.status).toBe('Paid');
+    expect(p2.amount).toBe(25);
   });
 });

@@ -39,8 +39,6 @@ const AcceptInvitationPage: React.FC = () => {
     }
   }, [token, inviteId]);
 
-  // If the user is already logged in, redirect them to the dashboard.
-  // The AuthContext will handle the invitation acceptance on the next load.
   useEffect(() => {
     if (firebaseUser) {
       console.log(
@@ -55,11 +53,10 @@ const AcceptInvitationPage: React.FC = () => {
       <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 p-4">
         <div className="p-8 bg-white dark:bg-gray-800 rounded-lg shadow-xl text-center max-w-md w-full">
           <h1 className="text-2xl font-bold mb-2 text-red-600 dark:text-red-400">
-            Invalid Invitation Link
+            رابط الدعوة غير صالح
           </h1>
           <p className="mb-6 text-gray-600 dark:text-gray-400">
-            The invitation link is missing required information. Please check the link and try
-            again, or contact support.
+            الرابط ناقص بعض البيانات. تأكد من صحة الرابط أو تواصل مع صاحب الشركة.
           </p>
         </div>
       </div>
@@ -70,7 +67,7 @@ const AcceptInvitationPage: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 p-4">
         <Spinner size="lg" />
-        <p className="mt-4 text-lg text-gray-700 dark:text-gray-300">Signing you in...</p>
+        <p className="mt-4 text-lg text-gray-700 dark:text-gray-300">جارٍ تسجيل الدخول...</p>
       </div>
     );
   }
@@ -81,12 +78,12 @@ const AcceptInvitationPage: React.FC = () => {
     try {
       const companyId = paramCompanyId || sessionStorage.getItem('pendingInvitationCompanyId');
       if (!companyId) {
-        addNotification('تعذر إعادة إرسال الدعوة: معرف الشركة مفقود.', 'error');
+        addNotification('لم يتم العثور على الشركة لإعادة إرسال الدعوة.', 'error');
         return;
       }
 
       if (!firebaseUser?.email || !firebaseUser.uid) {
-        addNotification('يرجى تسجيل الدخول لإعادة إرسال الدعوة.', 'error');
+        addNotification('يرجى تسجيل الدخول أولًا لإعادة إرسال الدعوة.', 'error');
         return;
       }
 
@@ -94,10 +91,10 @@ const AcceptInvitationPage: React.FC = () => {
         uid: firebaseUser.uid,
         email: firebaseUser.email,
       });
-      addNotification('تم إعادة إرسال الدعوة إلى بريدك الإلكتروني.', 'success');
+      addNotification('تم إرسال الدعوة مرة أخرى إلى البريد الإلكتروني.', 'success');
     } catch (err) {
       console.error(err);
-      addNotification('حدث خطأ أثناء محاولة إعادة إرسال الدعوة.', 'error');
+      addNotification('تعذر إعادة إرسال الدعوة. حاول مرة أخرى.', 'error');
     }
   };
 
@@ -105,10 +102,10 @@ const AcceptInvitationPage: React.FC = () => {
     <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 p-4">
       <div className="p-8 bg-white dark:bg-gray-800 rounded-lg shadow-xl text-center max-w-md w-full">
         <h1 className="text-3xl font-bold mb-2 text-gray-800 dark:text-gray-200">
-          You're Invited!
+          لديك دعوة للانضمام
         </h1>
         <p className="mb-6 text-gray-600 dark:text-gray-400">
-          To accept your invitation, please create an account or sign in with your email.
+          لإكمال الدعوة، يرجى إنشاء حساب أو تسجيل الدخول بنفس البريد الإلكتروني.
         </p>
 
         {onboardingError && (
@@ -138,12 +135,12 @@ const AcceptInvitationPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row gap-4">
           <Link to="/register" className="w-full">
             <Button variant="primary" size="lg" className="w-full">
-              Create Account
+              إنشاء حساب
             </Button>
           </Link>
           <Link to="/" className="w-full">
             <Button variant="secondary" size="lg" className="w-full">
-              Sign In
+              تسجيل الدخول
             </Button>
           </Link>
         </div>

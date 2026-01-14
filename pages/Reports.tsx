@@ -1,212 +1,274 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { getInvoices, getExpenses, getReports } from '../services/dataService';
-import { Invoice, Expense, InvoiceStatus } from '../types';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { getInvoices, getExpenses, getReturns } from '../services/dataService';
+import { Expense, Invoice, ReturnDoc } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth } from '../contexts/AuthContext';
 import { mapFirestoreError } from '../services/firebaseErrors';
 import { useNotification } from '../contexts/NotificationContext';
+import { isSafeToAccessCompanyData, logDataAccessEvent } from '../services/dataTenantUtils';
+import PrintableReport from '../components/PrintableReport';
+import { exportElementAs } from '../services/exportUtils';
 
-type ChartDatum = { name: string; value: number };
+type DateRangePreset = 'today' | '7' | '30' | 'custom';
 
-function ChartLoader({
-  data,
-  colors,
-  currency,
-}: {
-  data: ChartDatum[];
-  colors: string[];
-  currency?: string;
-}) {
-  const [R, setR] = useState<unknown>(null);
+const toIsoDate = (date: Date) => date.toISOString().split('T')[0];
 
-  useEffect(() => {
-    let mounted = true;
-    import('recharts')
-      .then((mod) => {
-        if (mounted) setR(mod);
-      })
-      .catch(() => {
-        /* ignore */
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
+const toDateValue = (value: unknown): Date | null => {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  const maybe = value as { toDate?: () => Date };
+  if (typeof maybe.toDate === 'function') return maybe.toDate();
+  return null;
+};
 
-  if (!R)
-    return <div className="flex items-center justify-center h-full">جاري تحميل المخطط...</div>;
-
-  const { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } = R;
-
-  return (
-    <ResponsiveContainer width="100%" height={300}>
-      <PieChart>
-        <Pie
-          data={data}
-          cx="50%"
-          cy="50%"
-          labelLine={false}
-          outerRadius={100}
-          fill="#8884d8"
-          dataKey="value"
-          nameKey="name"
-          label={(p: Record<string, unknown>) =>
-            `${String(p.name)} ${(((p.percent as number) || 0) * 100).toFixed(0)}%`
-          }
-        >
-          {data.map((entry, index) => (
-            <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
-          ))}
-        </Pie>
-        <Tooltip formatter={(value: number) => `${value.toFixed(2)} ${currency || ''}`} />
-        <Legend />
-      </PieChart>
-    </ResponsiveContainer>
-  );
-}
+const getInvoiceTotal = (inv: Invoice) => {
+  const maybe = inv as unknown as {
+    total?: number;
+    grandTotal?: number;
+    amount?: number;
+    net?: number;
+    totalAmount?: number;
+  };
+  if (typeof maybe.total === 'number') return maybe.total;
+  if (typeof maybe.grandTotal === 'number') return maybe.grandTotal;
+  if (typeof maybe.totalAmount === 'number') return maybe.totalAmount;
+  if (typeof maybe.amount === 'number') return maybe.amount;
+  if (typeof maybe.net === 'number') return maybe.net;
+  return 0;
+};
 
 const Reports: React.FC = () => {
-  const { activeCompanyId } = useAuth();
+  const { activeCompanyId, firebaseUser } = useAuth();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [reports, setReports] = useState<Record<string, unknown>[]>([]);
+  const [returns, setReturns] = useState<ReturnDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const { settings, loading: settingsLoading } = useSettings();
   const { addNotification } = useNotification();
-  const [dateRange, setDateRange] = useState({
-    start: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0],
-    end: new Date().toISOString().split('T')[0],
-  });
+  const [dateRange, setDateRange] = useState(() => ({
+    start: toIsoDate(new Date(new Date().setDate(new Date().getDate() - 30))),
+    end: toIsoDate(new Date()),
+  }));
+  const [preset, setPreset] = useState<DateRangePreset>('30');
+  const [showDetails, setShowDetails] = useState(false);
+  const printableRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       if (!activeCompanyId) {
-        // No active company selected — show a clear message instead of stuck loading state
+        setLoading(false);
+        return;
+      }
+      if (!firebaseUser || !isSafeToAccessCompanyData(firebaseUser.uid, activeCompanyId)) {
+        addNotification(
+          'لا يمكن الوصول إلى بيانات الشركة حاليًا. حاول تسجيل الدخول مرة أخرى.',
+          'error'
+        );
         setLoading(false);
         return;
       }
       setLoading(true);
       try {
-        const [invoicesData, expensesData, reportsData] = await Promise.all([
+        const [invoicesData, expensesData, returnsData] = await Promise.all([
           getInvoices(activeCompanyId),
           getExpenses(activeCompanyId),
-          getReports(activeCompanyId),
+          getReturns(activeCompanyId),
         ]);
-        // FIX: Handle PaginatedData response
         setInvoices((invoicesData as unknown as { data?: Invoice[] }).data || []);
         setExpenses((expensesData as unknown as { data?: Expense[] }).data || []);
-        setReports((reportsData as unknown as { data?: Record<string, unknown>[] }).data || []);
+        setReturns((returnsData as unknown as { data?: ReturnDoc[] }).data || []);
+        logDataAccessEvent('read', 'reports', firebaseUser.uid, activeCompanyId, {
+          scope: ['invoices', 'expenses'],
+        });
       } catch (error: unknown) {
         addNotification(mapFirestoreError(error), 'error');
       }
       setLoading(false);
     };
     fetchData();
-  }, [activeCompanyId, addNotification]);
+  }, [activeCompanyId, addNotification, firebaseUser]);
 
-  // date inputs update `dateRange` directly in-place
+  useEffect(() => {
+    if (preset === 'custom') return;
+    const end = new Date();
+    const start = new Date();
+    if (preset === 'today') {
+      start.setHours(0, 0, 0, 0);
+    } else {
+      const days = Number(preset);
+      start.setDate(end.getDate() - (Number.isNaN(days) ? 30 : days));
+    }
+    setDateRange({ start: toIsoDate(start), end: toIsoDate(end) });
+  }, [preset]);
 
-  const financialSummary = useMemo(() => {
+  const summary = useMemo(() => {
     const start = new Date(dateRange.start);
     const end = new Date(dateRange.end);
+    end.setHours(23, 59, 59, 999);
 
-    const filteredInvoices = invoices.filter((inv) => {
-      const invDate = new Date(inv.date);
-      return inv.status === InvoiceStatus.Paid && invDate >= start && invDate <= end;
-    });
+    const filteredInvoices = invoices
+      .map((inv) => ({ inv, date: toDateValue(inv.date) }))
+      .filter((item) => item.date && item.date >= start && item.date <= end)
+      .map((item) => item.inv);
 
-    const filteredExpenses = expenses.filter((exp) => {
-      const expDate = new Date(exp.date);
-      return expDate >= start && expDate <= end;
-    });
+    const filteredExpenses = expenses
+      .map((exp) => ({ exp, date: toDateValue(exp.date) }))
+      .filter((item) => item.date && item.date >= start && item.date <= end)
+      .map((item) => item.exp);
 
-    const totalRevenue = filteredInvoices.reduce((sum, inv) => sum + inv.total, 0);
-    const totalExpenses = filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-    const netProfit = totalRevenue - totalExpenses;
+    const filteredReturns = returns
+      .map((ret) => ({ ret, date: toDateValue(ret.date) }))
+      .filter((item) => item.date && item.date >= start && item.date <= end)
+      .map((item) => item.ret);
 
-    const expenseByCategory = filteredExpenses.reduce(
-      (acc, exp) => {
-        const category = exp.category || 'Other';
-        acc[category] = (acc[category] || 0) + exp.amount;
-        return acc;
-      },
-      {} as Record<string, number>
+    const totalSales = filteredInvoices.reduce((sum, inv) => sum + getInvoiceTotal(inv), 0);
+    const totalReturns = filteredReturns.reduce(
+      (sum, ret) => sum + (Number(ret.totalReturnAmount) || 0),
+      0
     );
+    const totalExpenses = filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+    const netSales = totalSales - totalReturns;
+    const net = netSales - totalExpenses;
 
-    const expenseChartData = Object.entries(expenseByCategory).map(([name, value]) => ({
-      name,
-      value,
-    }));
+    const sortedInvoices = [...filteredInvoices].sort((a, b) => {
+      const aDate = toDateValue(a.date)?.getTime() || 0;
+      const bDate = toDateValue(b.date)?.getTime() || 0;
+      return bDate - aDate;
+    });
 
-    return { totalRevenue, totalExpenses, netProfit, expenseChartData };
-  }, [invoices, expenses, dateRange]);
+    const sortedExpenses = [...filteredExpenses].sort((a, b) => {
+      const aDate = toDateValue(a.date)?.getTime() || 0;
+      const bDate = toDateValue(b.date)?.getTime() || 0;
+      return bDate - aDate;
+    });
 
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF', '#FF1943'];
+    return {
+      totalSales,
+      totalReturns,
+      netSales,
+      totalExpenses,
+      net,
+      invoices: sortedInvoices,
+      expenses: sortedExpenses,
+    };
+  }, [invoices, expenses, returns, dateRange]);
 
-  if (loading || settingsLoading) return <div>جاري تحميل البيانات...</div>;
+  const exportReport = async (format: 'pdf' | 'png') => {
+    if (!printableRef.current) return;
+    try {
+      await exportElementAs(
+        printableRef.current,
+        `report-${dateRange.start}-${dateRange.end}`,
+        format
+      );
+    } catch (e: unknown) {
+      addNotification(mapFirestoreError(e), 'error');
+    }
+  };
+
+  if (loading || settingsLoading) return <div>جاري تحميل التقارير...</div>;
+
+  if (!activeCompanyId) {
+    return (
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+        <h2 className="text-2xl font-bold mb-2">لا توجد شركة مرتبطة</h2>
+        <p className="text-gray-600 dark:text-gray-400">
+          لا يمكن عرض التقارير بدون شركة فعّالة. يرجى التأكد من إعداد الشركة.
+        </p>
+      </div>
+    );
+  }
+
+  const dateRangeLabel = `الفترة من ${dateRange.start} إلى ${dateRange.end}`;
 
   return (
     <div className="space-y-6">
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-        <h2 className="text-2xl font-bold mb-4">تقرير الأرباح والخسائر</h2>
-        <div className="flex flex-col md:flex-row gap-4 mb-6 items-center">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <h2 className="text-2xl font-bold">التقارير</h2>
+          <div className="flex gap-2">
+            <button
+              onClick={() => exportReport('pdf')}
+              className="px-3 py-2 bg-red-600 text-white rounded-md"
+            >
+              تصدير PDF
+            </button>
+            <button
+              onClick={() => exportReport('png')}
+              className="px-3 py-2 bg-green-600 text-white rounded-md"
+            >
+              تصدير PNG
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-col md:flex-row gap-4 mb-6 items-center mt-4">
+          <div>
+            <label htmlFor="preset" className="block text-sm font-medium">
+              الفترة
+            </label>
+            <select
+              id="preset"
+              value={preset}
+              onChange={(e) => setPreset(e.target.value as DateRangePreset)}
+              className="mt-1 block px-3 py-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600"
+            >
+              <option value="today">اليوم</option>
+              <option value="7">آخر 7 أيام</option>
+              <option value="30">آخر 30 يوم</option>
+              <option value="custom">مخصص</option>
+            </select>
+          </div>
           <div>
             <label htmlFor="start" className="block text-sm font-medium">
-              من تاريخ
+              من
             </label>
             <input
-              type="text"
+              type="date"
               name="start"
               id="start"
-              value={dateRange.start.split('-').reverse().join('/')}
+              value={dateRange.start}
               onChange={(e) => {
-                // convert dd/mm/yyyy to ISO
-                const val = e.target.value;
-                const iso = (() => {
-                  const s = val.includes('/') ? '/' : val.includes('-') ? '-' : '/';
-                  const parts = val.split(s).map((p) => p.trim());
-                  if (parts.length !== 3) return val;
-                  return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                })();
-                // use helper to avoid synthetic event typing
-                setDateRange((prev) => ({ ...prev, start: iso }));
+                setPreset('custom');
+                setDateRange((prev) => ({ ...prev, start: e.target.value }));
               }}
-              placeholder="dd/mm/yyyy"
               className="mt-1 block px-3 py-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600"
             />
           </div>
           <div>
             <label htmlFor="end" className="block text-sm font-medium">
-              إلى تاريخ
+              إلى
             </label>
             <input
-              type="text"
+              type="date"
               name="end"
               id="end"
-              value={dateRange.end.split('-').reverse().join('/')}
+              value={dateRange.end}
               onChange={(e) => {
-                const val = e.target.value;
-                const iso = (() => {
-                  const s = val.includes('/') ? '/' : val.includes('-') ? '-' : '/';
-                  const parts = val.split(s).map((p) => p.trim());
-                  if (parts.length !== 3) return val;
-                  return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                })();
-                setDateRange((prev) => ({ ...prev, end: iso }));
+                setPreset('custom');
+                setDateRange((prev) => ({ ...prev, end: e.target.value }));
               }}
-              placeholder="dd/mm/yyyy"
               className="mt-1 block px-3 py-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600"
             />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
-          <div className="p-4 bg-green-50 dark:bg-green-900/50 rounded-lg">
-            <h3 className="text-lg font-semibold text-green-800 dark:text-green-200">
-              إجمالي الإيرادات
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-center">
+          <div className="p-4 bg-blue-50 dark:bg-blue-900/50 rounded-lg">
+            <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-200">إجمالي المبيعات</h3>
+            <p className="text-3xl font-bold mt-2 text-blue-600">
+              {summary.totalSales.toFixed(2)} {settings?.currency}
+            </p>
+          </div>
+          <div className="p-4 bg-yellow-50 dark:bg-yellow-900/50 rounded-lg">
+            <h3 className="text-lg font-semibold text-yellow-800 dark:text-yellow-200">
+              إجمالي المرتجعات
             </h3>
-            <p className="text-3xl font-bold mt-2 text-green-600">
-              {financialSummary.totalRevenue.toFixed(2)} {settings?.currency}
+            <p className="text-3xl font-bold mt-2 text-yellow-600">
+              {summary.totalReturns.toFixed(2)} {settings?.currency}
             </p>
           </div>
           <div className="p-4 bg-red-50 dark:bg-red-900/50 rounded-lg">
@@ -214,65 +276,157 @@ const Reports: React.FC = () => {
               إجمالي المصروفات
             </h3>
             <p className="text-3xl font-bold mt-2 text-red-600">
-              {financialSummary.totalExpenses.toFixed(2)} {settings?.currency}
+              {summary.totalExpenses.toFixed(2)} {settings?.currency}
             </p>
           </div>
-          <div
-            className={`p-4 rounded-lg ${financialSummary.netProfit >= 0 ? 'bg-blue-50 dark:bg-blue-900/50' : 'bg-yellow-50 dark:bg-yellow-900/50'}`}
-          >
-            <h3
-              className={`text-lg font-semibold ${financialSummary.netProfit >= 0 ? 'text-blue-800 dark:text-blue-200' : 'text-yellow-800 dark:text-yellow-200'}`}
-            >
-              صافي الربح
+          <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/50">
+            <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-200">
+              صافي المبيعات
             </h3>
-            <p
-              className={`text-3xl font-bold mt-2 ${financialSummary.netProfit >= 0 ? 'text-blue-600' : 'text-yellow-600'}`}
-            >
-              {financialSummary.netProfit.toFixed(2)} {settings?.currency}
+            <p className="text-3xl font-bold mt-2 text-blue-600">
+              {summary.netSales.toFixed(2)} {settings?.currency}
             </p>
           </div>
         </div>
-      </div>
 
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-        <h3 className="text-xl font-bold mb-4">تفاصيل المصروفات حسب الفئة</h3>
-        {financialSummary.expenseChartData.length > 0 ? (
-          <div style={{ width: '100%', minHeight: 300 }}>
-            {/** Dynamically load recharts to reduce initial bundle size */}
-            <ChartLoader
-              data={financialSummary.expenseChartData}
-              colors={COLORS}
-              currency={settings?.currency}
-            />
-          </div>
-        ) : (
-          <p className="text-center text-gray-500 py-8">لا توجد مصروفات في هذا النطاق الزمني.</p>
+        {summary.invoices.length === 0 && summary.expenses.length === 0 && summary.totalReturns === 0 && (
+          <p className="text-center text-gray-500 mt-6">
+            لا توجد حركات خلال هذه الفترة.
+          </p>
         )}
       </div>
 
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-        <h3 className="text-xl font-bold mb-4">التقارير المولدة</h3>
-        {reports.length === 0 ? (
-          <p className="text-center text-gray-500 py-8">لا توجد تقارير مولدة بعد.</p>
-        ) : (
-          <ul className="space-y-3">
-            {reports.map((r) => (
-              <li key={String((r as any).id)} className="p-3 border rounded">
-                <div className="flex justify-between">
-                  <div>
-                    <div className="font-semibold">{String((r as any).type || 'Report')}</div>
-                    <div className="text-sm text-gray-600">
-                      {String((r as any).date || (r as any).generatedAt || '')}
+        <div className="flex items-center justify-between">
+          <h3 className="text-xl font-bold">تفاصيل الفترة</h3>
+          <button
+            onClick={() => setShowDetails((s) => !s)}
+            className="text-primary-600 hover:underline"
+          >
+            {showDetails ? 'إخفاء التفاصيل' : 'عرض التفاصيل'}
+          </button>
+        </div>
+        {showDetails && (
+          <div className="mt-6 space-y-6">
+            <div>
+              <h4 className="text-lg font-semibold mb-3">المبيعات</h4>
+              {summary.invoices.length === 0 ? (
+                <p className="text-gray-500">لا توجد مبيعات في هذه الفترة.</p>
+              ) : (
+                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {summary.invoices.map((inv) => (
+                    <div key={inv.id} className="flex items-center justify-between py-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900 dark:text-white truncate">
+                          {inv.customerName || 'عميل'}
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {toDateValue(inv.date)?.toLocaleDateString('ar-EG') || '—'}
+                        </p>
+                      </div>
+                      <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                        {getInvoiceTotal(inv).toFixed(2)} {settings?.currency || ''}
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm">{JSON.stringify((r as any).totals || {})}</div>
-                  </div>
+                  ))}
                 </div>
-              </li>
-            ))}
-          </ul>
+              )}
+            </div>
+            <div>
+              <h4 className="text-lg font-semibold mb-3">المصروفات</h4>
+              {summary.expenses.length === 0 ? (
+                <p className="text-gray-500">لا توجد مصروفات في هذه الفترة.</p>
+              ) : (
+                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {summary.expenses.map((exp) => (
+                    <div key={exp.id} className="flex items-center justify-between py-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900 dark:text-white truncate">
+                          {exp.description || exp.vendor || exp.category || 'مصروف'}
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {toDateValue(exp.date)?.toLocaleDateString('ar-EG') || '—'}
+                        </p>
+                      </div>
+                      <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                        {exp.amount.toFixed(2)} {settings?.currency || ''}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         )}
+      </div>
+
+      <div style={{ position: 'absolute', left: '-10000px', top: 0 }}>
+        <div ref={printableRef}>
+          <PrintableReport
+            reportTitle="تقرير الفترة"
+            companyName={settings?.businessName || 'الشركة'}
+            logoUrl={settings?.logo}
+            address={settings?.address}
+            phone={settings?.contactInfo}
+            dateRangeLabel={dateRangeLabel}
+            summaryItems={[
+              { label: 'إجمالي المبيعات', value: `${summary.totalSales.toFixed(2)} ${settings?.currency}` },
+              { label: 'إجمالي المرتجعات', value: `${summary.totalReturns.toFixed(2)} ${settings?.currency}` },
+              { label: 'صافي المبيعات', value: `${summary.netSales.toFixed(2)} ${settings?.currency}` },
+            ]}
+          >
+            <div className="space-y-4">
+              <div>
+                <h4 className="text-sm font-semibold mb-2">المبيعات</h4>
+                {summary.invoices.length === 0 ? (
+                  <p className="text-gray-500">لا توجد مبيعات في هذه الفترة.</p>
+                ) : (
+                  <div className="divide-y divide-gray-100">
+                    {summary.invoices.map((inv) => (
+                      <div key={inv.id} className="flex items-center justify-between py-2">
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">
+                            {inv.customerName || 'عميل'}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {toDateValue(inv.date)?.toLocaleDateString('ar-EG') || '—'}
+                          </p>
+                        </div>
+                        <div className="text-sm font-semibold">
+                          {getInvoiceTotal(inv).toFixed(2)} {settings?.currency || ''}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold mb-2">المصروفات</h4>
+                {summary.expenses.length === 0 ? (
+                  <p className="text-gray-500">لا توجد مصروفات في هذه الفترة.</p>
+                ) : (
+                  <div className="divide-y divide-gray-100">
+                    {summary.expenses.map((exp) => (
+                      <div key={exp.id} className="flex items-center justify-between py-2">
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">
+                            {exp.description || exp.vendor || exp.category || 'مصروف'}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {toDateValue(exp.date)?.toLocaleDateString('ar-EG') || '—'}
+                          </p>
+                        </div>
+                        <div className="text-sm font-semibold">
+                          {exp.amount.toFixed(2)} {settings?.currency || ''}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </PrintableReport>
+        </div>
       </div>
     </div>
   );

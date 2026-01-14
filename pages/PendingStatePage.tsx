@@ -12,25 +12,19 @@ const PendingStatePage: React.FC = () => {
           <InformationCircleIcon className="h-7 w-7 text-blue-600 dark:text-blue-400" />
         </div>
         <h1 className="text-2xl font-bold mt-4 text-gray-800 dark:text-gray-200">
-          Account Pending
+          لم يتم ربط الحساب بشركة بعد
         </h1>
         <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Welcome, <span className="font-semibold">{user?.displayName || user?.email}</span>!
+          مرحبًا، <span className="font-semibold">{user?.displayName || user?.email}</span>
         </p>
         <p className="mt-4 text-gray-600 dark:text-gray-400">
-          Your account has been successfully created but is not yet associated with a company. To
-          access the dashboard, please use an invitation link provided by a sales representative or
-          your company administrator.
+          هذا الحساب لم يتم ربطه بشركة بعد. يمكنك التأكد من الدخول بنفس البريد الذي تم إرسال الدعوة
+          إليه، أو التواصل مع صاحب الشركة لإضافتك.
         </p>
         <div className="mt-6 space-y-2">
-          <a href="/#/complete-setup">
-            <button className="w-full px-4 py-2 bg-primary-600 text-white rounded-md">
-              إكمال بيانات الشركة
-            </button>
-          </a>
           <button
             onClick={signOutUser}
-            className="flex w-full items-center justify-center px-4 py-2 text-white bg-gray-600 rounded-md hover:bg-gray-700"
+            className="flex w-full items-center justify-center px-4 py-2 text-white bg-primary-600 rounded-md hover:bg-primary-700"
           >
             <ArrowLeftOnRectangleIcon className="h-5 w-5 me-2" />
             تسجيل الخروج

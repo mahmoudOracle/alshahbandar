@@ -14,6 +14,7 @@ import {
   getUserProfile,
   getCompany,
   getCompanyMembershipByUid,
+  createOwnerMembershipIfMissing,
 } from '../services/firestoreService';
 import { FullPageSpinner } from '../components/Spinner';
 // Notification context not required in this module
@@ -106,7 +107,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const unsubscribe = authService.subscribeToAuthChanges(async (user) => {
       try {
         if (!user) {
-          if (DEBUG_MODE) console.log('🟡 [AUTH] onAuthChange: no user (signed out)');
+          if (DEBUG_MODE) console.log('[AUTH] onAuthChange: no user (signed out)');
           setFirebaseUser(null);
           setIsPlatformAdmin(false);
           setCompanyMemberships([]);
@@ -120,7 +121,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         setFirebaseUser(user);
         if (DEBUG_MODE)
-          console.log('🔍 [AUTH] Logged in user detected, uid:', user.uid, 'email:', user.email);
+          console.log('[AUTH] Logged in user detected, uid:', user.uid, 'email:', user.email);
 
         // Run independent reads in parallel to reduce latency
         const [isAdmin, profile] = await Promise.all([
@@ -129,11 +130,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         ]);
 
         setIsPlatformAdmin(isAdmin);
-        if (DEBUG_MODE) console.log(`🔍 [AUTH] isPlatformAdmin: ${isAdmin}`);
+        if (DEBUG_MODE) console.log(`[AUTH] isPlatformAdmin: ${isAdmin}`);
 
         if (!profile) {
-          if (DEBUG_MODE) console.warn('🟡 [FIRESTORE] User profile not found for uid:', user.uid);
-          setOnboardingError('لم يتم إعداد ملف المستخدم. يرجى التواصل مع الدعم.');
+          if (DEBUG_MODE) console.warn('[FIRESTORE] User profile not found for uid:', user.uid);
+          setOnboardingError('بيانات الشركة غير مكتملة. يرجى التواصل مع الإدارة أو تسجيل الدخول مرة أخرى.');
           setCompanyMemberships([]);
           setActiveCompanyIdState(null);
           setAuthLoading(false);
@@ -141,11 +142,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
 
         if (DEBUG_MODE)
-          console.log('🟢 [FIRESTORE] User profile retrieved:', { uid: user.uid, profile });
+          console.log('[FIRESTORE] User profile retrieved:', { uid: user.uid, profile });
         const companyId = profile.companyId as string | undefined;
         if (!companyId) {
-          if (DEBUG_MODE) console.warn('🟡 [ACCESS] User has no companyId in profile:', user.uid);
-          setOnboardingError('لم يتم ربط حسابك بأي شركة بعد.');
+          if (DEBUG_MODE) console.warn('[ACCESS] User has no companyId in profile:', user.uid);
+          setOnboardingError(
+            'مرحبًا ' +
+              (user.email || '') +
+              '\nلا يوجد حساب شركة مرتبط بحسابك.\nيرجى التواصل مع مدير الشركة لإضافة حسابك\nأو التواصل مع الدعم لإكمال بيانات الشركة.'
+          );
           setCompanyMemberships([]);
           setActiveCompanyIdState(null);
           setAuthLoading(false);
@@ -156,7 +161,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         let company = companyCacheRef.current.get(companyId) || null;
 
         // Fetch company and membership in parallel
-        const [companySnap, membership] = await Promise.all([
+        let [companySnap, membership] = await Promise.all([
           company
             ? Promise.resolve(company)
             : getCompany(companyId).catch((err) => {
@@ -167,9 +172,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         company = companySnap;
         if (!company) {
-          if (DEBUG_MODE)
-            console.warn('🟡 [FIRESTORE] Company not found for companyId:', companyId);
-          setOnboardingError('لم يتم العثور على الشركة المرتبطة بحسابك.');
+          if (DEBUG_MODE) console.warn('[FIRESTORE] Company not found for companyId:', companyId);
+          setOnboardingError(
+            'مرحبًا ' +
+              (user.email || '') +
+              '\nلا يوجد حساب شركة مرتبط بحسابك.' +
+              '\nيرجى التواصل مع مدير الشركة لإضافة حسابك' +
+              '\nأو التواصل مع الدعم لإكمال بيانات الشركة.'
+          );
           setCompanyMemberships([]);
           setActiveCompanyIdState(null);
           setAuthLoading(false);
@@ -180,15 +190,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         companyCacheRef.current.set(companyId, company);
 
         if (DEBUG_MODE)
-          console.log('🟢 [FIRESTORE] Company retrieved:', { companyId, status: company.status });
+          console.log('[FIRESTORE] Company retrieved:', { companyId, status: company.status });
 
         // Minimal validation: require companyName and status
         if (!company.companyName || !company.status) {
-          console.warn('🟡 [DATA] Company document missing minimal required fields:', {
+          console.warn('[DATA] Company document missing minimal required fields:', {
             companyId,
             company,
           });
-          setOnboardingError('بيانات الشركة غير كاملة. يرجى إكمال إعدادات الشركة.');
+          setOnboardingError('بيانات الشركة غير مكتملة. يرجى التواصل مع الإدارة.');
           setCompanyMemberships([]);
           setActiveCompanyIdState(null);
           setAuthLoading(false);
@@ -198,20 +208,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (company.status !== 'approved') {
           const msg =
             company.status === 'pending'
-              ? 'حسابك في انتظار الموافقة من الإدارة.'
-              : 'تم رفض طلب شركتك.';
+              ? 'الشركة تحت المراجعة. يرجى التواصل مع الإدارة.'
+              : 'تم إيقاف الشركة. يرجى التواصل مع الإدارة.';
           if (DEBUG_MODE)
-            console.warn(
-              '🔴 [ACCESS] Company access blocked, status:',
-              company.status,
-              'companyId:',
-              companyId
-            );
+            console.warn('[ACCESS] Company access blocked, status:', company.status, 'companyId:', companyId);
           setOnboardingError(msg);
           setCompanyMemberships([]);
           setActiveCompanyIdState(null);
           setAuthLoading(false);
           return;
+        }
+
+        // Attempt to repair missing membership doc for owners (uid/email match)
+        if (!membership && company) {
+          const ownerUid = (company as { ownerUid?: string }).ownerUid;
+          const ownerEmail = (company as { email?: string }).email;
+          const emailMatches =
+            ownerEmail &&
+            user.email &&
+            ownerEmail.trim().toLowerCase() === user.email.trim().toLowerCase();
+          const uidMatches = ownerUid && ownerUid === user.uid;
+          if (uidMatches || emailMatches) {
+            const created = await createOwnerMembershipIfMissing(companyId, user, UserRole.Owner);
+            if (created) {
+              membership = created;
+              setOnboardingError(null);
+            } else {
+              setOnboardingError('تعذر إنشاء عضويتك. يرجى التواصل مع الإدارة.');
+            }
+          } else {
+            setOnboardingError('لا توجد عضوية لحسابك في هذه الشركة. يرجى التواصل مع الإدارة لإضافتك.');
+          }
         }
 
         // Prepare membership data (use profile.role if membership doc missing)
@@ -231,8 +258,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setOnboardingError(null);
         setAuthLoading(false);
       } catch (err: unknown) {
-        console.error('🔴 [AUTH] Error during auth processing:', err);
-        if (DEBUG_MODE) console.error('🔴 [AUTH] error details:', err);
+        console.error('[AUTH] Error during auth processing:', err);
+        if (DEBUG_MODE) console.error('[AUTH] error details:', err);
         const msg = ((): string => {
           if (typeof err === 'object' && err !== null && 'message' in err) {
             try {
@@ -255,12 +282,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             msg
           )
         ) {
-          console.error('🔴 [AUTH] Network/offline detected while accessing Firestore', err);
-          setOnboardingError('تعذر الاتصال بخوادمنا. تحقق من اتصال الإنترنت وحاول مرة أخرى.');
+          console.error('[AUTH] Network/offline detected while accessing Firestore', err);
+          setOnboardingError('لا يوجد اتصال بالإنترنت. يرجى التحقق من الاتصال والمحاولة مرة أخرى.');
         } else if (code === 'permission-denied' || /permission/i.test(msg)) {
-          setOnboardingError('لا تملك صلاحية الوصول إلى بيانات الشركة. تواصل مع الدعم.');
+          setOnboardingError('ليس لديك صلاحية للوصول إلى بيانات الشركة. يرجى التواصل مع الإدارة.');
         } else {
-          setOnboardingError('حدث خطأ أثناء تحميل بيانات المصادقة. حاول إعادة تسجيل الدخول.');
+          setOnboardingError('حدث خطأ أثناء تحميل بيانات الشركة. يرجى المحاولة مرة أخرى.');
         }
         setCompanyMemberships([]);
         setAuthLoading(false);
@@ -285,15 +312,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Session timeout check: Auto-logout after inactivity (30 minutes)
   useEffect(() => {
+    if (DEBUG_MODE) return;
     if (!firebaseUser || !activeCompanyId) return;
 
-    const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+    const SESSION_TIMEOUT_MS = 8 * 60 * 60 * 1000; // 8 hours
     let timeoutId: ReturnType<typeof setTimeout>;
 
     const resetTimeout = () => {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
-        if (DEBUG_MODE) console.log('🟡 [AUTH] Session timeout - auto-logout');
+        if (DEBUG_MODE) console.log('[AUTH] Session timeout - auto-logout');
         authService.signOutUser().catch((e) => console.error('Logout error:', e));
       }, SESSION_TIMEOUT_MS);
     };
