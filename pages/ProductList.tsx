@@ -16,11 +16,12 @@ import { mapFirestoreError } from '../services/firebaseErrors';
 import QuickAddProduct from '../components/QuickAddProduct';
 import { clearProductCache } from '../services/repositories/products';
 
-const PAGE_SIZE = 1000;
+const PAGE_SIZE = 200;
+const SKELETON_ROWS = 8;
 
 const isLowStock = (product: Product) => {
   const level = Number(product.reorderLevel || 0);
-  if (level <= 0) return false;
+  if (!Number.isFinite(level) || level <= 0) return false;
   return Number(product.stock || 0) <= level;
 };
 
@@ -48,7 +49,7 @@ const ProductCard: React.FC<{
       <div>
         <h3 className="font-bold text-lg">{product.name}</h3>
         <p className="text-sm text-gray-500">
-          {product.price.toFixed(2)} {currency}
+          {Number(product.price || 0).toFixed(2)} {currency}
         </p>
       </div>
       <span
@@ -213,6 +214,11 @@ const ProductList: React.FC = () => {
     if (f === 'low') setFilter('low');
   }, [location.search]);
 
+  const lowStockCount = useMemo(
+    () => products.filter((product) => isLowStock(product)).length,
+    [products]
+  );
+
   const filteredProducts = useMemo(() => {
     let list = products.filter((product) =>
       (product.name || '').toLowerCase().includes((searchTerm || '').toLowerCase())
@@ -220,16 +226,20 @@ const ProductList: React.FC = () => {
     if (filter === 'low') {
       list = list.filter((p) => isLowStock(p));
     }
+
+    const sorted = [...list];
     if (sortBy === 'name_asc')
-      list = list.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
+      sorted.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
     if (sortBy === 'name_desc')
-      list = list.sort((a, b) => (b.name || '').localeCompare(a.name || '', 'ar'));
-    if (sortBy === 'price_asc') list = list.sort((a, b) => (a.price || 0) - (b.price || 0));
-    if (sortBy === 'price_desc') list = list.sort((a, b) => (b.price || 0) - (a.price || 0));
-    return list;
+      sorted.sort((a, b) => (b.name || '').localeCompare(a.name || '', 'ar'));
+    if (sortBy === 'price_asc')
+      sorted.sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
+    if (sortBy === 'price_desc')
+      sorted.sort((a, b) => Number(b.price || 0) - Number(a.price || 0));
+    return sorted;
   }, [products, searchTerm, sortBy, filter]);
 
-  if (loading || settingsLoading) return <TableSkeleton cols={5} rows={PAGE_SIZE} />;
+  if (loading || settingsLoading) return <TableSkeleton cols={5} rows={SKELETON_ROWS} />;
 
   if (products.length === 0 && !loading) {
     return (
@@ -248,12 +258,24 @@ const ProductList: React.FC = () => {
 
   return (
     <Card>
-      <div className="mb-4">
-        <h2 className="text-xl font-bold">المنتجات والمخزون</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          تتبع المنتجات وكميات المخزون وإدارة الأسعار بشكل عملي.
-        </p>
+      <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-xl font-bold">المنتجات والمخزون</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            تتبع المنتجات وكميات المخزون وإدارة الأسعار بشكل عملي.
+          </p>
+        </div>
+        <span
+          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+            lowStockCount > 0
+              ? 'bg-danger-100 text-danger-700'
+              : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-200'
+          }`}
+        >
+          منخفض: {lowStockCount}
+        </span>
       </div>
+
       <div className="flex flex-col md:flex-row justify-between items-start mb-4 gap-4">
         {canWrite && (
           <div className="w-full md:w-80 mb-2 md:mb-0">
@@ -452,7 +474,7 @@ const ProductList: React.FC = () => {
                   <>
                     <td className="px-6 py-4 whitespace-nowrap font-medium">{product.name}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {product.price.toFixed(2)} {settings?.currency}
+                      {Number(product.price || 0).toFixed(2)} {settings?.currency}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span

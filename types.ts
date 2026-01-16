@@ -300,7 +300,8 @@ export interface Company {
   city?: string;
   businessType?: string;
   status: 'pending' | 'approved' | 'rejected';
-  plan?: { maxUsers: number };
+  isActive?: boolean;
+  plan?: { maxUsers: number } | string;
   ownerUid?: string | null;
   createdAt: unknown; // serverTimestamp
   updatedAt?: unknown;

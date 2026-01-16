@@ -11,6 +11,20 @@ interface SearchResult {
   products: Product[];
 }
 
+const decodeUnicode = (str: string | undefined | null): string => {
+  if (!str) return '';
+  // Handle double-escaped sequences, e.g., \\uXXXX -> \uXXXX
+  const normalizedStr = str.replace(/\\u/g, '\\u');
+  const decoded = normalizedStr.replace(/\\u([\dA-F]{4})/gi, (_, grp) =>
+    String.fromCharCode(parseInt(grp, 16))
+  );
+
+  if (import.meta.env.DEV) {
+    console.info('[TOP_SEARCH_DEBUG]', { raw: str, decoded });
+  }
+  return decoded;
+};
+
 const GlobalSearch: React.FC = () => {
   const { companyId } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
@@ -35,17 +49,16 @@ const GlobalSearch: React.FC = () => {
       ]);
 
       const lowerCaseTerm = (term || '').toLowerCase();
-      // FIX: Access the .data property from the paginated response before filtering.
       const filteredCustomers = (customersData?.data || []).filter((c) =>
-        (c.name || '').toLowerCase().includes(lowerCaseTerm)
+        decodeUnicode(c.name).toLowerCase().includes(lowerCaseTerm)
       );
       const filteredInvoices = (invoicesData?.data || []).filter(
         (i) =>
-          (i.invoiceNumber || '').toLowerCase().includes(lowerCaseTerm) ||
-          (i.customerName || '').toLowerCase().includes(lowerCaseTerm)
+          decodeUnicode(i.invoiceNumber).toLowerCase().includes(lowerCaseTerm) ||
+          decodeUnicode(i.customerName).toLowerCase().includes(lowerCaseTerm)
       );
       const filteredProducts = (productsData?.data || []).filter((p) =>
-        (p.name || '').toLowerCase().includes(lowerCaseTerm)
+        decodeUnicode(p.name).toLowerCase().includes(lowerCaseTerm)
       );
 
       setResults({
@@ -134,8 +147,8 @@ const GlobalSearch: React.FC = () => {
                         onClick={() => handleNavigate(`/invoices/${i.id}`)}
                         className="p-3 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                       >
-                        {i.invoiceNumber}{' '}
-                        <span className="text-sm text-gray-500">({i.customerName})</span>
+                        {decodeUnicode(i.invoiceNumber)}{' '}
+                        <span className="text-sm text-gray-500">({decodeUnicode(i.customerName)})</span>
                       </li>
                     ))}
                   </ul>
@@ -153,7 +166,7 @@ const GlobalSearch: React.FC = () => {
                         onClick={() => handleNavigate(`/customers/${c.id}`)}
                         className="p-3 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                       >
-                        {c.name}
+                        {decodeUnicode(c.name)}
                       </li>
                     ))}
                   </ul>
@@ -171,7 +184,7 @@ const GlobalSearch: React.FC = () => {
                         onClick={() => handleNavigate(`/products`)}
                         className="p-3 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                       >
-                        {p.name}
+                        {decodeUnicode(p.name)}
                       </li>
                     ))}
                   </ul>

@@ -11,9 +11,9 @@ import {
 } from '@heroicons/react/24/outline';
 import { getInvoices, getCustomers, getExpenses } from '../services/dataService';
 import SyncStatusBadge from './SyncStatusBadge';
-// types intentionally omitted where unused
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import { Spinner } from './Spinner';
+import { decodeUnicodeText } from '../src/utils/textDecode';
 
 interface CommandBarProps {
   isOpen: boolean;
@@ -65,10 +65,10 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
   const resultsRef = useRef<HTMLUListElement>(null);
 
   const staticActions: StaticAction[] = [
-    { id: 'nav-1', title: 'ملخص', category: 'Navigation', icon: HomeIcon, path: '/' },
+    { id: 'nav-1', title: 'ملخّص', category: 'Navigation', icon: HomeIcon, path: '/dashboard' },
     {
       id: 'nav-2',
-      title: 'كل الفواتير',
+      title: 'الفواتير',
       category: 'Navigation',
       icon: DocumentTextIcon,
       path: '/invoices',
@@ -76,7 +76,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
     { id: 'nav-3', title: 'العملاء', category: 'Navigation', icon: UsersIcon, path: '/customers' },
     {
       id: 'nav-4',
-      title: 'المنتجات',
+      title: 'المنتجات والمخزون',
       category: 'Navigation',
       icon: ArchiveBoxIcon,
       path: '/products',
@@ -123,6 +123,33 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
   const allItems: ActionItem[] =
     searchTerm.length > 2 ? [...searchResults, ...filteredStaticActions] : filteredStaticActions;
 
+  const getCategoryLabel = (category: ActionItem['category']) => {
+    switch (category) {
+      case 'Navigation':
+        return 'التنقل';
+      case 'Create':
+        return 'إنشاء';
+      case 'Invoices':
+        return 'فواتير';
+      case 'Customers':
+        return 'عملاء';
+      case 'Expenses':
+        return 'مصروفات';
+      default:
+        return decodeUnicodeText(category);
+    }
+  };
+
+  useEffect(() => {
+    if (import.meta.env.DEV && staticActions.length > 0) {
+      const sample = staticActions[0];
+      console.info('[PALETTE_DEBUG] sample titles:', {
+        raw: sample.title,
+        decoded: decodeUnicodeText(sample.title),
+      });
+    }
+  }, [staticActions]);
+
   useEffect(() => {
     const performSearch = async () => {
       if (!activeCompanyId || searchTerm.length < 3) {
@@ -137,7 +164,6 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
           getExpenses(activeCompanyId),
         ]);
 
-        // FIX: Use .data property from paginated response
         const invoiceResults: SearchResultItem[] = (invoicesData.data || [])
           .filter(
             (i) => fuzzyMatch(i.invoiceNumber, searchTerm) || fuzzyMatch(i.customerName, searchTerm)
@@ -245,7 +271,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
           <input
             ref={inputRef}
             type="text"
-            placeholder="Search for anything..."
+            placeholder="ابحث عن أي شيء..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-transparent px-12 py-4 border-b dark:border-slate-700 focus:outline-none"
@@ -277,12 +303,12 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
                     className={`h-5 w-5 me-3 ${selectedIndex === index ? 'text-white' : 'text-gray-500'}`}
                   />
                   <div>
-                    <span className="font-medium">{item.title}</span>
+                    <span className="font-medium">{decodeUnicodeText(item.title)}</span>
                     {'subtitle' in item && item.subtitle && (
                       <span
                         className={`text-sm ms-2 ${selectedIndex === index ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}
                       >
-                        {item.subtitle}
+                        {decodeUnicodeText(item.subtitle)}
                       </span>
                     )}
                   </div>
@@ -290,13 +316,13 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
                 <span
                   className={`text-xs ${selectedIndex === index ? 'text-blue-200' : 'text-gray-400'}`}
                 >
-                  {item.category}
+                  {getCategoryLabel(item.category)}
                 </span>
               </li>
             ))
           ) : (
             <div className="text-center p-8 text-gray-500">
-              <p>No results found.</p>
+              <p>لا توجد نتائج.</p>
             </div>
           )}
         </ul>

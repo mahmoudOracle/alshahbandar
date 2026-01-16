@@ -134,7 +134,7 @@ Deployment
 
 Firebase
 - Ensure Firebase config in `services/firebase.ts` is correct for production.
-- Configure `VITE_USE_FIREBASE_EMULATORS` and emulator ports only for dev.
+- Configure `VITE_USE_EMULATORS` and emulator ports only for dev.
 - Verify Firestore rules for multi-tenant isolation on all collections.
 - Deploy callable Functions listed above; ensure `getCompanyInvitations` and `isPlatformAdmin` are deployed.
 

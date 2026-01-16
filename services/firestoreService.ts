@@ -1,4 +1,4 @@
-﻿import {
+import {
   collection,
   getDocs,
   doc,
@@ -14,7 +14,6 @@
   limit as firestoreLimit,
   QueryConstraint,
   QueryDocumentSnapshot,
-  collectionGroup,
   runTransaction,
   Timestamp,
   updateDoc,
@@ -51,6 +50,7 @@ import {
   Purchase,
 } from '../types';
 import { db, functions } from './firebase';
+import { mapFirestoreError } from './firebaseErrors';
 import { enqueueOperation } from './syncService';
 import * as productsRepo from './repositories/products';
 import { serverTimestamp } from 'firebase/firestore';
@@ -58,6 +58,24 @@ import { DEBUG_MODE } from '../config';
 import { isPosted, isPeriodLocked } from './accountingSafety';
 
 // --- Retry & Network Helpers ---
+const isOfflineError = (err: unknown): boolean => {
+  try {
+    const code =
+      typeof err === 'object' && err !== null && 'code' in err ? String((err as any).code) : '';
+    const message =
+      typeof err === 'object' && err !== null && 'message' in err
+        ? String((err as any).message || '')
+        : String(err || '');
+    return (
+      code === 'client-offline' ||
+      /client offline|failed to reach firestore|could not reach cloud firestore|net::err_connection_closed|err_connection_refused/.test(
+        message.toLowerCase()
+      )
+    );
+  } catch {
+    return false;
+  }
+};
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 const isTransientNetworkError = (err: unknown) => {
   const msg = String((err as { message?: unknown })?.message || '').toLowerCase();
@@ -81,7 +99,7 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 3, baseDelay = 400)
       const delay = baseDelay * Math.pow(2, i);
       if (DEBUG_MODE)
         console.warn(
-          `ðŸŸ¡ [FIRESTORE][RETRY] transient error, retrying in ${delay}ms`,
+          `🟡 [FIRESTORE][RETRY] transient error, retrying in ${delay}ms`,
           err?.message || err
         );
       await sleep(delay);
@@ -203,6 +221,142 @@ export const createPlatformCompanyWithManager = async (payload: {
   }
 };
 
+export const getPlatformSummary = async (): Promise<{
+  companiesCount: number;
+  usersCount: number;
+  invoicesCount: number;
+  latestCompanies: Array<{ id: string; name: string | null; createdAt: unknown; isActive: boolean }>;
+}> => {
+  const fn = httpsCallable(functions, 'getPlatformSummary');
+  try {
+    const res = await fn({});
+    const data =
+      res && (res as unknown as Record<string, unknown>)['data']
+        ? (res as unknown as Record<string, unknown>)['data']
+        : res;
+    return (data || {
+      companiesCount: 0,
+      usersCount: 0,
+      invoicesCount: 0,
+      latestCompanies: [],
+    }) as {
+      companiesCount: number;
+      usersCount: number;
+      invoicesCount: number;
+      latestCompanies: Array<{
+        id: string;
+        name: string | null;
+        createdAt: unknown;
+        isActive: boolean;
+      }>;
+    };
+  } catch (error) {
+    console.error('[DEBUG][Platform] getPlatformSummary failed:', error);
+    throw error;
+  }
+};
+
+export const setCompanyActive = async (companyId: string, isActive: boolean): Promise<void> => {
+  const fn = httpsCallable(functions, 'setCompanyActive');
+  try {
+    await fn({ companyId, isActive });
+  } catch (error) {
+    console.error('[DEBUG][Platform] setCompanyActive failed:', error);
+    throw error;
+  }
+};
+
+export const logAuditEvent = async (payload: {
+  action: string;
+  companyId?: string | null;
+  meta?: Record<string, unknown>;
+}): Promise<void> => {
+  const fn = httpsCallable(functions, 'logAuditEvent');
+  try {
+    await fn({
+      action: payload.action,
+      companyId: payload.companyId || null,
+      meta: payload.meta || null,
+    });
+  } catch (error) {
+    console.warn('[DEBUG][Platform] logAuditEvent failed:', error);
+  }
+};
+
+export const platformCreateCompany = async (payload: {
+  name: string;
+  ownerUid: string;
+  contactEmail: string;
+  phone: string;
+  address: string;
+  city: string;
+  country: string;
+  contactPersonName: string;
+  contactPersonTitle: string;
+  plan?: string;
+  notes?: string;
+  taxId?: string;
+  commercialReg?: string;
+}): Promise<{ companyId: string }> => {
+  const fn = httpsCallable(functions, 'platformCreateCompany');
+  try {
+    const res = await fn(payload);
+    const data =
+      res && (res as unknown as Record<string, unknown>)['data']
+        ? (res as unknown as Record<string, unknown>)['data']
+        : res;
+    return (data || {}) as { companyId: string };
+  } catch (error) {
+    console.error('[DEBUG][Platform] platformCreateCompany failed:', error);
+    throw error;
+  }
+};
+
+export const platformListCompanies = async (limit = 50): Promise<{
+  companies: Array<{
+    id: string;
+    name: string | null;
+    isActive: boolean;
+    plan: string;
+    createdAt: unknown;
+    contactEmail: string | null;
+    phone: string | null;
+    address: string | null;
+    city: string | null;
+    country: string | null;
+    contactPersonName: string | null;
+    contactPersonTitle: string | null;
+  }>;
+}> => {
+  const fn = httpsCallable(functions, 'platformListCompanies');
+  try {
+    const res = await fn({ limit });
+    const data =
+      res && (res as unknown as Record<string, unknown>)['data']
+        ? (res as unknown as Record<string, unknown>)['data']
+        : res;
+    return (data || { companies: [] }) as {
+      companies: Array<{
+        id: string;
+        name: string | null;
+        isActive: boolean;
+        plan: string;
+        createdAt: unknown;
+        contactEmail: string | null;
+        phone: string | null;
+        address: string | null;
+        city: string | null;
+        country: string | null;
+        contactPersonName: string | null;
+        contactPersonTitle: string | null;
+      }>;
+    };
+  } catch (error) {
+    console.error('[DEBUG][Platform] platformListCompanies failed:', error);
+    throw error;
+  }
+};
+
 export const updateCompanyStatus = async (companyId: string, isActive: boolean): Promise<void> => {
   try {
     console.log('[DEBUG][AUTHZ] Direct updateCompanyStatus', { companyId, isActive });
@@ -212,6 +366,18 @@ export const updateCompanyStatus = async (companyId: string, isActive: boolean):
   } catch (err) {
     console.error('[DEBUG][AUTHZ] updateCompanyStatus failed', err);
     throw err;
+  }
+};
+
+export const getCompanyStatsSummary = async (companyId: string): Promise<Record<string, unknown> | null> => {
+  try {
+    const ref = doc(db, 'companies', companyId, 'stats', 'summary');
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return null;
+    return { id: snap.id, ...(snap.data() as Record<string, unknown>) };
+  } catch (err) {
+    console.warn('[FIRESTORE] getCompanyStatsSummary failed', err);
+    return null;
   }
 };
 
@@ -514,119 +680,36 @@ const deleteData = async (
 
 // --- AUTH & MEMBERSHIP RESOLUTION ---
 
-export const checkIfPlatformAdmin = async (uid: string): Promise<boolean> => {
-  // Prefer server callable if available (avoids client-side reads that may be denied by rules)
+export const listCompaniesForPlatformAdmin = async (): Promise<
+  Array<{ id: string; companyName: string; status?: string }>
+> => {
+  const fn = httpsCallable(functions, 'getAdminCompanies');
   try {
-    try {
-      const fn = httpsCallable(functions, 'isPlatformAdmin');
-      const res = await fn({ uid });
-      const payload =
-        res && (res as unknown as Record<string, unknown>)['data']
-          ? (res as unknown as Record<string, unknown>)['data']
-          : null;
-      if (payload && typeof (payload as Record<string, unknown>)['isAdmin'] === 'boolean') {
-        if (DEBUG_MODE)
-          console.log(
-            '[DEBUG][AUTHZ] isPlatformAdmin (callable) result for',
-            uid,
-            (payload as Record<string, unknown>)['isAdmin']
-          );
-        return Boolean((payload as Record<string, unknown>)['isAdmin']);
-      }
-    } catch (callErr) {
-      if (DEBUG_MODE)
-        console.warn(
-          '[DEBUG][AUTHZ] isPlatformAdmin callable not available or failed; falling back to client read',
-          callErr?.message || callErr
-        );
-    }
-
-    const adminRef = doc(db, 'platformAdmins', uid);
-    const adminSnap = await withRetry(() => getDoc(adminRef));
-    if (adminSnap.exists()) {
-      console.log('[DEBUG][AUTHZ] uid', uid, 'isPlatformAdmin? true (platformAdmins)');
-      return true;
-    }
-
-    const userRef = doc(db, 'platformUsers', uid);
-    const userSnap = await withRetry(() => getDoc(userRef));
-    const userData = userSnap.exists() ? (userSnap.data() as Record<string, unknown>) : null;
-    const isAdmin = Boolean(userData && userData.platformAdmin === true);
-    console.log('[DEBUG][AUTHZ] uid', uid, 'isPlatformAdmin?', isAdmin);
-    return isAdmin;
+    const res = await fn({ limit: 200 });
+    const payload =
+      res && (res as unknown as Record<string, unknown>)['data']
+        ? (res as unknown as Record<string, unknown>)['data']
+        : res;
+    const data = (payload as Record<string, unknown>)?.data;
+    if (!Array.isArray(data)) return [];
+    return data.map((item) => {
+      const raw = (item || {}) as Record<string, unknown>;
+      return {
+        id: String(raw.id || ''),
+        companyName: String(raw.companyName || raw.name || ''),
+        status: typeof raw.status === 'string' ? raw.status : undefined,
+      };
+    });
   } catch (err) {
-    console.error('[DEBUG][AUTHZ] checkIfPlatformAdmin failed for uid', uid, err);
-    return false;
+    throw new Error(mapFirestoreError(err));
   }
 };
 
-export const getCompanyMemberships = async (uid: string): Promise<CompanyMembership[]> => {
-  const memberships: CompanyMembership[] = [];
-  if (DEBUG_MODE)
-    console.log(
-      `ðŸ” [FIRESTORE] Reading membership documents for uid: ${uid} (collectionGroup users)`
-    );
-  const usersQuery = query(collectionGroup(db, 'users'), where('uid', '==', uid));
-  const querySnapshot = await withRetry(() => getDocs(usersQuery));
-
-  // Collect companyIds and fetch company docs in parallel to avoid sequential N+1 reads
-  const companyIds: string[] = [];
-  const userDocs: Array<{ companyId: string; userData: CompanyUser }> = [];
-  for (const userDoc of querySnapshot.docs) {
-    const userData = userDoc.data() as CompanyUser;
-    const companyId = userDoc.ref.parent.parent?.id; // companies/{companyId}/users/{userId}
-    if (companyId) {
-      companyIds.push(companyId);
-      userDocs.push({ companyId, userData });
-    }
-  }
-
-  const uniqueCompanyIds = Array.from(new Set(companyIds));
-  const companySnaps = await Promise.all(
-    uniqueCompanyIds.map((id) =>
-      withRetry(() => getDoc(doc(db, 'companies', id))).catch(() => null)
-    )
-  );
-  const companyMap = new Map<string, unknown>();
-  for (let i = 0; i < uniqueCompanyIds.length; i++) {
-    const id = uniqueCompanyIds[i];
-    const snap = companySnaps[i] as unknown;
-    const snapLike = snap as { exists?: () => boolean; data?: () => unknown };
-    if (snap && typeof snapLike.exists === 'function' && snapLike.exists()) {
-      companyMap.set(id, (snapLike.data && snapLike.data()) || undefined);
-      if (DEBUG_MODE)
-        console.log(`ðŸŸ¢ [FIRESTORE] Found company doc for companyId=${id}`, {
-          id,
-          data: (snap as any).data(),
-        });
-    } else {
-      if (DEBUG_MODE)
-        console.warn(
-          `ðŸŸ¡ [FIRESTORE] Company doc not found for companyId=${id} while resolving memberships`
-        );
-    }
-  }
-
-  for (const ud of userDocs) {
-    const compData = companyMap.get(ud.companyId);
-    if (compData) {
-      const compAny = compData as any;
-      memberships.push({
-        companyId: ud.companyId,
-        companyName: compAny.companyName || compAny.name || 'Unnamed Company',
-        role: ud.userData.role,
-        status: ud.userData.status,
-      });
-    }
-  }
-
-  return memberships;
-};
 
 /**
  * Create a company document and link the creating user as the owner.
  * This will write three documents in a single batch: companies/{companyId},
- * companies/{companyId}/users/{uid}, and users/{uid} (profile).
+ * companies/{companyId}/members/{uid}, and users/{uid} (profile).
  * The company will be created with status 'pending' and cannot be approved
  * except by a platform admin.
  */
@@ -645,7 +728,7 @@ export const createCompanyWithOwner = async (
 ): Promise<{ companyId: string }> => {
   try {
     if (DEBUG_MODE)
-      console.log(`ðŸ” [FIRESTORE] createCompanyWithOwner called for uid=${uid}, email=${email}`, {
+      console.log(`🔍 [FIRESTORE] createCompanyWithOwner called for uid=${uid}, email=${email}`, {
         payload: data,
       });
     const companyRef = doc(collection(db, 'companies'));
@@ -662,12 +745,15 @@ export const createCompanyWithOwner = async (
       city: String((data as Record<string, unknown>)['city'] || '').trim(),
       businessType: String((data as Record<string, unknown>)['businessType'] || '').trim(),
       status: 'pending',
+      isActive: true,
+      plan: { maxUsers: 10 },
       ownerUid: uid,
       createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     };
 
     const userProfileRef = doc(db, 'users', uid);
-    const membershipRef = doc(db, 'companies', companyId, 'users', uid);
+    const membershipRef = doc(db, 'companies', companyId, 'members', uid);
 
     const batch = writeBatch(db);
     batch.set(companyRef, companyData);
@@ -684,13 +770,14 @@ export const createCompanyWithOwner = async (
       role: 'company_owner',
       companyId: companyId,
       createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     });
 
     await withRetry(() => batch.commit());
-    console.log('ðŸŸ¢ [FIRESTORE] Company created with id', companyId, 'ownerUid=', uid);
+    console.log('🟢 [FIRESTORE] Company created with id', companyId, 'ownerUid=', uid);
     return { companyId };
   } catch (err) {
-    console.error('ðŸ”´ [FIRESTORE] createCompanyWithOwner failed:', {
+    console.error('🔴 [FIRESTORE] createCompanyWithOwner failed:', {
       uid,
       email,
       error: err?.message || err,
@@ -699,29 +786,149 @@ export const createCompanyWithOwner = async (
   }
 };
 
+export const upsertUserProfile = async (user: User): Promise<void> => {
+  if (!user || !user.uid) return;
+  const ref = doc(db, 'users', user.uid);
+  const snap = await withRetry(() => getDoc(ref)).catch(() => null);
+  const existing = snap && typeof snap.exists === 'function' && snap.exists() ? snap.data() : null;
+  const displayName =
+    user.displayName ||
+    (existing && (existing as any).displayName) ||
+    (existing && (existing as any).name) ||
+    (existing && (existing as any).fullName) ||
+    '';
+  const payload: Record<string, unknown> = {
+    uid: user.uid,
+    email: user.email || (existing && (existing as any).email) || '',
+    displayName,
+    updatedAt: serverTimestamp(),
+  };
+  if (!existing || !(existing as any).createdAt) {
+    payload.createdAt = serverTimestamp();
+  }
+  if (displayName && !(existing as any)?.name) {
+    payload.name = displayName;
+  }
+  if (displayName && !(existing as any)?.fullName) {
+    payload.fullName = displayName;
+  }
+  await withRetry(() => setDoc(ref, payload, { merge: true }));
+};
+
 export const getUserProfile = async (uid: string): Promise<any | null> => {
   const ref = doc(db, 'users', uid);
-  if (DEBUG_MODE) console.log(`ðŸ” [FIRESTORE] Reading users/${uid}`);
+  if (DEBUG_MODE) console.log(`🔍 [FIRESTORE] Reading users/${uid}`);
   const snap = await withRetry(() => getDoc(ref));
   if (snap.exists()) {
-    if (DEBUG_MODE) console.log('ðŸŸ¢ [FIRESTORE] User profile found:', { uid, data: snap.data() });
+    if (DEBUG_MODE) console.log('🟢 [FIRESTORE] User profile found:', { uid, data: snap.data() });
     return snap.data();
   }
-  if (DEBUG_MODE) console.warn('ðŸŸ¡ [FIRESTORE] User profile not found:', uid);
+  if (DEBUG_MODE) console.warn('🟡 [FIRESTORE] User profile not found:', uid);
   return null;
 };
 
+// --- Caching Layer ---
+const companyCache = new Map<string, Company>();
+const inFlightCompanyPromises = new Map<string, Promise<Company | null>>();
+
+/**
+ * Get a company by ID with multi-level caching:
+ * 1. Check memory cache first (fastest)
+ * 2. Check in-flight requests to dedupe concurrent fetches
+ * 3. Fetch from Firestore with retry logic
+ * 
+ * Safe under React.StrictMode: multiple concurrent calls reuse the same promise.
+ */
 export const getCompany = async (companyId: string): Promise<Company | null> => {
-  const ref = doc(db, 'companies', companyId);
-  if (DEBUG_MODE) console.log(`ðŸ” [FIRESTORE] Reading companies/${companyId}`);
-  const snap = await withRetry(() => getDoc(ref));
-  if (snap.exists()) {
-    if (DEBUG_MODE)
-      console.log('ðŸŸ¢ [FIRESTORE] Company document found:', { companyId, data: snap.data() });
-    return { id: snap.id, ...(snap.data() as unknown as Record<string, unknown>) } as Company;
+  // Level 1: Return from cache if already fetched
+  if (companyCache.has(companyId)) {
+    if (DEBUG_MODE) console.count("[FIRESTORE CACHE] Hit: returning cached company");
+    return companyCache.get(companyId)!;
   }
-  if (DEBUG_MODE) console.warn('ðŸŸ¡ [FIRESTORE] Company document not found:', companyId);
-  return null;
+
+  // Level 2: If fetch is in-flight, reuse the same promise (deduplication)
+  if (inFlightCompanyPromises.has(companyId)) {
+    if (DEBUG_MODE) console.count("[FIRESTORE CACHE] Hit: reusing in-flight promise");
+    return inFlightCompanyPromises.get(companyId)!;
+  }
+
+  // Level 3: Fetch from Firestore with retry
+  if (DEBUG_MODE) console.count("[FIRESTORE] Miss: fetching company from Firestore");
+  
+  const ref = doc(db, 'companies', companyId);
+  
+  const promise = withRetry(() => getDoc(ref)).then(snap => {
+    inFlightCompanyPromises.delete(companyId);
+    if (snap.exists()) {
+      if (DEBUG_MODE)
+        console.log('🟢 [FIRESTORE] Company found and cached:', { companyId });
+      const company = { id: snap.id, ...(snap.data() as unknown) } as Company;
+      companyCache.set(companyId, company);
+      return company;
+    }
+    if (DEBUG_MODE) console.warn('🟡 [FIRESTORE] Company not found:', companyId);
+    return null;
+  }).catch(error => {
+    inFlightCompanyPromises.delete(companyId);
+    if (DEBUG_MODE) console.error('🔴 [FIRESTORE] Company fetch failed:', { companyId, error: (error as any)?.message });
+    throw error;
+  });
+
+  // Store promise to dedupe concurrent requests
+  inFlightCompanyPromises.set(companyId, promise);
+  return promise;
+};
+
+/**
+ * Clear company cache (use for testing or manual refresh)
+ */
+export const clearCompanyCache = (companyId?: string): void => {
+  if (companyId) {
+    companyCache.delete(companyId);
+    inFlightCompanyPromises.delete(companyId);
+    if (DEBUG_MODE) console.log(`[FIRESTORE CACHE] Cleared cache for ${companyId}`);
+  } else {
+    companyCache.clear();
+    inFlightCompanyPromises.clear();
+    if (DEBUG_MODE) console.log('[FIRESTORE CACHE] Cleared all company caches');
+  }
+};
+export const findCompaniesByOwnerEmail = async (ownerEmail: string): Promise<Company[]> => {
+  const emailLower = ownerEmail.trim().toLowerCase();
+  if (!emailLower) return [];
+  const results: Company[] = [];
+  const seen = new Set<string>();
+
+  const addDocs = (docs: QueryDocumentSnapshot[]) => {
+    for (const docSnap of docs) {
+      if (seen.has(docSnap.id)) continue;
+      seen.add(docSnap.id);
+      results.push({ id: docSnap.id, ...(docSnap.data() as Company) });
+    }
+  };
+
+  try {
+    const qOwnerLower = query(
+      collection(db, 'companies'),
+      where('ownerEmailLower', '==', emailLower)
+    );
+    const ownerLowerSnap = await withRetry(() => getDocs(qOwnerLower));
+    addDocs(ownerLowerSnap.docs);
+  } catch (err) {
+    console.warn('[FIRESTORE] findCompaniesByOwnerEmail ownerEmailLower query failed', err);
+  }
+
+  try {
+    if (results.length === 0) {
+      const qEmail = query(collection(db, 'companies'), where('email', '==', emailLower));
+      const emailSnap = await withRetry(() => getDocs(qEmail));
+      addDocs(emailSnap.docs);
+    }
+  } catch (err) {
+    console.warn('[FIRESTORE] findCompaniesByOwnerEmail email query failed', err);
+  }
+
+  return results;
 };
 
 export const updateCompanyStatusDirect = async (
@@ -730,7 +937,7 @@ export const updateCompanyStatusDirect = async (
 ) => {
   const ref = doc(db, 'companies', companyId);
   if (DEBUG_MODE)
-    console.log(`ðŸ” [FIRESTORE] updateCompanyStatusDirect: ${companyId} -> ${status}`);
+    console.log(`🔍 [FIRESTORE] updateCompanyStatusDirect: ${companyId} -> ${status}`);
   await updateDoc(ref, { status: status, updatedAt: serverTimestamp() });
 };
 
@@ -788,11 +995,11 @@ export const resolveFirstLogin = async (
 // --- USER MANAGEMENT (MULTI-TENANT) ---
 export const getCompanyUsers = async (companyId: string): Promise<CompanyUser[]> => {
   if (DEBUG_MODE)
-    console.log(`ðŸ” [FIRESTORE] getCompanyUsers: reading companies/${companyId}/users`);
-  const result = await getData<CompanyUser>(companyId, 'users');
+    console.log(`🔍 [FIRESTORE] getCompanyUsers: reading companies/${companyId}/members`);
+  const result = await getData<CompanyUser>(companyId, 'members');
   if (DEBUG_MODE)
     console.log(
-      `ðŸŸ¢ [FIRESTORE] getCompanyUsers: found ${result.data.length} users for companyId=${companyId}`
+      `🟢 [FIRESTORE] getCompanyUsers: found ${result.data.length} users for companyId=${companyId}`
     );
   return result.data;
 };
@@ -804,13 +1011,13 @@ export const getCompanyMembershipByUid = async (
   try {
     if (DEBUG_MODE)
       console.log(
-        `ðŸ” [FIRESTORE] getCompanyMembershipByUid: reading companies/${companyId}/users/${uid}`
+        `🔍 [FIRESTORE] getCompanyMembershipByUid: reading companies/${companyId}/members/${uid}`
       );
-    const ref = doc(db, 'companies', companyId, 'users', uid);
+    const ref = doc(db, 'companies', companyId, 'members', uid);
     const snap = await withRetry(() => getDoc(ref));
     if (snap.exists()) {
       if (DEBUG_MODE)
-        console.log('ðŸŸ¢ [FIRESTORE] Membership document found:', {
+        console.log('🟢 [FIRESTORE] Membership document found:', {
           companyId,
           uid,
           data: snap.data(),
@@ -818,7 +1025,7 @@ export const getCompanyMembershipByUid = async (
       return snap.data() as CompanyUser;
     }
     if (DEBUG_MODE)
-      console.warn('ðŸŸ¡ [FIRESTORE] Membership document not found:', { companyId, uid });
+      console.warn('🟡 [FIRESTORE] Membership document not found:', { companyId, uid });
     return null;
   } catch (err) {
     console.error('[DEBUG][AUTHZ] getCompanyMembershipByUid failed', { companyId, uid, err });
@@ -833,7 +1040,7 @@ export const createOwnerMembershipIfMissing = async (
 ): Promise<CompanyUser | null> => {
   try {
     ensureWriteAllowed('users');
-    const ref = doc(db, 'companies', companyId, 'users', user.uid);
+    const ref = doc(db, 'companies', companyId, 'members', user.uid);
     const displayName = user.displayName || user.email || 'Owner';
     const nameParts = displayName.split(' ');
     const firstName = nameParts[0] || '';
@@ -959,7 +1166,7 @@ export const updateUserRole = async (
     }
     // As a robust fallback, attempt a direct client write (may be blocked by rules in prod).
     try {
-      const userRef = doc(db, 'companies', companyId, 'users', userId);
+      const userRef = doc(db, 'companies', companyId, 'members', userId);
       await setDoc(userRef, { role, updatedAt: Timestamp.now() }, { merge: true });
       return { enqueued: false };
     } catch (fwErr) {
@@ -974,7 +1181,7 @@ export const removeUserFromCompany = async (
   userId: string
 ): Promise<boolean> => {
   ensureWriteAllowed('users');
-  return await deleteData(companyId, 'users', userId, 'users');
+  return await deleteData(companyId, 'members', userId, 'users');
 };
 
 // Callable wrapper: create owner company server-side to avoid client-side rule issues
@@ -1740,7 +1947,7 @@ export const createPurchaseReturn = async (
     });
     return { id: ref.id };
   } catch (err) {
-    console.error('ðŸ”´ createPurchaseReturn failed:', err);
+    console.error('🔴 createPurchaseReturn failed:', err);
     throw err;
   }
 };
@@ -1792,7 +1999,7 @@ export const createSalesReturn = async (
     });
     return { id: ref.id };
   } catch (err) {
-    console.error('ðŸ”´ createSalesReturn failed:', err);
+    console.error('🔴 createSalesReturn failed:', err);
     throw err;
   }
 };
@@ -1898,7 +2105,7 @@ export const deleteAllCompanyData = async (companyId: string): Promise<void> => 
     'vendors',
     'settings',
     'counters',
-    'users',
+    'members',
     'invitations',
   ];
   const BATCH_LIMIT = 400; // keep under Firestore limit of 500
@@ -1972,6 +2179,7 @@ export const undeleteDocument = async (
 
 // This function is not applicable in Firestore mode, it's for mocks.
 export const populateDummyData = (_companyId: string): Promise<boolean> => Promise.resolve(false);
+
 
 
 

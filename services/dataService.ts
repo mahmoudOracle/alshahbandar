@@ -27,11 +27,38 @@ export const getDataSourceType = (): string => dataSourceType;
 const READ_CACHE_TTL = 15 * 1000; // 15 seconds
 const readCache = new Map<string, { ts: number; data: unknown }>();
 
+// Map of write operations to cache keys they invalidate
+const CACHE_INVALIDATION_MAP: Record<string, string[]> = {
+  'saveInvoice': ['getInvoices', 'getReports', 'getJournalEntries'],
+  'deleteInvoice': ['getInvoices', 'getReports'],
+  'savePayment': ['getPayments', 'getInvoices', 'getReports'],
+  'saveCustomer': ['getCustomers'],
+  'saveProduct': ['getProducts'],
+  'saveExpense': ['getExpenses', 'getReports'],
+  'saveQuote': ['getQuotes'],
+  'createReturnAtomic': ['getReturns', 'getProducts', 'getInvoices', 'getReports'],
+};
+
 const cacheKey = (fn: string | symbol, args: unknown[]) => {
   try {
     return `${String(fn)}:${JSON.stringify(args)}`;
   } catch {
     return `${String(fn)}:${args.map((a) => String(a)).join('|')}`;
+  }
+};
+
+/**
+ * Clear read cache entries matching the specified cache keys
+ */
+export const clearReadCache = (keys?: string[]): void => {
+  if (!keys || keys.length === 0) {
+    readCache.clear();
+    return;
+  }
+  for (const key of readCache.keys()) {
+    if (keys.some((k) => key.startsWith(k))) {
+      readCache.delete(key);
+    }
   }
 };
 
@@ -49,6 +76,8 @@ const READ_CACHE_FUNCS = new Set([
 READ_CACHE_FUNCS.add('getSuppliers');
 // Cache reports reads
 READ_CACHE_FUNCS.add('getReports');
+// Cache returns reads
+READ_CACHE_FUNCS.add('getReturns');
 
 const safeService = new Proxy(
   {},
@@ -68,20 +97,35 @@ const safeService = new Proxy(
           return Promise.reject(new Error(errorMsg));
         }
 
+        // Handle write operations (cache invalidation)
+        const propStr = String(prop);
+        if (CACHE_INVALIDATION_MAP[propStr]) {
+          const result = await (svc[propStr](...args) as unknown);
+          // Clear related caches after successful write
+          if (import.meta.env.DEV) {
+            console.log(`[CACHE INVALIDATE] Clearing caches for ${propStr}:`, CACHE_INVALIDATION_MAP[propStr]);
+          }
+          clearReadCache(CACHE_INVALIDATION_MAP[propStr]);
+          return result;
+        }
+
         // Serve from cache for some read-only functions
-        if (READ_CACHE_FUNCS.has(String(prop))) {
+        if (READ_CACHE_FUNCS.has(propStr)) {
           const key = cacheKey(prop, args);
           const cached = readCache.get(key);
           const now = Date.now();
           if (cached && now - cached.ts < READ_CACHE_TTL) {
+            if (import.meta.env.DEV) {
+              console.log(`[CACHE HIT] ${propStr}`, { ttlMs: now - cached.ts });
+            }
             return cached.data;
           }
-          const res = await (svc[String(prop)](...args) as unknown);
+          const res = await (svc[propStr](...args) as unknown);
           readCache.set(key, { ts: now, data: res });
           return res;
         }
 
-        return svc[String(prop)](...args);
+        return svc[propStr](...args);
       };
     },
   }
@@ -93,11 +137,16 @@ export const {
   getCompanies,
   createCompany,
   createPlatformCompanyWithManager,
+  platformCreateCompany,
+  platformListCompanies,
+  getPlatformSummary,
+  setCompanyActive,
+  logAuditEvent,
   updateCompanyStatus,
   getCompanyCounts,
+  getCompanyStatsSummary,
+  listCompaniesForPlatformAdmin,
   // Auth & Users
-  checkIfPlatformAdmin,
-  getCompanyMemberships,
   createCompanyWithOwner,
   resolveFirstLogin,
   getCompanyUsers,

@@ -237,14 +237,17 @@ const QuoteForm: React.FC = () => {
         {quote.items.map((item, index) => (
           <div
             key={item.id}
-            className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-3 p-3 border rounded-md items-center"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 mb-4 p-4 border dark:border-gray-700 rounded-md"
           >
-            <div className="md:col-span-4">
-              <label className="md:hidden text-xs font-bold">المنتج</label>
+            {/* Product Select */}
+            <div className="col-span-1 md:col-span-2 lg:col-span-5">
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                المنتج *
+              </label>
               <select
                 value={item.productId}
                 onChange={(e) => handleItemChange(index, 'productId', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-base md:text-sm leading-tight min-h-[44px] dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="">اختر منتج</option>
                 {products.map((p) => (
@@ -254,35 +257,52 @@ const QuoteForm: React.FC = () => {
                 ))}
               </select>
             </div>
-            <div className="md:col-span-2">
-              <label className="md:hidden text-xs font-bold">الكمية</label>
+
+            {/* Quantity */}
+            <div className="col-span-1 md:col-span-2 lg:col-span-2">
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                الكمية *
+              </label>
               <input
                 type="number"
-                placeholder="الكمية"
+                placeholder="0"
                 value={item.quantity}
                 onChange={(e) => handleItemChange(index, 'quantity', parseInt(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-base md:text-sm leading-tight min-h-[44px] text-center dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
-            <div className="md:col-span-2">
-              <label className="md:hidden text-xs font-bold">السعر</label>
+
+            {/* Price */}
+            <div className="col-span-1 md:col-span-2 lg:col-span-2">
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                السعر *
+              </label>
               <input
                 type="number"
-                placeholder="السعر"
+                placeholder="0"
                 value={item.price}
                 onChange={(e) => handleItemChange(index, 'price', parseFloat(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-base md:text-sm leading-tight min-h-[44px] text-center dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
-            <div className="md:col-span-3 text-lg font-medium text-right md:text-center">
-              <span className="md:hidden text-xs font-bold me-2">الإجمالي:</span>
-              {(item.quantity * item.price).toFixed(2)} {settings?.currency}
+
+            {/* Line Total */}
+            <div className="col-span-1 lg:col-span-2">
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                الإجمالي
+              </label>
+              <div className="text-center font-bold p-2 bg-primary-50 dark:bg-primary-900/20 rounded min-h-[44px] flex items-center justify-center">
+                {(item.quantity * item.price).toFixed(2)} {settings?.currency}
+              </div>
             </div>
-            <div className="md:col-span-1 text-left md:text-center">
+
+            {/* Delete Button */}
+            <div className="col-span-1 lg:col-span-1 flex items-end">
               <button
                 type="button"
                 onClick={() => removeItem(index)}
-                className="text-red-500 hover:text-red-700 p-2"
+                className="w-full text-red-500 hover:text-red-700 p-2 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+                title="حذف هذا البند"
               >
                 <TrashIcon className="h-5 w-5" />
               </button>

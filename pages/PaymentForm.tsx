@@ -1,11 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { Customer, Invoice, PaymentMethod, UserRole } from '../types';
-import {
-  getInvoices,
-  savePayment,
-  totalPaidForInvoice,
-} from '../services/dataService';
+import { getInvoices, savePayment, totalPaidForInvoice } from '../services/dataService';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/Button';
@@ -51,7 +47,9 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
   const { addNotification } = useNotification();
 
   const canCreatePayments =
-    activeRole === UserRole.Owner || activeRole === UserRole.Manager || activeRole === UserRole.Employee;
+    activeRole === UserRole.Owner ||
+    activeRole === UserRole.Manager ||
+    activeRole === UserRole.Employee;
 
   useEffect(() => {
     if (!customer || !activeCompanyId) return;
@@ -101,7 +99,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
         if (amount <= 0 || amount > due) {
           setAmount(due);
         }
-      } catch (err) {
+      } catch {
         setRemaining(null);
       }
     };
@@ -159,7 +157,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
     try {
       const parsedDate = new Date(date);
       if (Number.isNaN(parsedDate.getTime())) {
-        setFormError('تاريخ الدفع غير صالح.');
+        setFormError('تاريخ الدفع غير صحيح.');
         setSaving(false);
         return;
       }
@@ -231,7 +229,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
         required
       />
       <Select
-        label="ربط الفاتورة (اختياري)"
+        label="رقم الفاتورة (اختياري)"
         value={invoiceId}
         onChange={(e) => {
           setInvoiceId(e.target.value);

@@ -152,13 +152,11 @@ const CustomerDetail: React.FC = () => {
       totalPayments,
       remaining: totalInvoices - totalPayments,
       openingBalance,
-      start,
-      end,
     };
   }, [invoices, payments, dateRange, includeOpeningBalance]);
 
-  if (loading || settingsLoading) return <div>جاري التحميل...</div>;
-  if (!customer) return <div>لم يتم العثور على العميل.</div>;
+  if (loading || settingsLoading) return <div>جاري تحميل بيانات العميل...</div>;
+  if (!customer) return <div>لا يمكن العثور على العميل.</div>;
 
   const exportStatement = async (format: 'pdf' | 'png') => {
     if (!printableRef.current) return;
@@ -182,9 +180,9 @@ const CustomerDetail: React.FC = () => {
           <div>
             <h1 className="text-2xl font-bold">{customer.name}</h1>
             <p className="text-gray-500 dark:text-gray-400">
-              {customer.email || '—'} | {customer.mobilePhone || '—'}
+              {customer.email || '-'} | {customer.mobilePhone || '-'}
             </p>
-            <p className="text-gray-500 dark:text-gray-400">{customer.address || '—'}</p>
+            <p className="text-gray-500 dark:text-gray-400">{customer.address || '-'}</p>
           </div>
           {canWrite && (
             <div className="flex flex-wrap gap-2">
@@ -319,7 +317,7 @@ const CustomerDetail: React.FC = () => {
             ]}
           >
             <div className="mb-4 text-sm font-semibold">
-              رصيد افتتاحي: {statement.openingBalance.toFixed(2)} {settings?.currency}
+              الرصيد الافتتاحي: {statement.openingBalance.toFixed(2)} {settings?.currency}
             </div>
             {statement.rows.length === 0 ? (
               <p className="text-gray-600 dark:text-gray-400 text-center py-6">
@@ -355,10 +353,10 @@ const CustomerDetail: React.FC = () => {
                         </td>
                         <td className="px-4 py-2 text-right">{row.description}</td>
                         <td className="px-4 py-2 text-right">
-                          {row.debit ? row.debit.toFixed(2) : '—'}
+                          {row.debit ? row.debit.toFixed(2) : '-'}
                         </td>
                         <td className="px-4 py-2 text-right">
-                          {row.credit ? row.credit.toFixed(2) : '—'}
+                          {row.credit ? row.credit.toFixed(2) : '-'}
                         </td>
                         <td className="px-4 py-2 text-right">{row.balance.toFixed(2)}</td>
                       </tr>

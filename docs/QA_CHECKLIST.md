@@ -1,4 +1,5 @@
 # QA Checklist
+ملاحظة: هذا الملف محفوظ بترميز UTF-8
 
 Purpose: concise, executable tests for core flows. Run on web app using HashRouter URLs.
 
@@ -27,7 +28,7 @@ Expected:
 - No crash or navigation loop.
 
 ## 2) First login bootstrap (membership missing)
-Precondition: user profile exists, company doc exists, membership doc missing at `companies/{companyId}/users/{uid}`.
+Precondition: user profile exists, company doc exists, membership doc missing at `companies/{companyId}/members/{uid}`.
 Steps:
 1) Sign in as the company owner (owner uid/email matches company doc).
 2) Observe login.
@@ -106,6 +107,7 @@ Expected:
 - Offline banner or error message appears.
 - No forced logout.
 - App remains usable where cached; shows empty/loading states gracefully.
+- الرسالة العربية تظهر بشكل صحيح بدون أي ترميز مثل \uXXXX.
 
 ## 8) Payments + Statement + Export
 Steps:
@@ -141,7 +143,7 @@ Expected:
 - Products filter "منخفض" shows the item.
 
 Returns:
-1) Open an invoice and click "مرتجع".
+1) Open an invoice and click "إنشاء مرتجع".
 2) Return a quantity for a product and save.
 Expected:
 - Return appears in invoice returns list.
@@ -154,6 +156,85 @@ Expected:
 
 Supplier statement:
 1) Open a supplier and view "كشف حساب المورد".
-2) Add a supplier payment and export PDF/PNG.
+2) Toggle opening balance and verify running balance.
+3) Add a supplier payment and export PDF/PNG.
 Expected:
 - Running balance updates correctly and export renders Arabic header/footer.
+
+## 10) QR Invoice + WhatsApp Share
+Steps:
+1) Open an invoice detail page.
+2) Verify "QR الفاتورة" appears and scan it.
+Expected:
+- QR opens `/#/invoices/{id}` in the same tenant.
+
+Steps:
+1) Click "مشاركة عبر واتساب" with a customer phone.
+Expected:
+- WhatsApp opens with a prefilled Arabic message and invoice link.
+
+Steps:
+1) Remove customer phone and click "مشاركة عبر واتساب".
+2) Enter `01xxxxxxxxx` and confirm share.
+Expected:
+- Number is normalized to Egypt (`20...`) in wa.me link.
+
+## 11) Platform admin routing (allowlist)
+Steps:
+1) Login as platform admin (mahmoud.shineh3m@gmail.com).
+2) Verify it lands on `/#/platform` without tenant resolution.
+Expected:
+- Platform console loads normally.
+
+Steps:
+1) Login as tenant user (hoodaalawamry@gmail.com) and open `/#/platform`.
+Expected:
+- "غير مصرح بالدخول إلى المنصة." is shown and user stays in tenant app.
+
+Steps:
+1) Login with any other email.
+Expected:
+- User is signed out and sees unauthorized message.
+
+## 12) Emulator toggle (DEV)
+Steps:
+1) Set `VITE_USE_EMULATORS=false` in dev and do not run emulators.
+Expected:
+- App connects to real Firebase and loads normally.
+
+Steps:
+1) Set `VITE_USE_EMULATORS=true` in dev and keep emulators stopped.
+Expected:
+- Offline warning is shown: "تعذر الاتصال بقاعدة البيانات. تأكد من تشغيل المحاكيات أو إيقاف وضع المحاكيات."
+
+Steps:
+1) Set `VITE_USE_EMULATORS=true` and run emulators.
+Expected:
+- App works with emulators.
+
+## 13) Platform admin (no mode switching)
+Steps:
+1) Login as platform admin.
+2) Confirm there is no "تغيير الشركة" menu and no "الدخول كشركة" button.
+Expected:
+- Platform stays on `/#/platform` only.
+
+## 14) Platform create company
+Steps:
+1) Open `/#/platform` and click "إضافة شركة".
+2) Fill required fields and submit.
+Expected:
+- "تم إنشاء الشركة بنجاح" appears and the company is listed.
+
+## 15) Functions CORS safety
+Steps:
+1) Open `/#/settings` and `/#/platform`.
+Expected:
+- No CORS errors in console; functions are called via `httpsCallable` only.
+
+## 16) Platform audit log
+Steps:
+1) Create a company from `/#/platform`.
+2) Freeze/unfreeze a company.
+Expected:
+- `auditLogs` receives entries for company_create and freeze/unfreeze actions.

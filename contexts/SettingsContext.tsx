@@ -3,6 +3,7 @@ import { Settings } from '../types';
 import { getSettings, saveSettings as saveSettingsService } from '../services/dataService';
 import { useAuth } from './AuthContext';
 import { useNotification } from './NotificationContext';
+import { getErrorMessage } from '../src/utils/errorMessage';
 
 interface SettingsContextType {
   settings: Settings | null;
@@ -53,9 +54,9 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
           setSettings({ ...hardcodedDefaultSettings, source: 'firestore' });
         }
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
+        const msg = getErrorMessage(err, 'تعذّر تحميل الإعدادات من قاعدة البيانات.');
         console.warn('Could not load settings from Firestore. Error:', msg);
-        addNotification('تعذّر تحميل الإعدادات من قاعدة البيانات.', 'error');
+        addNotification(msg, 'error');
         setSettings(hardcodedDefaultSettings);
       } finally {
         setLoading(false);

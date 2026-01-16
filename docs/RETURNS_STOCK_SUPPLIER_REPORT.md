@@ -1,11 +1,20 @@
 # Returns + Low Stock + Supplier Statement Report
 
-## What changed
-- Added returns, low stock alert UI, and supplier statement with export.
-- Low stock uses `reorderLevel` to flag products and filter.
-- Reports include returns and net sales.
+## Files changed
+- `pages/ProductList.tsx`
+- `pages/Dashboard.tsx`
+- `pages/ReturnForm.tsx`
+- `pages/InvoiceDetail.tsx`
+- `pages/Reports.tsx`
+- `pages/SuppliersPage.tsx`
+- `services/firestoreService.ts`
+- `services/dataService.ts`
+- `services/mockService.ts`
+- `functions/index.js`
+- `firestore.rules`
+- `docs/QA_CHECKLIST.md`
 
-## Collections/fields added or used
+## Data model
 Tenant-scoped only:
 - `companies/{companyId}/returns`
   - `invoiceId`, `customerId`
@@ -28,27 +37,27 @@ Tenant-scoped only:
 
 ## How to use (5 steps each)
 Low stock alerts:
-1) Open المنتجات والمخزون.
-2) Set "حد إعادة الطلب" for a product.
-3) Reduce stock below the reorder level.
-4) Check Dashboard KPI "تنبيه مخزون منخفض".
-5) Use filter "منخفض" to list low-stock items.
+1) افتح صفحة المنتجات والمخزون.
+2) حدّد "حد إعادة الطلب" للمنتج.
+3) خفّض المخزون ليصبح أقل أو يساوي الحد.
+4) راجع بطاقة "تنبيه مخزون منخفض" في الملخص.
+5) استخدم فلتر "منخفض" لعرض الأصناف المنخفضة.
 
 Returns:
-1) Open an invoice.
-2) Click "مرتجع".
-3) Select items and quantities to return.
-4) Choose date and add reason (optional).
-5) Save and verify the return appears in the invoice history and stock increases.
+1) افتح تفاصيل الفاتورة.
+2) اضغط "إنشاء مرتجع".
+3) حدّد الأصناف والكميات المرتجعة.
+4) اختر التاريخ وأدخل سببًا (اختياري).
+5) احفظ وتأكد من زيادة المخزون وظهور المرتجع في القائمة.
 
 Supplier statement:
-1) Open الموردون.
-2) Select a supplier and open "كشف حساب المورد".
-3) Add a supplier payment (optional).
-4) Review running balance and summary cards.
-5) Export as PDF/PNG.
+1) افتح صفحة الموردين.
+2) اختر موردًا وافتح "كشف حساب المورد".
+3) حدّد الفترة وتبديل الرصيد الافتتاحي.
+4) راجع الرصيد الجاري والملخص.
+5) صدّر التقرير PDF/PNG.
 
 ## Limitations (v1)
-- Return quantity validation is best-effort (checks against invoice items).
-- No multi-page PDF pagination yet (single-page export).
-- Low stock alerts require `reorderLevel` to be set.
+- التحقق من كمية المرتجع يعتمد على كميات الفاتورة فقط.
+- تصدير PDF صفحة واحدة دون ترقيم صفحات.
+- تنبيه المخزون المنخفض يتطلب تحديد `reorderLevel`.

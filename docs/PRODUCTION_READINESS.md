@@ -59,7 +59,7 @@ Security gaps:
 ## 6) Deployment Readiness (Netlify + Firebase)
 - Build settings: Vite build, output `dist/`.
 - Routing behavior: HashRouter used; Netlify SPA fallback should work.
-- Env vars: `VITE_*` emulator flags supported (`services/firebase.ts`).
+- Env vars: `VITE_USE_EMULATORS` and `VITE_*_EMULATOR_*` flags supported (`services/firebase.ts`).
 - Functions dependency list (callable):
   - `getAdminCompanies`, `createCompanyAsAdmin`, `getCompanyCounts`, `createInvoiceAtomic`,
     `createPurchaseAtomic`, `createGoodsReceiptAtomic`, `createIncomingReceiptAtomic`,

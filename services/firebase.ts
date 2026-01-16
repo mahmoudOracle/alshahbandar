@@ -46,29 +46,44 @@ try {
   functions = getFunctions(app);
   storage = getStorage(app);
   const metaEnv = (import.meta as unknown as { env?: Record<string, string> }).env;
-  // Connect to local emulators when requested via Vite env var
+  // Connect to local emulators only when explicitly enabled in DEV.
   try {
-    const useEmulators = metaEnv?.VITE_USE_FIREBASE_EMULATORS === 'true';
+    const useEmulators =
+      import.meta.env.DEV &&
+      (metaEnv?.VITE_USE_EMULATORS === 'true' || metaEnv?.VITE_USE_FIREBASE_EMULATORS === 'true');
     if (useEmulators) {
-      const host = metaEnv?.VITE_FIREBASE_EMULATOR_HOST || 'localhost';
+      const firestoreHost =
+        metaEnv?.VITE_FIRESTORE_EMULATOR_HOST ||
+        metaEnv?.VITE_FIREBASE_EMULATOR_HOST ||
+        '127.0.0.1';
+      const functionsHost =
+        metaEnv?.VITE_FUNCTIONS_EMULATOR_HOST ||
+        metaEnv?.VITE_FIREBASE_EMULATOR_HOST ||
+        '127.0.0.1';
+      const authHost =
+        metaEnv?.VITE_AUTH_EMULATOR_HOST || metaEnv?.VITE_FIREBASE_EMULATOR_HOST || '127.0.0.1';
+
       const firestorePort = Number(metaEnv?.VITE_FIRESTORE_EMULATOR_PORT || 8080);
-      const authPort = Number(metaEnv?.VITE_AUTH_EMULATOR_PORT || 9099);
       const functionsPort = Number(metaEnv?.VITE_FUNCTIONS_EMULATOR_PORT || 5001);
+      const authPort = Number(metaEnv?.VITE_AUTH_EMULATOR_PORT || 9099);
       const storagePort = Number(metaEnv?.VITE_STORAGE_EMULATOR_PORT || 9199);
-      connectFirestoreEmulator(db, host, firestorePort);
-      connectAuthEmulator(auth, `http://${host}:${authPort}`, { disableWarnings: true });
-      connectFunctionsEmulator(functions, host, functionsPort);
+
+      connectFirestoreEmulator(db, firestoreHost, firestorePort);
+      connectFunctionsEmulator(functions, functionsHost, functionsPort);
+      connectAuthEmulator(auth, `http://${authHost}:${authPort}`, { disableWarnings: true });
       try {
-        connectStorageEmulator(storage, host, storagePort);
+        connectStorageEmulator(storage, firestoreHost, storagePort);
       } catch (e) {
         // connectStorageEmulator may not be available in some SDK combos; ignore if fails
         console.warn('[FIREBASE] Failed to connect storage emulator', e);
       }
       console.info('[FIREBASE] Connected to emulators', {
-        host,
+        firestoreHost,
         firestorePort,
-        authPort,
+        functionsHost,
         functionsPort,
+        authHost,
+        authPort,
       });
     }
   } catch (e) {

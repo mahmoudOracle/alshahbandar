@@ -6,6 +6,7 @@ import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { storage } from '../services/firebase';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
+import NotAuthorizedPage from './NotAuthorizedPage';
 import UserManagement from '../components/UserManagement';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -16,7 +17,7 @@ import { FormSkeleton } from '../components/ui/FormSkeleton';
 
 const SettingsPage: React.FC = () => {
   const { settings: contextSettings, loading: loadingSettings, updateSettings } = useSettings();
-  const { activeRole, activeCompanyId } = useAuth();
+  const { activeRole, activeCompanyId, authRole, isPlatformAdmin } = useAuth();
   const canWrite = useCanWrite('settings');
   const [settings, setSettings] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
@@ -91,6 +92,10 @@ const SettingsPage: React.FC = () => {
       setSaving(false);
     }
   };
+
+  if (!activeCompanyId || (!isPlatformAdmin && authRole !== 'tenant')) {
+    return <NotAuthorizedPage />;
+  }
 
   if (loadingSettings || !settings)
     return (

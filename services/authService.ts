@@ -7,6 +7,7 @@ import {
 } from 'firebase/auth';
 import { auth } from './firebase';
 import { DEBUG_MODE } from '../config';
+import { getErrorMessage } from '../src/utils/errorMessage';
 
 export const subscribeToAuthChanges = (
   callback: (user: FirebaseUser | null) => void
@@ -33,7 +34,7 @@ export const signInWithEmail = async (email: string, password: string): Promise<
       console.log('🟢 [AUTH] Login success:', { uid: result.user.uid, email: result.user.email });
     return result.user;
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = getErrorMessage(err);
     if (DEBUG_MODE) console.error('🔴 [AUTH] Login failure:', { email, error: msg });
     throw err;
   }
@@ -49,7 +50,7 @@ export const registerWithEmail = async (email: string, password: string): Promis
       });
     return result.user;
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = getErrorMessage(err);
     if (DEBUG_MODE) console.error('🔴 [AUTH] Register failure:', { email, error: msg });
     throw err;
   }

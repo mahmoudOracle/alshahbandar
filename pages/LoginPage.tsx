@@ -8,6 +8,7 @@ import { Card } from '../components/ui/Card';
 import useTenantConfig from '../hooks/useTenantConfig';
 import { t } from '../services/i18n';
 import LogoPlaceholder from '../components/LogoPlaceholder';
+import { getErrorMessage } from '../src/utils/errorMessage';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -33,9 +34,11 @@ const LoginPage: React.FC = () => {
         message = 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
       } else if (code === 'auth/user-disabled') {
         message = 'تم تعطيل حسابك مؤقتًا.';
+      } else {
+        message = getErrorMessage(error, message);
       }
       addNotification(message, 'error');
-      console.error(error instanceof Error ? error.message : String(error));
+      console.error(getErrorMessage(error, message));
     } finally {
       setLoading(false);
     }

@@ -24,7 +24,13 @@ import { exportElementAs } from '../services/exportUtils';
 import { Timestamp } from 'firebase/firestore';
 import { useSettings } from '../contexts/SettingsContext';
 
-const PAYMENT_METHODS = ['كاش', 'محفظة', 'إنستاباي', 'تحويل بنكي', 'أخرى'] as const;
+const PAYMENT_METHODS = [
+  'كاش',
+  'محفظة',
+  'إنستاباي',
+  'تحويل بنكي',
+  'أخرى',
+] as const;
 
 const toIsoDate = (date: Date) => date.toISOString().split('T')[0];
 
@@ -56,6 +62,7 @@ const SuppliersPage: React.FC = () => {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([]);
   const [purchases, setPurchases] = useState<any[]>([]);
+  const [includeOpeningBalance, setIncludeOpeningBalance] = useState(true);
   const [dateRange, setDateRange] = useState(() => ({
     start: toIsoDate(new Date(new Date().setDate(new Date().getDate() - 90))),
     end: toIsoDate(new Date()),
@@ -76,10 +83,7 @@ const SuppliersPage: React.FC = () => {
       const res = await getSuppliers(activeCompanyId, { limit: 200 });
       setSuppliers(res.data || []);
     } catch (err: unknown) {
-      addNotification(
-        String((err as unknown as { message?: unknown })?.message ?? 'تعذر تحميل الموردين'),
-        'error'
-      );
+      addNotification(mapFirestoreError(err), 'error');
       setSuppliers([]);
     } finally {
       setLoading(false);
@@ -96,15 +100,12 @@ const SuppliersPage: React.FC = () => {
     setSaving(true);
     try {
       await saveSupplier(activeCompanyId, editing as Record<string, unknown>);
-      addNotification('تم حفظ المورد.', 'success');
+      addNotification('تم حفظ بيانات المورد.', 'success');
       setFormOpen(false);
       setEditing(null);
       await fetchSuppliers();
     } catch (err: unknown) {
-      addNotification(
-        String((err as unknown as { message?: unknown })?.message ?? 'تعذر حفظ المورد'),
-        'error'
-      );
+      addNotification(mapFirestoreError(err), 'error');
     } finally {
       setSaving(false);
     }
@@ -117,10 +118,7 @@ const SuppliersPage: React.FC = () => {
       addNotification('تم حذف المورد.', 'success');
       await fetchSuppliers();
     } catch (err: unknown) {
-      addNotification(
-        String((err as unknown as { message?: unknown })?.message ?? 'تعذر حذف المورد'),
-        'error'
-      );
+      addNotification(mapFirestoreError(err), 'error');
     }
   };
 
@@ -143,6 +141,23 @@ const SuppliersPage: React.FC = () => {
       addNotification(mapFirestoreError(err), 'error');
     }
   };
+
+  const openingBalance = useMemo(() => {
+    const start = new Date(dateRange.start);
+    start.setHours(0, 0, 0, 0);
+
+    const purchasesBefore = purchases
+      .map((p) => ({ p, date: toDateValue(p.createdAt) }))
+      .filter((item) => item.date && item.date < start)
+      .reduce((sum, item) => sum + Number(item.p.totalAmount || item.p.total || 0), 0);
+
+    const paymentsBefore = supplierPayments
+      .map((p) => ({ p, date: toDateValue(p.date) }))
+      .filter((item) => item.date && item.date < start)
+      .reduce((sum, item) => sum + Number(item.p.amount || 0), 0);
+
+    return purchasesBefore - paymentsBefore;
+  }, [purchases, supplierPayments, dateRange.start]);
 
   const statement = useMemo(() => {
     const start = new Date(dateRange.start);
@@ -174,7 +189,7 @@ const SuppliersPage: React.FC = () => {
       })),
     ].sort((a, b) => a.date.getTime() - b.date.getTime());
 
-    let running = 0;
+    let running = includeOpeningBalance ? openingBalance : 0;
     const withBalance = rows.map((row) => {
       running += row.debit - row.credit;
       return { ...row, balance: running };
@@ -192,7 +207,7 @@ const SuppliersPage: React.FC = () => {
       totalPaid,
       remaining: totalPurchases - totalPaid,
     };
-  }, [purchases, supplierPayments, dateRange]);
+  }, [purchases, supplierPayments, dateRange, includeOpeningBalance, openingBalance]);
 
   const exportStatement = async (format: 'pdf' | 'png') => {
     if (!printableRef.current || !selectedSupplier) return;
@@ -215,7 +230,7 @@ const SuppliersPage: React.FC = () => {
     }
     const parsed = new Date(paymentDate);
     if (Number.isNaN(parsed.getTime())) {
-      addNotification('تاريخ الدفع غير صالح.', 'error');
+      addNotification('تاريخ الدفع غير صحيح.', 'error');
       return;
     }
     setPaymentSaving(true);
@@ -267,7 +282,7 @@ const SuppliersPage: React.FC = () => {
       {filtered.length === 0 && (
         <EmptyState
           title="لا يوجد موردون بعد"
-          message="أضف موردًا لتسجيل المشتريات وتتبع المدفوعات."
+          message="ابدأ بإضافة مورد لإدارة المشتريات والمدفوعات."
           action={
             canWriteSuppliers
               ? {
@@ -291,7 +306,7 @@ const SuppliersPage: React.FC = () => {
                 <th className="px-4 py-2 text-right">الشركة</th>
                 <th className="px-4 py-2 text-right">الهاتف</th>
                 <th className="px-4 py-2 text-right">البريد</th>
-                <th className="px-4 py-2 text-right">الإجراءات</th>
+                <th className="px-4 py-2 text-right">إجراءات</th>
               </tr>
             </thead>
             <tbody>
@@ -304,7 +319,7 @@ const SuppliersPage: React.FC = () => {
                   <td className="px-4 py-2">
                     <div className="flex gap-2">
                       <Button variant="secondary" onClick={() => openStatement(s)}>
-                        كشف الحساب
+                        كشف حساب
                       </Button>
                       {canWriteSuppliers && (
                         <Button
@@ -406,6 +421,32 @@ const SuppliersPage: React.FC = () => {
               </div>
             </div>
 
+            <div className="flex gap-4 items-center text-sm">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="openingBalance"
+                  checked={!includeOpeningBalance}
+                  onChange={() => setIncludeOpeningBalance(false)}
+                />
+                حركات الفترة فقط
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="openingBalance"
+                  checked={includeOpeningBalance}
+                  onChange={() => setIncludeOpeningBalance(true)}
+                />
+                مع رصيد افتتاحي
+              </label>
+              {includeOpeningBalance && (
+                <span className="text-gray-600">
+                  الرصيد الافتتاحي: {openingBalance.toFixed(2)} {settings?.currency || ''}
+                </span>
+              )}
+            </div>
+
             {canManagePayments && (
               <div className="border border-gray-200 rounded p-3">
                 <h4 className="font-semibold mb-2">تسجيل دفعة للمورد</h4>
@@ -447,6 +488,12 @@ const SuppliersPage: React.FC = () => {
               </div>
             )}
 
+            {!canManagePayments && (
+              <div className="text-sm text-warning-700 bg-warning-50 border border-warning-200 rounded p-3">
+                لا تملك صلاحية تسجيل دفعات الموردين.
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-center">
               <div className="border border-gray-200 rounded-lg p-3">
                 <div className="text-xs text-gray-500">إجمالي المشتريات</div>
@@ -477,13 +524,28 @@ const SuppliersPage: React.FC = () => {
                 phone={settings?.contactInfo}
                 dateRangeLabel={`الفترة من ${dateRange.start} إلى ${dateRange.end}`}
                 summaryItems={[
-                  { label: 'إجمالي المشتريات', value: `${statement.totalPurchases.toFixed(2)} ${settings?.currency || ''}` },
-                  { label: 'إجمالي المدفوع', value: `${statement.totalPaid.toFixed(2)} ${settings?.currency || ''}` },
-                  { label: 'المتبقي', value: `${statement.remaining.toFixed(2)} ${settings?.currency || ''}` },
+                  {
+                    label: 'الرصيد الافتتاحي',
+                    value: `${openingBalance.toFixed(2)} ${settings?.currency || ''}`,
+                  },
+                  {
+                    label: 'إجمالي المشتريات',
+                    value: `${statement.totalPurchases.toFixed(2)} ${settings?.currency || ''}`,
+                  },
+                  {
+                    label: 'إجمالي المدفوع',
+                    value: `${statement.totalPaid.toFixed(2)} ${settings?.currency || ''}`,
+                  },
+                  {
+                    label: 'المتبقي',
+                    value: `${statement.remaining.toFixed(2)} ${settings?.currency || ''}`,
+                  },
                 ]}
               >
                 {statement.rows.length === 0 ? (
-                  <p className="text-gray-600 text-center py-6">لا توجد حركات خلال هذه الفترة.</p>
+                  <p className="text-gray-600 text-center py-6">
+                    لا توجد حركات خلال هذه الفترة.
+                  </p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
@@ -514,10 +576,10 @@ const SuppliersPage: React.FC = () => {
                             </td>
                             <td className="px-4 py-2 text-right">{row.description}</td>
                             <td className="px-4 py-2 text-right">
-                              {row.debit ? row.debit.toFixed(2) : '—'}
+                              {row.debit ? row.debit.toFixed(2) : '-'}
                             </td>
                             <td className="px-4 py-2 text-right">
-                              {row.credit ? row.credit.toFixed(2) : '—'}
+                              {row.credit ? row.credit.toFixed(2) : '-'}
                             </td>
                             <td className="px-4 py-2 text-right">{row.balance.toFixed(2)}</td>
                           </tr>

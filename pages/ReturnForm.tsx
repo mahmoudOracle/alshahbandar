@@ -65,7 +65,7 @@ const ReturnForm: React.FC<ReturnFormProps> = ({ invoice, onSaved, onClose }) =>
     }
     const parsedDate = new Date(date);
     if (Number.isNaN(parsedDate.getTime())) {
-      addNotification('تاريخ المرتجع غير صالح.', 'error');
+      addNotification('تاريخ المرتجع غير صحيح.', 'error');
       return;
     }
     setSaving(true);
@@ -85,7 +85,7 @@ const ReturnForm: React.FC<ReturnFormProps> = ({ invoice, onSaved, onClose }) =>
         reason: reason || undefined,
         mode,
       });
-      addNotification('تم تسجيل المرتجع بنجاح.', 'success');
+      addNotification('تم إنشاء المرتجع بنجاح.', 'success');
       onSaved();
     } catch (err: unknown) {
       addNotification(mapFirestoreError(err), 'error');
@@ -101,7 +101,7 @@ const ReturnForm: React.FC<ReturnFormProps> = ({ invoice, onSaved, onClose }) =>
           <div key={line.productId} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-center">
             <div className="md:col-span-2">
               <div className="text-sm font-medium">{line.nameSnapshot}</div>
-              <div className="text-xs text-gray-500">الحد الأقصى: {line.maxQty}</div>
+              <div className="text-xs text-gray-500">الكمية المباعة: {line.maxQty}</div>
             </div>
             <Input
               type="number"
@@ -118,7 +118,12 @@ const ReturnForm: React.FC<ReturnFormProps> = ({ invoice, onSaved, onClose }) =>
         ))}
       </div>
 
-      <DateInput label="تاريخ المرتجع" name="returnDate" value={date} onChange={(e) => setDate(e.target.value)} />
+      <DateInput
+        label="تاريخ المرتجع"
+        name="returnDate"
+        value={date}
+        onChange={(e) => setDate(e.target.value)}
+      />
       <Select
         label="طريقة المعالجة"
         value={mode}

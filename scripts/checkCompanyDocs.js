@@ -52,7 +52,7 @@ async function run() {
     const membershipRef = db
       .collection('companies')
       .doc(COMPANY_ID)
-      .collection('users')
+      .collection('members')
       .doc(userRecord.uid);
     const memSnap = await membershipRef.get();
     if (!memSnap.exists) {

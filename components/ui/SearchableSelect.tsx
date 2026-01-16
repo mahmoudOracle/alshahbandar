@@ -108,7 +108,7 @@ export const SearchableSelect: React.FC<Props> = ({
         onFocus={() => setOpen(true)}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
-        className={`block w-full px-3 py-2 border rounded-md text-base md:text-sm bg-white dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 ${error ? 'border-danger-600' : 'border-gray-300'}`}
+        className={`block w-full px-3 py-2 border rounded-md text-base md:text-sm leading-tight min-h-[44px] bg-white dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 ${error ? 'border-danger-600' : 'border-gray-300'}`}
         aria-invalid={error ? 'true' : 'false'}
         aria-describedby={error ? `${name}-error` : undefined}
       />

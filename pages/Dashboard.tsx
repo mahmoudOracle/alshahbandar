@@ -12,12 +12,12 @@ import {
   ArchiveBoxIcon,
 } from '@heroicons/react/24/outline';
 import { useNotification } from '../contexts/NotificationContext';
+import { getErrorMessage } from '../src/utils/errorMessage';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import { Card } from '../components/ui/Card';
 import { StatCard } from '../components/ui/StatCard';
 import { CardSkeleton } from '../components/ui/CardSkeleton';
 
-const LOW_STOCK_THRESHOLD = 10;
 const SALES_PERIOD_DAYS = 30;
 
 const getInvoiceTotal = (inv: Invoice) => {
@@ -49,8 +49,8 @@ const toDateValue = (value: unknown): Date | null => {
 };
 
 const statusToLabel = (status: string) => {
-  if (status === 'approved') return 'معتمدة';
-  if (status === 'pending') return 'قيد المراجعة';
+  if (status === 'approved') return 'مفعّلة';
+  if (status === 'pending') return 'بانتظار الموافقة';
   if (status === 'blocked') return 'موقوفة';
   return status || 'غير معروف';
 };
@@ -89,9 +89,9 @@ const Dashboard: React.FC = () => {
       setExpenses(expensesRes.data || []);
       setProducts(productsRes.data || []);
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg = getErrorMessage(error, 'تعذر تحميل بيانات الملخّص. حاول مرة أخرى.');
       console.error('Failed to fetch dashboard data:', { message: msg });
-      addNotification('تعذر تحميل الملخّص الآن. حاول مرة أخرى.', 'error');
+      addNotification(msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -151,7 +151,7 @@ const Dashboard: React.FC = () => {
     const membershipName =
       companyMemberships.find((m) => m.companyId === activeCompanyId)?.companyName || '';
     const companyDoc = activeCompany as { companyName?: string } | null;
-    return settings?.businessName || companyDoc?.companyName || membershipName || 'شركة بدون اسم';
+    return settings?.businessName || companyDoc?.companyName || membershipName || 'بدون اسم';
   }, [settings?.businessName, activeCompany, companyMemberships, activeCompanyId]);
 
   const companyStatus = (activeCompany as { status?: string } | null)?.status || 'unknown';
@@ -173,13 +173,13 @@ const Dashboard: React.FC = () => {
   if (!activeCompanyId) {
     const email = firebaseUser?.email || '';
     return (
-      <Card header={<h2 className="text-xl font-bold">لا يوجد حساب شركة مرتبط</h2>}>
+      <Card header={<h2 className="text-xl font-bold">لا توجد شركة مرتبطة</h2>}>
         <div className="space-y-3">
           <p className="text-gray-600 dark:text-gray-400 whitespace-pre-line">
-            {`مرحبًا ${email || ''}\nلا يوجد حساب شركة مرتبط بحسابك.`}
+            {`الحساب: ${email || ''}\nلا توجد شركة مرتبطة بهذا الحساب.`}
           </p>
           <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line">
-            يرجى التواصل مع مدير الشركة لإضافة حسابك، أو التواصل مع الدعم لإكمال البيانات.
+            يرجى التواصل مع مدير الشركة لإضافتك أو التأكد من بياناتك.
           </p>
           {onboardingError && <p className="text-sm text-danger-600">{onboardingError}</p>}
           <div className="flex flex-wrap gap-3">
@@ -216,14 +216,14 @@ const Dashboard: React.FC = () => {
             className="bg-primary-600 text-white rounded-lg shadow hover:bg-primary-700 transition-colors p-5 flex items-center justify-center"
           >
             <DocumentPlusIcon className="h-7 w-7 me-3" />
-            <span className="text-lg font-semibold">إنشاء فاتورة</span>
+            <span className="text-lg font-semibold">فاتورة جديدة</span>
           </Link>
           <Link
             to="/customers/new"
             className="bg-success-600 text-white rounded-lg shadow hover:bg-success-700 transition-colors p-5 flex items-center justify-center"
           >
             <UserPlusIcon className="h-7 w-7 me-3" />
-            <span className="text-lg font-semibold">إضافة عميل</span>
+            <span className="text-lg font-semibold">عميل جديد</span>
           </Link>
         </div>
       )}
@@ -240,7 +240,7 @@ const Dashboard: React.FC = () => {
           icon={<UsersIcon className="h-6 w-6 text-primary-600" />}
         />
         <StatCard
-          title="مبيعات آخر 30 يوم"
+          title={`مبيعات ${SALES_PERIOD_DAYS} يوم`}
           value={`${totalSalesPeriod.toFixed(2)} ${settings?.currency || ''}`.trim()}
           icon={<BanknotesIcon className="h-6 w-6 text-primary-600" />}
         />
@@ -276,7 +276,7 @@ const Dashboard: React.FC = () => {
                     {inv.customerName || 'عميل'}
                   </p>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {toDateValue(inv.date)?.toLocaleDateString('ar-EG') || '—'}
+                    {toDateValue(inv.date)?.toLocaleDateString('ar-EG') || '-'}
                   </p>
                 </div>
                 <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
@@ -291,7 +291,7 @@ const Dashboard: React.FC = () => {
       {totalInvoices === 0 && totalCustomers === 0 && totalExpenses === 0 && (
         <Card>
           <p className="text-gray-600 dark:text-gray-400">
-            ابدأ بإضافة عميل أو فاتورة لتظهر البيانات هنا.
+            ابدأ بإضافة عميل أو فاتورة لتظهر مؤشرات الأداء هنا.
           </p>
         </Card>
       )}

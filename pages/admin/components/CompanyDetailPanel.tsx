@@ -42,6 +42,13 @@ const CompanyDetailPanel: React.FC<CompanyDetailPanelProps> = ({ company, onClos
 
   if (!company) return null;
 
+  const planLabel =
+    typeof company.plan === 'string'
+      ? company.plan
+      : company.plan && typeof company.plan === 'object' && 'maxUsers' in company.plan
+        ? `maxUsers: ${company.plan.maxUsers}`
+        : '-';
+
   return (
     <>
       <div
@@ -87,7 +94,7 @@ const CompanyDetailPanel: React.FC<CompanyDetailPanelProps> = ({ company, onClos
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-500">الخطة:</span>
-                  <span className="font-semibold capitalize">{company.plan}</span>
+                  <span className="font-semibold capitalize">{planLabel}</span>
                 </div>
               </div>
             </Card>

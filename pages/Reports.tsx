@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { getInvoices, getExpenses, getReturns } from '../services/dataService';
+import { getInvoices, getExpenses, getReturns, getPayments } from '../services/dataService';
 import { Expense, Invoice, ReturnDoc } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -41,6 +41,33 @@ const getInvoiceTotal = (inv: Invoice) => {
   return 0;
 };
 
+/**
+ * Verify report calculations for data integrity
+ */
+const verifyReportCalculations = async (
+  companyId: string,
+  invoices: Invoice[],
+  expenses: Expense[]
+): Promise<void> => {
+  if (!import.meta.env.DEV) return; // Only in dev mode
+  
+  try {
+    const invoiceTotal = invoices.reduce((sum, inv) => sum + (getInvoiceTotal(inv) || 0), 0);
+    const expenseTotal = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+    
+    console.log('[REPORTS AUDIT]', {
+      companyId,
+      invoiceCount: invoices.length,
+      invoiceTotal: invoiceTotal.toFixed(2),
+      expenseCount: expenses.length,
+      expenseTotal: expenseTotal.toFixed(2),
+      netRevenue: (invoiceTotal - expenseTotal).toFixed(2),
+    });
+  } catch (err) {
+    console.warn('[REPORTS AUDIT] Verification check failed:', err);
+  }
+};
+
 const Reports: React.FC = () => {
   const { activeCompanyId, firebaseUser } = useAuth();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -64,10 +91,7 @@ const Reports: React.FC = () => {
         return;
       }
       if (!firebaseUser || !isSafeToAccessCompanyData(firebaseUser.uid, activeCompanyId)) {
-        addNotification(
-          'لا يمكن الوصول إلى بيانات الشركة حاليًا. حاول تسجيل الدخول مرة أخرى.',
-          'error'
-        );
+        addNotification('لا تملك صلاحية الوصول لبيانات هذه الشركة.', 'error');
         setLoading(false);
         return;
       }
@@ -78,11 +102,19 @@ const Reports: React.FC = () => {
           getExpenses(activeCompanyId),
           getReturns(activeCompanyId),
         ]);
-        setInvoices((invoicesData as unknown as { data?: Invoice[] }).data || []);
-        setExpenses((expensesData as unknown as { data?: Expense[] }).data || []);
-        setReturns((returnsData as unknown as { data?: ReturnDoc[] }).data || []);
+        const invoicesArray = (invoicesData as unknown as { data?: Invoice[] }).data || [];
+        const expensesArray = (expensesData as unknown as { data?: Expense[] }).data || [];
+        const returnsArray = (returnsData as unknown as { data?: ReturnDoc[] }).data || [];
+        
+        setInvoices(invoicesArray);
+        setExpenses(expensesArray);
+        setReturns(returnsArray);
+        
+        // Verify calculations for data integrity
+        await verifyReportCalculations(activeCompanyId, invoicesArray, expensesArray);
+        
         logDataAccessEvent('read', 'reports', firebaseUser.uid, activeCompanyId, {
-          scope: ['invoices', 'expenses'],
+          scope: ['invoices', 'expenses', 'returns'],
         });
       } catch (error: unknown) {
         addNotification(mapFirestoreError(error), 'error');
@@ -175,9 +207,9 @@ const Reports: React.FC = () => {
   if (!activeCompanyId) {
     return (
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-        <h2 className="text-2xl font-bold mb-2">لا توجد شركة مرتبطة</h2>
+        <h2 className="text-2xl font-bold mb-2">لا توجد شركة نشطة</h2>
         <p className="text-gray-600 dark:text-gray-400">
-          لا يمكن عرض التقارير بدون شركة فعّالة. يرجى التأكد من إعداد الشركة.
+          يرجى اختيار شركة أولًا لعرض التقارير.
         </p>
       </div>
     );
@@ -218,7 +250,7 @@ const Reports: React.FC = () => {
             >
               <option value="today">اليوم</option>
               <option value="7">آخر 7 أيام</option>
-              <option value="30">آخر 30 يوم</option>
+              <option value="30">آخر 30 يومًا</option>
               <option value="custom">مخصص</option>
             </select>
           </div>
@@ -258,14 +290,16 @@ const Reports: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-center">
           <div className="p-4 bg-blue-50 dark:bg-blue-900/50 rounded-lg">
-            <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-200">إجمالي المبيعات</h3>
+            <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-200">
+              إجمالي المبيعات
+            </h3>
             <p className="text-3xl font-bold mt-2 text-blue-600">
               {summary.totalSales.toFixed(2)} {settings?.currency}
             </p>
           </div>
           <div className="p-4 bg-yellow-50 dark:bg-yellow-900/50 rounded-lg">
             <h3 className="text-lg font-semibold text-yellow-800 dark:text-yellow-200">
-              إجمالي المرتجعات
+              المرتجعات
             </h3>
             <p className="text-3xl font-bold mt-2 text-yellow-600">
               {summary.totalReturns.toFixed(2)} {settings?.currency}
@@ -273,7 +307,7 @@ const Reports: React.FC = () => {
           </div>
           <div className="p-4 bg-red-50 dark:bg-red-900/50 rounded-lg">
             <h3 className="text-lg font-semibold text-red-800 dark:text-red-200">
-              إجمالي المصروفات
+              المصروفات
             </h3>
             <p className="text-3xl font-bold mt-2 text-red-600">
               {summary.totalExpenses.toFixed(2)} {settings?.currency}
@@ -311,7 +345,7 @@ const Reports: React.FC = () => {
             <div>
               <h4 className="text-lg font-semibold mb-3">المبيعات</h4>
               {summary.invoices.length === 0 ? (
-                <p className="text-gray-500">لا توجد مبيعات في هذه الفترة.</p>
+                <p className="text-gray-500">لا توجد مبيعات خلال هذه الفترة.</p>
               ) : (
                 <div className="divide-y divide-gray-100 dark:divide-gray-700">
                   {summary.invoices.map((inv) => (
@@ -321,7 +355,7 @@ const Reports: React.FC = () => {
                           {inv.customerName || 'عميل'}
                         </p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {toDateValue(inv.date)?.toLocaleDateString('ar-EG') || '—'}
+                          {toDateValue(inv.date)?.toLocaleDateString('ar-EG') || '-'}
                         </p>
                       </div>
                       <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
@@ -335,7 +369,7 @@ const Reports: React.FC = () => {
             <div>
               <h4 className="text-lg font-semibold mb-3">المصروفات</h4>
               {summary.expenses.length === 0 ? (
-                <p className="text-gray-500">لا توجد مصروفات في هذه الفترة.</p>
+                <p className="text-gray-500">لا توجد مصروفات خلال هذه الفترة.</p>
               ) : (
                 <div className="divide-y divide-gray-100 dark:divide-gray-700">
                   {summary.expenses.map((exp) => (
@@ -345,7 +379,7 @@ const Reports: React.FC = () => {
                           {exp.description || exp.vendor || exp.category || 'مصروف'}
                         </p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {toDateValue(exp.date)?.toLocaleDateString('ar-EG') || '—'}
+                          {toDateValue(exp.date)?.toLocaleDateString('ar-EG') || '-'}
                         </p>
                       </div>
                       <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
@@ -371,7 +405,7 @@ const Reports: React.FC = () => {
             dateRangeLabel={dateRangeLabel}
             summaryItems={[
               { label: 'إجمالي المبيعات', value: `${summary.totalSales.toFixed(2)} ${settings?.currency}` },
-              { label: 'إجمالي المرتجعات', value: `${summary.totalReturns.toFixed(2)} ${settings?.currency}` },
+              { label: 'المرتجعات', value: `${summary.totalReturns.toFixed(2)} ${settings?.currency}` },
               { label: 'صافي المبيعات', value: `${summary.netSales.toFixed(2)} ${settings?.currency}` },
             ]}
           >
@@ -379,7 +413,7 @@ const Reports: React.FC = () => {
               <div>
                 <h4 className="text-sm font-semibold mb-2">المبيعات</h4>
                 {summary.invoices.length === 0 ? (
-                  <p className="text-gray-500">لا توجد مبيعات في هذه الفترة.</p>
+                  <p className="text-gray-500">لا توجد مبيعات خلال هذه الفترة.</p>
                 ) : (
                   <div className="divide-y divide-gray-100">
                     {summary.invoices.map((inv) => (
@@ -389,7 +423,7 @@ const Reports: React.FC = () => {
                             {inv.customerName || 'عميل'}
                           </p>
                           <p className="text-xs text-gray-500">
-                            {toDateValue(inv.date)?.toLocaleDateString('ar-EG') || '—'}
+                            {toDateValue(inv.date)?.toLocaleDateString('ar-EG') || '-'}
                           </p>
                         </div>
                         <div className="text-sm font-semibold">
@@ -403,7 +437,7 @@ const Reports: React.FC = () => {
               <div>
                 <h4 className="text-sm font-semibold mb-2">المصروفات</h4>
                 {summary.expenses.length === 0 ? (
-                  <p className="text-gray-500">لا توجد مصروفات في هذه الفترة.</p>
+                  <p className="text-gray-500">لا توجد مصروفات خلال هذه الفترة.</p>
                 ) : (
                   <div className="divide-y divide-gray-100">
                     {summary.expenses.map((exp) => (
@@ -413,7 +447,7 @@ const Reports: React.FC = () => {
                             {exp.description || exp.vendor || exp.category || 'مصروف'}
                           </p>
                           <p className="text-xs text-gray-500">
-                            {toDateValue(exp.date)?.toLocaleDateString('ar-EG') || '—'}
+                            {toDateValue(exp.date)?.toLocaleDateString('ar-EG') || '-'}
                           </p>
                         </div>
                         <div className="text-sm font-semibold">

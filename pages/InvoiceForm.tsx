@@ -19,6 +19,7 @@ import { Select } from '../components/ui/Select';
 import SearchableSelect from '../components/ui/SearchableSelect';
 import { FormSkeleton } from '../components/ui/FormSkeleton';
 import { mapFirestoreError } from '../services/firebaseErrors';
+import { getErrorMessage } from '../src/utils/errorMessage';
 
 type State = Omit<Invoice, 'id' | 'subtotal' | 'total'>;
 
@@ -391,9 +392,13 @@ const InvoiceForm: React.FC = () => {
             {invoice.items.map((item, index) => (
               <div
                 key={item.id}
-                className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-3 p-3 border dark:border-gray-700 rounded-md items-center"
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 mb-4 p-4 border dark:border-gray-700 rounded-md"
               >
-                <div className="md:col-span-4">
+                {/* ROW 1: Product Select (full width on mobile, lg:4 on desktop) */}
+                <div className="col-span-1 md:col-span-2 lg:col-span-4">
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    الصنف *
+                  </label>
                   <SearchableSelect
                     value={item.productId}
                     onChange={(val) => handleItemChange(index, 'productId', val)}
@@ -405,23 +410,27 @@ const InvoiceForm: React.FC = () => {
                     placeholder="ابحث عن صنف"
                     name={`product_${index}`}
                   />
-                  <div className="mt-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setQuickAddTargetIndex(index);
-                        setQuickAddVisible(true);
-                      }}
-                      className="text-sm text-primary-600 hover:underline"
-                    >
-                      إضافة صنف سريع
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickAddTargetIndex(index);
+                      setQuickAddVisible(true);
+                    }}
+                    className="text-xs text-primary-600 hover:underline mt-1 inline-block"
+                    title="أضف صنج جديد وأدرجه مباشرة"
+                  >
+                    + إضافة سريعة
+                  </button>
                 </div>
-                <div className="md:col-span-2">
+
+                {/* ROW 1: Quantity (full width on mobile, md:2 col) */}
+                <div className="col-span-1 md:col-span-2 lg:col-span-2">
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    الكمية *
+                  </label>
                   <Input
                     type="number"
-                    placeholder="الكمية"
+                    placeholder="0"
                     value={item.quantity}
                     onChange={(e) => handleItemChange(index, 'quantity', parseInt(e.target.value))}
                     onFocus={() => {
@@ -430,35 +439,56 @@ const InvoiceForm: React.FC = () => {
                       setKeypadVisible(true);
                     }}
                     error={errors[`item_${index}_quantity`]}
+                    className="text-center"
                   />
                 </div>
-                <div className="md:col-span-2">
-                  <div className="text-sm text-muted">تكلفة الوحدة:</div>
-                  <div className="font-medium">
+
+                {/* ROW 1: Unit Cost Display (full width on mobile, md:2 col) */}
+                <div className="col-span-1 md:col-span-2 lg:col-span-2">
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    تكلفة الوحدة
+                  </label>
+                  <div className="text-center font-medium p-2 bg-gray-50 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600 min-h-[44px] flex items-center justify-center">
                     {(Number((item as any).unitCost) || 0).toFixed(2)} {settings?.currency}
                   </div>
                 </div>
-                <div className="md:col-span-2">
+
+                {/* ROW 1: Price Input (full width on mobile, md:2 col) */}
+                <div className="col-span-1 md:col-span-2 lg:col-span-2">
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    السعر *
+                  </label>
                   <Input
                     type="number"
-                    placeholder="السعر"
+                    placeholder="0"
                     value={item.price}
                     onChange={(e) => handleItemChange(index, 'price', parseFloat(e.target.value))}
                     error={errors[`item_${index}_price`]}
+                    className="text-center"
                   />
                 </div>
-                <div className="md:col-span-1 text-lg font-medium text-right md:text-center">
-                  <span className="md:hidden text-xs font-bold me-2">الإجمالي:</span>
-                  {(item.quantity * item.price).toFixed(2)} {settings?.currency}
+
+                {/* ROW 1: Line Total (full width on mobile, lg:1 col) */}
+                <div className="col-span-1 lg:col-span-1">
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    الإجمالي
+                  </label>
+                  <div className="text-center font-bold p-2 bg-primary-50 dark:bg-primary-900/20 rounded min-h-[44px] flex items-center justify-center">
+                    {(item.quantity * item.price).toFixed(2)} {settings?.currency}
+                  </div>
                 </div>
-                <div className="md:col-span-1 text-left md:text-center">
+
+                {/* ROW 1: Delete Button (full width on mobile, lg:1 col) */}
+                <div className="col-span-1 lg:col-span-1 flex items-end">
                   {canWrite && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
+                      className="w-full"
                       onClick={() => removeItem(index)}
                       aria-label={`حذف البند ${index + 1}`}
+                      title="حذف هذا البند"
                     >
                       <TrashIcon className="h-5 w-5 text-danger-600" />
                     </Button>
@@ -527,8 +557,8 @@ const InvoiceForm: React.FC = () => {
                       }
                       addNotification('تمت إضافة الصنف بنجاح.', 'success');
                     } catch (err: unknown) {
-                      const msg = err instanceof Error ? err.message : String(err);
-                      addNotification(msg || 'تعذر إضافة الصنف.', 'error');
+                      const msg = getErrorMessage(err, 'تعذر إضافة الصنف.');
+                      addNotification(msg, 'error');
                     } finally {
                       setQuickAddVisible(false);
                       setQuickAddTargetIndex(null);

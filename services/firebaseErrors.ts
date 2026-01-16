@@ -16,6 +16,10 @@ export function mapFirestoreError(e: unknown): string {
       case 'invalid-argument':
         return 'البيانات المدخلة غير صحيحة أو ناقصة.';
       case 'failed-precondition':
+        // Check if it's a stock-related error
+        if (msg.toLowerCase().includes('insufficient stock')) {
+          return msg; // Return the actual error message from Cloud Function
+        }
         return 'فشل شرط مسبق، قد تكون خدمة البريد الإلكتروني غير مهيأة.';
       case 'internal':
         return 'حدث خطأ في الخادم. السبب الأكثر شيوعاً هو عدم تفعيل خطة الفوترة (Blaze) للمشروع. يرجى تفعيل الفوترة ثم المحاولة مرة أخرى. إذا استمرت المشكلة، يرجى مراجعة سجلات الوظائف السحابية (Cloud Function logs).';

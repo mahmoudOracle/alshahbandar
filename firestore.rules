@@ -1,4 +1,4 @@
-rules_version = '2';
+﻿rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -8,39 +8,30 @@ service cloud.firestore {
     }
 
     function isPlatformAdmin() {
-      return isSignedIn() && (
-        exists(/databases/$(database)/documents/platformAdmins/$(request.auth.uid)) ||
-        (exists(/databases/$(database)/documents/platformUsers/$(request.auth.uid)) &&
-          get(/databases/$(database)/documents/platformUsers/$(request.auth.uid)).data.platformAdmin == true)
-      );
+      return isSignedIn() && request.auth.token.email == 'mahmoud.shineh3m@gmail.com';
+    }
+
+    function isTenantAllowed() {
+      return isSignedIn() && request.auth.token.email in ['hoodaalawamry@gmail.com'];
     }
 
     function companyUserDoc(companyId) {
-      return get(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid));
+      return get(/databases/$(database)/documents/companies/$(companyId)/members/$(request.auth.uid));
     }
 
     function isCompanyUser(companyId) {
-      return isSignedIn() && companyUserDoc(companyId).exists();
+      return isTenantAllowed() && companyUserDoc(companyId).exists();
+    }
+
+    function isCompanyActive(companyId) {
+      return exists(/databases/$(database)/documents/companies/$(companyId)) &&
+        get(/databases/$(database)/documents/companies/$(companyId)).data.isActive != false;
     }
 
     function hasCompanyRole(companyId, roles) {
       return isCompanyUser(companyId) && (companyUserDoc(companyId).data.role in roles);
     }
 
-    // Platform admin records:
-    // - Allow a signed-in user to read their OWN admin record so the client
-    //   can detect whether the signed-in user is a platform admin without
-    //   relying on Cloud Functions (avoids requiring Blaze for simple checks).
-    // - Writing admin records remains restricted to platform admins.
-    match /platformAdmins/{adminId} {
-      allow read: if request.auth != null && request.auth.uid == adminId;
-      allow write: if isPlatformAdmin();
-    }
-
-    match /platformUsers/{adminId} {
-      allow read: if request.auth != null && request.auth.uid == adminId;
-      allow write: if isPlatformAdmin();
-    }
 
     // Companies
     match /companies/{companyId} {
@@ -58,7 +49,7 @@ service cloud.firestore {
       }
 
       allow update: if isPlatformAdmin() || (
-        isSignedIn() && hasCompanyRole(companyId, ['owner', 'manager']) && isCompanyProfileUpdate()
+        isSignedIn() && hasCompanyRole(companyId, ['owner', 'manager']) && isCompanyProfileUpdate() && isCompanyActive(companyId)
       );
 
       function isManagerRole(companyId) {
@@ -69,75 +60,62 @@ service cloud.firestore {
         return hasCompanyRole(companyId, ['employee', 'staff']);
       }
 
-      // Allow authenticated users to create their own company record during registration
-      // but only if the incoming document sets status to 'pending' and the email matches auth email
-      allow create: if isSignedIn() && (
-        // platform admins can create as above
-        isPlatformAdmin() || (
-          request.resource.data.status == 'pending' &&
-          request.resource.data.emailLower == request.auth.token.email.toLowerCase() &&
-          request.resource.data.ownerName is string
-        )
-      );
-
       // Read allowed for authenticated members or platform admins
       allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
 
       // Company scoped subcollections
       match /customers/{docId} {
-        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
-        allow create: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId) || isStaffRole(companyId));
-        allow update: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId));
+        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
+        allow create: if isSignedIn() && (isManagerRole(companyId) || isStaffRole(companyId)) && isCompanyActive(companyId);
+        allow update: if isSignedIn() && (isManagerRole(companyId)) && isCompanyActive(companyId);
         allow delete: if false;
       }
 
       match /products/{docId} {
-        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
-        allow create: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId) || isStaffRole(companyId));
-        allow update: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId));
+        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
+        allow create: if isSignedIn() && (isManagerRole(companyId) || isStaffRole(companyId)) && isCompanyActive(companyId);
+        allow update: if isSignedIn() && (isManagerRole(companyId)) && isCompanyActive(companyId);
         allow delete: if false;
       }
 
       match /expenses/{docId} {
-        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
-        allow create: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId) || isStaffRole(companyId));
-        allow update: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId));
+        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
+        allow create: if isSignedIn() && (isManagerRole(companyId) || isStaffRole(companyId)) && isCompanyActive(companyId);
+        allow update: if isSignedIn() && (isManagerRole(companyId)) && isCompanyActive(companyId);
         allow delete: if false;
       }
 
       match /payments/{docId} {
-        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
-        allow create: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId) || isStaffRole(companyId));
-        allow update: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId));
+        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
+        allow create: if isSignedIn() && (isManagerRole(companyId) || isStaffRole(companyId)) && isCompanyActive(companyId);
+        allow update: if isSignedIn() && (isManagerRole(companyId)) && isCompanyActive(companyId);
         allow delete: if false;
       }
 
       match /returns/{docId} {
-        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
         allow create, update, delete: if false;
       }
 
       match /supplierPayments/{docId} {
-        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
-        allow create, update: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId));
+        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
+        allow create, update: if isSignedIn() && (isManagerRole(companyId)) && isCompanyActive(companyId);
         allow delete: if false;
       }
 
       match /settings/{docId} {
-        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
-        allow create, update: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId));
+        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
+        allow create, update: if isSignedIn() && (isManagerRole(companyId)) && isCompanyActive(companyId);
         allow delete: if false;
       }
 
       match /{document=**} {
-        // Reads allowed for members or platform admins
-        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+        // Reads allowed for members only (platform admins do not read tenant data)
+        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
 
         // Writes allowed only for platform admins or members with sufficient role
         // For destructive operations (deletes) require server-side callable to set `isDeleted` flag.
-        allow create, update: if isSignedIn() && (
-          isPlatformAdmin() || isManagerRole(companyId)
-        );
+        allow create, update: if isSignedIn() && (isManagerRole(companyId) && isCompanyActive(companyId));
 
         // Prevent client-side hard deletes; require server-side callable to mark `isDeleted`.
         allow delete: if false;
@@ -145,7 +123,7 @@ service cloud.firestore {
 
       // Invoices: prevent client-side edits/deletes when a document is posted or its period is locked
       match /invoices/{invoiceId} {
-        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
 
         function companyLockedForDate(ts) {
           // company doc may include `lockedPeriods` array of YYYY-MM strings
@@ -162,10 +140,10 @@ service cloud.firestore {
           return locked;
         }
 
-        allow create: if isSignedIn() && (isPlatformAdmin() || isManagerRole(companyId) || isStaffRole(companyId));
+        allow create: if isSignedIn() && ((isManagerRole(companyId) || isStaffRole(companyId)) && isCompanyActive(companyId));
 
         allow update: if isSignedIn() && (
-          (isPlatformAdmin() || isManagerRole(companyId)) &&
+          (isManagerRole(companyId) && isCompanyActive(companyId)) &&
           // Disallow updating if invoice already posted
           !(resource.data.posted == true || resource.data.isPosted == true || resource.data.isFinal == true) &&
           // Disallow if period locked
@@ -177,7 +155,7 @@ service cloud.firestore {
 
       // Audit logs: read allowed for company members, writes only allowed via Cloud Functions (admin SDK)
       match /auditLogs/{logId} {
-        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
         // Deny client-side writes to audit logs. Audit entries must be written by
         // trusted server-side code (Cloud Functions using Admin SDK) to ensure immutability.
         allow create, update, delete: if false;
@@ -187,7 +165,7 @@ service cloud.firestore {
       // Clients should use server-side callables or Cloud Functions to append ledger entries
       // and update inventory snapshots. These collections remain readable by company users.
       match /stockLedger/{entryId} {
-        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
         // Strict validation for ledger entries to ensure audit integrity.
         function validLedgerEntry() {
           return (
@@ -207,12 +185,12 @@ service cloud.firestore {
 
         // Allow creation only by platform admins or callers with `admin` custom claim.
         // Cloud Functions using the Admin SDK will bypass these rules; client writes are blocked unless caller has admin claim.
-        allow create: if isSignedIn() && (isPlatformAdmin() || (request.auth.token.admin == true)) && validLedgerEntry();
+        allow create: if isSignedIn() && (request.auth.token.admin == true) && validLedgerEntry();
         allow update, delete: if false;
       }
 
       match /inventory/{productId} {
-        allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
 
         // Inventory snapshots must be consistent with product stock. Only admin callers may write.
         function validInventorySnapshot() {
@@ -231,20 +209,20 @@ service cloud.firestore {
             : true;
         }
 
-        allow create: if isSignedIn() && (isPlatformAdmin() || (request.auth.token.admin == true)) && validInventorySnapshot() && matchesProductStock();
-        allow update: if isSignedIn() && (isPlatformAdmin() || (request.auth.token.admin == true)) && validInventorySnapshot() && matchesProductStock();
-        allow delete: if isSignedIn() && (isPlatformAdmin() || (request.auth.token.admin == true));
+        allow create: if isSignedIn() && (request.auth.token.admin == true) && validInventorySnapshot() && matchesProductStock();
+        allow update: if isSignedIn() && (request.auth.token.admin == true) && validInventorySnapshot() && matchesProductStock();
+        allow delete: if isSignedIn() && (request.auth.token.admin == true);
       }
     }
 
     // Membership docs
-    match /companies/{companyId}/users/{userId} {
-      allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+    match /companies/{companyId}/members/{userId} {
+      allow read: if isSignedIn() && isCompanyUser(companyId);
       allow create: if isSignedIn() && (
-        request.auth.uid == userId || isPlatformAdmin()
+        request.auth.uid == userId && isCompanyActive(companyId)
       );
       allow update, delete: if isSignedIn() && (
-        request.auth.uid == userId || isPlatformAdmin()
+        request.auth.uid == userId && isCompanyActive(companyId)
       );
     }
 
@@ -260,10 +238,16 @@ service cloud.firestore {
 
     // User profiles
     match /users/{userId} {
-      allow read: if isSignedIn() && (request.auth.uid == userId || isPlatformAdmin());
+      allow read: if isSignedIn() && request.auth.uid == userId;
       allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isSignedIn() && (request.auth.uid == userId || isPlatformAdmin());
-      allow delete: if isPlatformAdmin();
+      allow update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    // Platform audit logs (admin only, server-side writes)
+    match /auditLogs/{logId} {
+      allow read: if isPlatformAdmin();
+      allow create, update, delete: if false;
     }
 
     // Default deny

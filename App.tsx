@@ -1,5 +1,5 @@
-﻿import React, { useState, useEffect, Suspense } from 'react';
-import { HashRouter, Routes, Route, useLocation, matchPath } from 'react-router-dom';
+import React, { useState, useEffect, Suspense } from 'react';
+import { HashRouter, Routes, Route, useLocation, matchPath, Link, Navigate } from 'react-router-dom';
 import { Bars3Icon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 
 import Sidebar from './components/Sidebar';
@@ -17,21 +17,28 @@ import MobileBottomNav from './components/MobileBottomNav';
 import LogoPlaceholder from './components/LogoPlaceholder';
 import Avatar from './components/Avatar';
 import { designTokens } from './design-tokens';
-import { Link } from 'react-router-dom';
+import NotAuthorizedPage from './pages/NotAuthorizedPage';
 
 // Inline small header user menu (keeps App layout simple). Uses AuthContext to access user and memberships.
 const HeaderUserMenu: React.FC = () => {
-  const { firebaseUser, companyMemberships, activeCompanyId, setActiveCompanyId, signOutUser } =
-    useAuth();
+  const {
+    firebaseUser,
+    activeCompanyId,
+    signOutUser,
+    authRole,
+    isPlatformAdmin,
+  } = useAuth();
   const [open, setOpen] = useState(false);
   const buttonRef = React.useRef<HTMLButtonElement | null>(null);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
 
+  if (authRole === 'unknown') return null;
+
+  const isTenant = authRole === 'tenant';
   const displayName = firebaseUser?.displayName || firebaseUser?.email || 'User';
 
   React.useEffect(() => {
     if (!open) return;
-    // focus first actionable element when menu opens
     const el = menuRef.current?.querySelector<HTMLElement>('a,button');
     el?.focus();
   }, [open]);
@@ -59,7 +66,6 @@ const HeaderUserMenu: React.FC = () => {
       (prev as HTMLElement | undefined)?.focus();
       return;
     }
-    // trap tab within menu
     if (e.key === 'Tab') {
       if (focusables.length === 0) return;
       if (e.shiftKey && idx === 0) {
@@ -105,16 +111,18 @@ const HeaderUserMenu: React.FC = () => {
             <div className="text-xs text-gray-500">{activeCompanyId}</div>
           </div>
           <ul className="py-1">
-            <li>
-              <Link
-                to="/profile"
-                onClick={() => setOpen(false)}
-                className="block px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
-                role="menuitem"
-              >
-                Profile
-              </Link>
-            </li>
+            {isTenant && (
+              <li>
+                <Link
+                  to="/profile"
+                  onClick={() => setOpen(false)}
+                  className="block px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                  role="menuitem"
+                >
+                  Profile
+                </Link>
+              </li>
+            )}
             <li>
               <button
                 onClick={() => {
@@ -127,41 +135,65 @@ const HeaderUserMenu: React.FC = () => {
                 Sign out
               </button>
             </li>
-            {companyMemberships && companyMemberships.length > 1 && (
-              <li>
-                <div className="p-2 text-xs text-gray-500">Switch company</div>
-                {companyMemberships.map((m) => (
-                  <button
-                    key={m.companyId}
-                    onClick={() => {
-                      setActiveCompanyId(m.companyId);
-                      setOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
-                    role="menuitem"
-                  >
-                    {m.companyName}
-                  </button>
-                ))}
-              </li>
-            )}
           </ul>
         </div>
       )}
     </div>
   );
 };
+const AppRoutes: React.FC = () => {
+  const { authRole, authLoading, isPlatformAdmin, authPhase } = useAuth();
+  const location = useLocation();
+  const isPlatformRoute = location.pathname.startsWith('/platform');
+  const lastGuardLogRef = React.useRef<string>('');
 
-const AppRoutes: React.FC = () => (
-  <Routes>
-    {routes.map(({ path, component: Component }) => (
-      <React.Fragment key={path}>
-        <Route path={path} element={<Component />} />
-      </React.Fragment>
-    ))}
-  </Routes>
-);
+  // CRITICAL: Don't guard routes until auth phase is resolved
+  if (authPhase === 'loading') {
+    return <FullPageSpinner />;
+  }
 
+  // Now apply role-based guards after auth is resolved
+  if (authRole === 'unknown') {
+    return <NotAuthorizedPage />;
+  }
+
+  // Platform admin can only access /platform routes
+  if (isPlatformAdmin && !isPlatformRoute && location.pathname !== '/') {
+    const key = `platform-block-${location.pathname}`;
+    if (lastGuardLogRef.current !== key) {
+      console.warn('[AUTH_RESOLVE] blocked non-platform route for platform admin', {
+        path: location.pathname,
+      });
+      lastGuardLogRef.current = key;
+    }
+    return <NotAuthorizedPage />;
+  }
+
+  // Tenant can only access tenant routes (not /platform)
+  if (!isPlatformAdmin && isPlatformRoute) {
+    const email = authRole === 'tenant' ? 'tenant' : 'unknown';
+    const key = `tenant-block-${location.pathname}`;
+    if (lastGuardLogRef.current !== key) {
+      console.warn('[AUTH_RESOLVE] blocked platform route for tenant', {
+        email,
+        path: location.pathname,
+      });
+      lastGuardLogRef.current = key;
+    }
+    return <NotAuthorizedPage />;
+  }
+
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to={isPlatformAdmin ? '/platform' : '/dashboard'} replace />} />
+      {routes.map(({ path, component: Component }) => (
+        <React.Fragment key={path}>
+          <Route path={path} element={<Component />} />
+        </React.Fragment>
+      ))}
+    </Routes>
+  );
+};
 const getPageTitle = (pathname: string): string => {
   const matchedRoute = routes.find((route) => matchPath(route.path, pathname));
   return matchedRoute ? matchedRoute.title : 'Alshabandar';
@@ -169,9 +201,11 @@ const getPageTitle = (pathname: string): string => {
 
 function App() {
   const location = useLocation();
-  const [pageTitle, setPageTitle] = useState('ملخّص');
+  const { isPlatformAdmin } = useAuth();
+  const [pageTitle, setPageTitle] = useState('الشاهبندر');
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false);
+  const MODE_PLATFORM = 'وضع المنصة';
 
   useEffect(() => {
     setPageTitle(getPageTitle(location.pathname));
@@ -227,6 +261,11 @@ function App() {
               <LogoPlaceholder size={44} ariaLabel="Company logo" />
               <div>
                 <h1 className="text-white text-lg sm:text-2xl font-bold">{pageTitle}</h1>
+                {isPlatformAdmin && (
+                  <span className="inline-flex mt-1 items-center rounded-full bg-white/15 px-2 py-0.5 text-xs text-white">
+                    {MODE_PLATFORM}
+                  </span>
+                )}
                 <div className="text-sm text-white/90">{/* subtle subtitle or tenant name */}</div>
               </div>
             </div>
@@ -244,7 +283,9 @@ function App() {
             >
               <MagnifyingGlassIcon className="h-5 w-5" />
               <span className="hidden sm:inline">ابحث في الفواتير والعملاء والمنتجات...</span>
-              <kbd className="hidden sm:inline text-xs font-sans border dark:border-gray-500 rounded px-1.5 py-1">\n                Ctrl+K\n              </kbd>
+              <kbd className="hidden sm:inline text-xs font-sans border dark:border-gray-500 rounded px-1.5 py-1">
+                Ctrl+K
+              </kbd>
             </button>
             <ThemeToggle />
           </div>
@@ -278,4 +319,3 @@ const AppWrapper: React.FC = () => {
 };
 
 export default AppWrapper;
-

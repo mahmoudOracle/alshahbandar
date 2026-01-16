@@ -7,14 +7,20 @@ import {
   ArchiveBoxIcon,
   ChartPieIcon,
 } from '@heroicons/react/24/outline';
+import { useAuth } from '../contexts/AuthContext';
 
 const MobileBottomNav: React.FC = () => {
+  const { authRole, isPlatformAdmin } = useAuth();
+
+  if (authRole === 'unknown') return null;
+  if (isPlatformAdmin) return null;
+
   const items = [
-    { to: '/', label: 'ملخص', icon: HomeIcon },
-    { to: '/invoices', label: 'فواتير', icon: DocumentTextIcon },
-    { to: '/customers', label: 'عملاء', icon: UsersIcon },
-    { to: '/products', label: 'منتجات', icon: ArchiveBoxIcon },
-    { to: '/reports', label: 'تقارير', icon: ChartPieIcon },
+    { to: '/dashboard', label: '\u0645\u0644\u062e\u0635', icon: HomeIcon },
+    { to: '/invoices', label: '\u0627\u0644\u0641\u0648\u0627\u062a\u064a\u0631', icon: DocumentTextIcon },
+    { to: '/customers', label: '\u0627\u0644\u0639\u0645\u0644\u0627\u0621', icon: UsersIcon },
+    { to: '/products', label: '\u0627\u0644\u0645\u0646\u062a\u062c\u0627\u062a', icon: ArchiveBoxIcon },
+    { to: '/reports', label: '\u0627\u0644\u062a\u0642\u0627\u0631\u064a\u0631', icon: ChartPieIcon },
   ];
 
   return (

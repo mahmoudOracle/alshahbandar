@@ -235,28 +235,6 @@ const paginate = <T>(
   return { data: deepClone(sortedItems) };
 };
 
-// --- AUTH & MEMBERSHIP (MOCK) ---
-export const checkIfPlatformAdmin = async (uid: string): Promise<boolean> => {
-  await delay(50);
-  return uid === 'platform-admin-uid'; // special UID for mock admin
-};
-
-export const getCompanyMemberships = async (uid: string): Promise<CompanyMembership[]> => {
-  await delay(100);
-  // Return a mock membership for any logged-in user in dev
-  if (uid) {
-    return [
-      {
-        companyId: 'mock-company-id',
-        companyName: 'Mock Company Inc.',
-        role: UserRole.Owner,
-        status: 'active',
-      },
-    ];
-  }
-  return [];
-};
-
 export const resolveFirstLogin = async (
   _user: User
 ): Promise<{ success: boolean; message?: string }> => {
@@ -940,4 +918,94 @@ export const createPlatformCompanyWithManager = async (payload: {
     managerEmail: payload.managerEmail,
     tempPassword: payload.managerPassword,
   };
+};
+
+export const platformCreateCompany = async (payload: {
+  name: string;
+  ownerUid: string;
+  contactEmail: string;
+  phone: string;
+  address: string;
+  city: string;
+  country: string;
+  contactPersonName: string;
+  contactPersonTitle: string;
+  plan?: string;
+  notes?: string;
+  taxId?: string;
+  commercialReg?: string;
+}): Promise<{ companyId: string }> => {
+  await delay(150);
+  return { companyId: `mock-${Date.now()}` };
+};
+
+export const platformListCompanies = async (_limit = 50): Promise<{
+  companies: Array<{
+    id: string;
+    name: string | null;
+    isActive: boolean;
+    plan: string;
+    createdAt: unknown;
+    contactEmail: string | null;
+    phone: string | null;
+    address: string | null;
+    city: string | null;
+    country: string | null;
+    contactPersonName: string | null;
+    contactPersonTitle: string | null;
+  }>;
+}> => {
+  await delay(100);
+  return {
+    companies: [
+      {
+        id: 'mock-company-id',
+        name: 'Mock Company Inc.',
+        isActive: true,
+        plan: 'free',
+        createdAt: new Date(),
+        contactEmail: 'info@mock.com',
+        phone: '0000000000',
+        address: 'Mock Address',
+        city: 'Cairo',
+        country: 'Egypt',
+        contactPersonName: 'Mock Owner',
+        contactPersonTitle: 'Owner',
+      },
+    ],
+  };
+};
+
+export const getPlatformSummary = async (): Promise<{
+  companiesCount: number;
+  usersCount: number;
+  invoicesCount: number;
+  latestCompanies: Array<{ id: string; name: string | null; createdAt: unknown; isActive: boolean }>;
+}> => {
+  await delay(120);
+  return {
+    companiesCount: 1,
+    usersCount: companyUsers.length,
+    invoicesCount: invoices.length,
+    latestCompanies: [
+      {
+        id: 'mock-company-id',
+        name: 'Mock Company Inc.',
+        createdAt: new Date(),
+        isActive: true,
+      },
+    ],
+  };
+};
+
+export const setCompanyActive = async (_companyId: string, _isActive: boolean): Promise<void> => {
+  await delay(120);
+};
+
+export const logAuditEvent = async (_payload: {
+  action: string;
+  companyId?: string | null;
+  meta?: Record<string, unknown>;
+}): Promise<void> => {
+  await delay(50);
 };

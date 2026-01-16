@@ -44,7 +44,7 @@ export const Select: React.FC<SelectProps> = ({
           id={selectId}
           required={required}
           className={`
-            block w-full px-3 py-2 border rounded-md text-base md:text-sm appearance-none
+            block w-full px-3 py-2 border rounded-md text-base md:text-sm appearance-none leading-tight min-h-[44px]
             bg-white dark:bg-gray-700 dark:border-gray-600
             focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500
             disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-gray-800

@@ -6,6 +6,7 @@ import { Card } from '../components/ui/Card';
 import { useAuth } from '../contexts/AuthContext';
 import * as dataService from '../services/dataService';
 import { useNotification } from '../contexts/NotificationContext';
+import { getErrorMessage } from '../src/utils/errorMessage';
 
 const CompleteCompanySetupPage: React.FC = () => {
   const { user, activeCompany } = useAuth();
@@ -49,7 +50,7 @@ const CompleteCompanySetupPage: React.FC = () => {
         setPhone(String(compObj.phone || ''));
         setBusinessType(String(compObj.businessType || ''));
       } catch (err) {
-        console.error(err instanceof Error ? err.message : String(err));
+        console.error(getErrorMessage(err));
       }
     };
     load();

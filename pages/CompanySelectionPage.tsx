@@ -10,10 +10,10 @@ const CompanySelectionPage: React.FC = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-md text-center">
         <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-200">
-          مرحباً، {user?.displayName || user?.email}!
+          \u0645\u0631\u062d\u0628\u0627 {user?.displayName || user?.email}!
         </h1>
         <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">
-          أنت عضو في عدة شركات. يرجى اختيار الشركة التي تود العمل عليها.
+          \u0644\u062f\u064a\u0643\u0020\u0623\u0643\u062b\u0631\u0020\u0645\u0646\u0020\u0634\u0631\u0643\u0629\u0020\u0645\u0631\u062a\u0628\u0637\u0629\u0020\u0628\u062d\u0633\u0627\u0628\u0643\u002e\u0020\u0627\u062e\u062a\u0631\u0020\u0627\u0644\u0634\u0631\u0643\u0629\u0020\u0627\u0644\u062a\u064a\u0020\u062a\u0631\u064a\u062f\u0020\u0627\u0644\u062f\u062e\u0648\u0644\u0020\u0625\u0644\u064a\u0647\u0627\u0020\u0627\u0644\u0622\u0646\u002e
         </p>
 
         <div className="mt-8 space-y-4">
@@ -28,7 +28,7 @@ const CompanySelectionPage: React.FC = () => {
                 <p className="font-bold text-lg text-gray-900 dark:text-white">
                   {membership.companyName}
                 </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">دورك: {membership.role}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">\u0627\u0644\u062f\u0648\u0631: {membership.role}</p>
               </div>
             </button>
           ))}
@@ -36,7 +36,7 @@ const CompanySelectionPage: React.FC = () => {
 
         <div className="mt-8">
           <Button variant="secondary" onClick={signOutUser}>
-            تسجيل الخروج
+            \u062a\u0633\u062c\u064a\u0644\u0020\u0627\u0644\u062e\u0631\u0648\u062c
           </Button>
         </div>
       </div>

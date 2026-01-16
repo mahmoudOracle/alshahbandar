@@ -1,39 +1,59 @@
 import React from 'react';
-import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { ShieldExclamationIcon } from '@heroicons/react/24/outline';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '../components/ui/Button';
+
+const decodeUnicode = (str: string | undefined | null): string => {
+  if (!str) return '';
+  const normalizedStr = str.replace(/\\\\u/g, '\\u');
+  const decoded = normalizedStr.replace(/\\\u([\dA-F]{4})/gi, (_, grp) =>
+    String.fromCharCode(parseInt(grp, 16))
+  );
+  return decoded;
+};
 
 interface FatalErrorPageProps {
-  error: Error;
+  title?: string;
+  message?: string;
+  showRetry?: boolean;
 }
 
-const FatalErrorPage: React.FC<FatalErrorPageProps> = ({ error }) => {
-  return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 p-4">
-      <div className="p-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg text-center max-w-2xl w-full">
-        <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-800">
-          <ExclamationTriangleIcon className="h-6 w-6 text-red-600 dark:text-red-400" />
-        </div>
-        <h1 className="text-2xl font-bold mt-4 text-gray-800 dark:text-gray-200">
-          Failed to load the application
-        </h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">
-          An unexpected error occurred during startup. Please try reloading the page.
-        </p>
+const FatalErrorPage: React.FC<FatalErrorPageProps> = ({
+  title,
+  message,
+  showRetry = true,
+}) => {
+  const navigate = useNavigate();
 
-        {error && (
-          <div className="mt-4 text-left p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
-            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Error Details:</p>
-            <pre className="text-xs text-red-600 dark:text-red-400 whitespace-pre-wrap break-all">
-              {error.message || 'No error message available.'}
-            </pre>
+  const defaultTitle = 'غير مصرح';
+  const defaultMessage = 'حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.';
+
+  const decodedTitle = decodeUnicode(title || defaultTitle);
+  const decodedMessage = decodeUnicode(message || defaultMessage);
+
+  return (
+    <div className="flex items-center justify-center h-screen bg-gray-100 dark:bg-gray-900 p-4">
+      <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
+        <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-danger-100 dark:bg-danger-900/50">
+          <ShieldExclamationIcon className="h-7 w-7 text-danger-600 dark:text-danger-400" />
+        </div>
+        <h1 className="mt-5 text-2xl font-bold text-gray-900 dark:text-white">
+          {decodedTitle}
+        </h1>
+        <div className="mt-3 text-gray-600 dark:text-gray-400">
+          <p className="whitespace-pre-line">{decodedMessage}</p>
+        </div>
+        {showRetry && (
+          <div className="mt-6">
+            <Button
+              variant="primary"
+              onClick={() => navigate('/')}
+              className="w-full"
+            >
+              {decodeUnicode('العودة إلى الصفحة الرئيسية')}
+            </Button>
           </div>
         )}
-
-        <button
-          onClick={() => window.location.reload()}
-          className="mt-6 inline-flex items-center px-6 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
-        >
-          Reload Page
-        </button>
       </div>
     </div>
   );

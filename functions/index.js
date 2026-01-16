@@ -1,4 +1,4 @@
-﻿const functions = require('firebase-functions');
+const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
 const sgMail = require('@sendgrid/mail');
@@ -13,16 +13,20 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const DEFAULT_MAX_USERS = 10;
 
-const isPlatformAdminUid = async (uid) => {
+const PLATFORM_ADMIN_EMAIL = 'mahmoud.shineh3m@gmail.com';
+
+const isPlatformAdminUid = async (uid, email) => {
+  const normalized = String(email || '').trim().toLowerCase();
+  if (normalized) return normalized === PLATFORM_ADMIN_EMAIL;
   if (!uid) return false;
-  const [legacyAdmin, platformUser] = await Promise.all([
-    db.collection('platformAdmins').doc(uid).get(),
-    db.collection('platformUsers').doc(uid).get(),
-  ]);
-  if (legacyAdmin.exists) return true;
-  if (!platformUser.exists) return false;
-  const data = platformUser.data() || {};
-  return data.platformAdmin === true;
+  try {
+    const user = await admin.auth().getUser(uid);
+    const resolvedEmail = String(user?.email || '').trim().toLowerCase();
+    return resolvedEmail === PLATFORM_ADMIN_EMAIL;
+  } catch (err) {
+    functions.logger.warn('Failed to resolve platform admin email for uid', { uid, err });
+    return false;
+  }
 };
 
 const getCompanyMaxUsers = async (companyId) => {
@@ -34,7 +38,7 @@ const getCompanyMaxUsers = async (companyId) => {
 };
 
 const getCompanyUserCount = async (companyId) => {
-  const usersSnap = await db.collection('companies').doc(companyId).collection('users').get();
+  const usersSnap = await db.collection('companies').doc(companyId).collection('members').get();
   return usersSnap.size;
 };
 
@@ -57,7 +61,7 @@ const assertCompanyHasCapacity = async (companyId, opts = { includePendingInvite
   if (userCount + pendingInvites >= maxUsers) {
     throw new functions.https.HttpsError(
       'resource-exhausted',
-      `تم الوصول للحد الأقصى للمستخدمين (${maxUsers}).`
+      `?? ?????? ???? ?????? ?????????? (${maxUsers}).`
     );
   }
 };
@@ -74,7 +78,7 @@ exports.createCompanyAsAdmin = functions.https.onCall(async (data, context) => {
         'The function must be called while authenticated.'
       );
     }
-    const isAdmin = await isPlatformAdminUid(context.auth.uid);
+    const isAdmin = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
     if (!isAdmin) {
       throw new functions.https.HttpsError(
         'permission-denied',
@@ -195,7 +199,7 @@ exports.createPlatformCompanyWithManager = functions.https.onCall(async (data, c
     );
   }
 
-  const isAdmin = await isPlatformAdminUid(context.auth.uid);
+  const isAdmin = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
   if (!isAdmin) {
     throw new functions.https.HttpsError('permission-denied', 'The caller is not a platform admin.');
   }
@@ -270,7 +274,7 @@ exports.createPlatformCompanyWithManager = functions.https.onCall(async (data, c
       updatedAt: now,
     });
 
-    batch.set(companyRef.collection('users').doc(createdUser.uid), {
+    batch.set(companyRef.collection('members').doc(createdUser.uid), {
       uid: createdUser.uid,
       email,
       fullName: fullName,
@@ -339,12 +343,12 @@ exports.createGoodsReceiptAtomic = functions.https.onCall(async (data, context) 
 
   try {
     // Authorization: platform admin OR company member with role owner/manager
-    let authorized = await isPlatformAdminUid(context.auth.uid);
+    let authorized = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
     if (!authorized) {
       const memberRef = db
         .collection('companies')
         .doc(companyId)
-        .collection('users')
+        .collection('members')
         .doc(context.auth.uid);
       const memberDoc = await memberRef.get();
       if (memberDoc.exists) {
@@ -444,12 +448,12 @@ exports.getSalesSummary = functions.https.onCall(async (data, context) => {
 
   try {
     // Authorization: ensure caller is member of the company or platform admin
-    let authorized = await isPlatformAdminUid(context.auth.uid);
+    let authorized = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
     if (!authorized) {
       const memberRef = db
         .collection('companies')
         .doc(companyId)
-        .collection('users')
+        .collection('members')
         .doc(context.auth.uid);
       const memberDoc = await memberRef.get();
       if (memberDoc.exists) authorized = true;
@@ -495,12 +499,12 @@ exports.exportSalesCsv = functions.https.onCall(async (data, context) => {
 
   try {
     // Authorization: company member or platform admin
-    let authorized = await isPlatformAdminUid(context.auth.uid);
+    let authorized = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
     if (!authorized) {
       const memberRef = db
         .collection('companies')
         .doc(companyId)
-        .collection('users')
+        .collection('members')
         .doc(context.auth.uid);
       const memberDoc = await memberRef.get();
       if (memberDoc.exists) authorized = true;
@@ -569,12 +573,256 @@ exports.exportSalesCsv = functions.https.onCall(async (data, context) => {
 exports.isPlatformAdmin = functions.https.onCall(async (data, context) => {
   try {
     if (!context.auth) return { isAdmin: false };
-    const isAdmin = await isPlatformAdminUid(context.auth.uid);
+    const isAdmin = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
     return { isAdmin };
   } catch (err) {
     console.error('[isPlatformAdmin] failed', err);
     // Fail closed: treat as not admin to avoid exposing admin UI on errors
     return { isAdmin: false };
+  }
+});
+
+// Platform summary (admin only): counts + latest companies.
+exports.getPlatformSummary = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+  const isAdmin = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
+  if (!isAdmin) {
+    throw new functions.https.HttpsError('permission-denied', 'The caller is not a platform admin.');
+  }
+
+  const safeCount = async (query) => {
+    if (typeof query.count === 'function') {
+      const snap = await query.count().get();
+      return Number(snap?.data()?.count || 0);
+    }
+    const snap = await query.get();
+    return snap.size;
+  };
+
+  try {
+    const [companiesCount, usersCount, invoicesCount, latestCompaniesSnap] = await Promise.all([
+      safeCount(db.collection('companies')),
+      safeCount(db.collection('users')),
+      safeCount(db.collectionGroup('invoices')),
+      db.collection('companies').orderBy('createdAt', 'desc').limit(5).get(),
+    ]);
+
+    const latestCompanies = latestCompaniesSnap.docs.map((doc) => {
+      const data = doc.data() || {};
+      return {
+        id: doc.id,
+        name: data.companyName || data.name || null,
+        createdAt: data.createdAt || null,
+        isActive: data.isActive !== false,
+      };
+    });
+
+    return { companiesCount, usersCount, invoicesCount, latestCompanies };
+  } catch (err) {
+    console.error('[getPlatformSummary] failed', err);
+    throw new functions.https.HttpsError('internal', 'Failed to load platform summary');
+  }
+});
+
+// Platform: list companies (admin only)
+exports.platformListCompanies = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+  const isAdmin = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
+  if (!isAdmin) {
+    throw new functions.https.HttpsError('permission-denied', 'The caller is not a platform admin.');
+  }
+
+  const rawLimit = data && data.limit ? Number(data.limit) : 50;
+  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 200) : 50;
+
+  try {
+    const snap = await db.collection('companies').orderBy('createdAt', 'desc').limit(limit).get();
+    const companies = snap.docs.map((doc) => {
+      const c = doc.data() || {};
+      return {
+        id: doc.id,
+        name: c.name || c.companyName || null,
+        isActive: c.isActive !== false,
+        plan: c.plan || 'free',
+        createdAt: c.createdAt || null,
+        contactEmail: c.contactEmail || c.email || null,
+        phone: c.phone || null,
+        address: c.address || c.companyAddress || null,
+        city: c.city || null,
+        country: c.country || null,
+        contactPersonName: c.contactPersonName || null,
+        contactPersonTitle: c.contactPersonTitle || null,
+      };
+    });
+    return { companies };
+  } catch (err) {
+    console.error('[platformListCompanies] failed', err);
+    throw new functions.https.HttpsError('internal', 'Failed to list companies');
+  }
+});
+
+// Platform: create company (admin only)
+exports.platformCreateCompany = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+  const isAdmin = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
+  if (!isAdmin) {
+    throw new functions.https.HttpsError('permission-denied', 'The caller is not a platform admin.');
+  }
+
+  const payload = data || {};
+  const requiredFields = [
+    'name',
+    'ownerUid',
+    'contactEmail',
+    'phone',
+    'address',
+    'city',
+    'country',
+    'contactPersonName',
+    'contactPersonTitle',
+  ];
+  for (const field of requiredFields) {
+    if (!payload[field] || String(payload[field]).trim().length === 0) {
+      throw new functions.https.HttpsError('invalid-argument', `Missing required field: ${field}`);
+    }
+  }
+
+  const companyRef = db.collection('companies').doc();
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  const planValue = payload.plan && String(payload.plan).trim() ? String(payload.plan) : 'free';
+
+  const companyDoc = {
+    name: String(payload.name).trim(),
+    companyName: String(payload.name).trim(),
+    ownerUid: String(payload.ownerUid).trim(),
+    isActive: true,
+    plan: planValue,
+    createdAt: now,
+    updatedAt: now,
+    contactEmail: String(payload.contactEmail).trim(),
+    phone: String(payload.phone).trim(),
+    address: String(payload.address).trim(),
+    city: String(payload.city).trim(),
+    country: String(payload.country).trim(),
+    contactPersonName: String(payload.contactPersonName).trim(),
+    contactPersonTitle: String(payload.contactPersonTitle).trim(),
+    notes: payload.notes ? String(payload.notes) : null,
+    taxId: payload.taxId ? String(payload.taxId) : null,
+    commercialReg: payload.commercialReg ? String(payload.commercialReg) : null,
+  };
+
+  const ownerUid = companyDoc.ownerUid;
+  const ownerRef = db.collection('users').doc(ownerUid);
+  const memberRef = companyRef.collection('members').doc(ownerUid);
+
+  try {
+    const ownerSnap = await ownerRef.get();
+    const batch = db.batch();
+    batch.set(companyRef, companyDoc);
+    batch.set(memberRef, {
+      uid: ownerUid,
+      role: 'owner',
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    });
+    if (ownerSnap.exists) {
+      batch.set(ownerRef, { updatedAt: now }, { merge: true });
+    } else {
+      batch.set(ownerRef, { uid: ownerUid, createdAt: now, updatedAt: now }, { merge: true });
+    }
+    await batch.commit();
+    const auditRef = db.collection('auditLogs').doc();
+    await auditRef.set({
+      uid: context.auth.uid,
+      email: context.auth.token?.email || null,
+      action: 'company_create',
+      companyId: companyRef.id,
+      meta: { name: companyDoc.name },
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { companyId: companyRef.id };
+  } catch (err) {
+    console.error('[platformCreateCompany] failed', err);
+    throw new functions.https.HttpsError('internal', 'Failed to create company');
+  }
+});
+
+// Platform audit log (admin only)
+exports.logAuditEvent = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+  const isAdmin = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
+  if (!isAdmin) {
+    throw new functions.https.HttpsError('permission-denied', 'The caller is not a platform admin.');
+  }
+
+  const { action, companyId, meta } = data || {};
+  if (!action) {
+    throw new functions.https.HttpsError('invalid-argument', 'action is required');
+  }
+
+  const payload = {
+    uid: context.auth.uid,
+    email: context.auth.token?.email || null,
+    action: String(action),
+    companyId: companyId || null,
+    meta: meta || null,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  try {
+    const ref = db.collection('auditLogs').doc();
+    await ref.set(payload);
+    return { success: true, id: ref.id };
+  } catch (err) {
+    console.error('[logAuditEvent] failed', err);
+    throw new functions.https.HttpsError('internal', 'Failed to write audit log');
+  }
+});
+
+// Platform admin: freeze/unfreeze a company
+exports.setCompanyActive = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
+  const isAdmin = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
+  if (!isAdmin) {
+    throw new functions.https.HttpsError('permission-denied', 'The caller is not a platform admin.');
+  }
+
+  const { companyId, isActive } = data || {};
+  if (!companyId || typeof isActive !== 'boolean') {
+    throw new functions.https.HttpsError('invalid-argument', 'companyId and isActive are required');
+  }
+
+  try {
+    const companyRef = db.collection('companies').doc(companyId);
+    const snap = await companyRef.get();
+    if (!snap.exists) {
+      throw new functions.https.HttpsError('not-found', 'Company not found');
+    }
+
+    await companyRef.set(
+      {
+        isActive,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    const auditRef = db.collection('auditLogs').doc();
+    await auditRef.set({
+      uid: context.auth.uid,
+      email: context.auth.token?.email || null,
+      action: isActive ? 'company_unfreeze' : 'company_freeze',
+      companyId,
+      meta: null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return { success: true };
+  } catch (err) {
+    if (err instanceof functions.https.HttpsError) throw err;
+    console.error('[setCompanyActive] failed', err);
+    throw new functions.https.HttpsError('internal', 'Failed to update company status');
   }
 });
 
@@ -682,13 +930,13 @@ exports.createCompanyInvitation = functions.https.onCall(async (data, context) =
 
   try {
     // Authorization: platform admin OR company owner/manager
-    let authorized = await isPlatformAdminUid(context.auth.uid);
+    let authorized = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
 
     if (!authorized) {
       const memberRef = db
         .collection('companies')
         .doc(companyId)
-        .collection('users')
+        .collection('members')
         .doc(context.auth.uid);
       const memberDoc = await memberRef.get();
       if (memberDoc.exists) {
@@ -781,7 +1029,7 @@ exports.acceptInvitation = functions.https.onCall(async (data, context) => {
 
   await assertCompanyHasCapacity(companyId, { includePendingInvites: false });
 
-  // Create company membership under companies/{companyId}/users/{uid} and mark invite used
+  // Create company membership under companies/{companyId}/members/{uid} and mark invite used
   await db.runTransaction(async (tx) => {
     const companyRef = db.collection('companies').doc(companyId);
     const companySnap = await tx.get(companyRef);
@@ -795,7 +1043,7 @@ exports.acceptInvitation = functions.https.onCall(async (data, context) => {
       });
     }
 
-    const membershipRef = companyRef.collection('users').doc(uid);
+    const membershipRef = companyRef.collection('members').doc(uid);
     const membershipData = {
       uid,
       email: context.auth.token.email || null,
@@ -855,13 +1103,13 @@ exports.safeDeleteDocument = functions.https.onCall(async (data, context) => {
 
   // Authorization: platform admin OR company owner/manager
   try {
-    let authorized = await isPlatformAdminUid(context.auth.uid);
+    let authorized = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
 
     if (!authorized) {
       const memberRef = db
         .collection('companies')
         .doc(companyId)
-        .collection('users')
+        .collection('members')
         .doc(context.auth.uid);
       const memberDoc = await memberRef.get();
       if (memberDoc.exists) {
@@ -946,13 +1194,13 @@ exports.safeUndeleteDocument = functions.https.onCall(async (data, context) => {
     );
 
   try {
-    let authorized = await isPlatformAdminUid(context.auth.uid);
+    let authorized = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
 
     if (!authorized) {
       const memberRef = db
         .collection('companies')
         .doc(companyId)
-        .collection('users')
+        .collection('members')
         .doc(context.auth.uid);
       const memberDoc = await memberRef.get();
       if (memberDoc.exists) {
@@ -1024,7 +1272,7 @@ exports.resolveFirstLogin = functions.https.onCall(async (data, context) => {
       '[DEBUG][OwnerLink] Checking for existing memberships created during sign-up',
       { uid }
     );
-    const membershipSnap = await db.collectionGroup('users').where('uid', '==', uid).get();
+    const membershipSnap = await db.collectionGroup('members').where('uid', '==', uid).get();
     if (!membershipSnap.empty) {
       functions.logger.info('[DEBUG][OwnerLink] Found existing memberships from sign-up flow', {
         count: membershipSnap.size,
@@ -1068,7 +1316,7 @@ exports.resolveFirstLogin = functions.https.onCall(async (data, context) => {
           });
         }
 
-        const membershipRef = companyRef.collection('users').doc(uid);
+        const membershipRef = companyRef.collection('members').doc(uid);
         const membershipData = {
           uid,
           email: email,
@@ -1127,7 +1375,7 @@ exports.resolveFirstLogin = functions.https.onCall(async (data, context) => {
 // Platform admin: get list of companies (paged)
 exports.getAdminCompanies = functions.https.onCall(async (data, context) => {
   if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
-  const isAdmin = await isPlatformAdminUid(context.auth.uid);
+  const isAdmin = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
   if (!isAdmin)
     throw new functions.https.HttpsError('permission-denied', 'Not a platform admin');
 
@@ -1149,7 +1397,7 @@ exports.getAdminCompanies = functions.https.onCall(async (data, context) => {
 // Platform admin: update company status
 exports.updateCompanyStatus = functions.https.onCall(async (data, context) => {
   if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
-  const isAdmin = await isPlatformAdminUid(context.auth.uid);
+  const isAdmin = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
   if (!isAdmin)
     throw new functions.https.HttpsError('permission-denied', 'Not a platform admin');
 
@@ -1170,7 +1418,7 @@ exports.updateCompanyStatus = functions.https.onCall(async (data, context) => {
 // Platform admin: get counts for a company
 exports.getCompanyCounts = functions.https.onCall(async (data, context) => {
   if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required');
-  const isAdmin = await isPlatformAdminUid(context.auth.uid);
+  const isAdmin = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
   if (!isAdmin)
     throw new functions.https.HttpsError('permission-denied', 'Not a platform admin');
 
@@ -1178,7 +1426,7 @@ exports.getCompanyCounts = functions.https.onCall(async (data, context) => {
   if (!companyId) throw new functions.https.HttpsError('invalid-argument', 'Missing companyId');
 
   try {
-    const usersSnap = await db.collection('companies').doc(companyId).collection('users').get();
+    const usersSnap = await db.collection('companies').doc(companyId).collection('members').get();
     const invoicesSnap = await db
       .collection('companies')
       .doc(companyId)
@@ -1243,7 +1491,11 @@ exports.scheduledDailySalesReport = functions.pubsub
       return { success: true, resultsCount: results.length };
     } catch (err) {
       console.error('[scheduledDailySalesReport] failed', err);
-      return { success: false, error: String(err) };
+      const msg =
+        err && err.message
+          ? String(err.message)
+          : '\u062d\u062f\u062b\u0020\u062e\u0637\u0623\u0020\u0623\u062b\u0646\u0627\u0621\u0020\u0625\u0646\u0634\u0627\u0621\u0020\u062a\u0642\u0631\u064a\u0631\u0020\u0627\u0644\u0645\u0628\u064a\u0639\u0627\u062a\u0020\u0627\u0644\u064a\u0648\u0645\u064a\u002e';
+      return { success: false, error: msg };
     }
   });
 
@@ -1254,13 +1506,13 @@ exports.getCompanyInvitations = functions.https.onCall(async (data, context) => 
   if (!companyId) throw new functions.https.HttpsError('invalid-argument', 'Missing companyId');
 
   try {
-    let authorized = await isPlatformAdminUid(context.auth.uid);
+    let authorized = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
 
     if (!authorized) {
       const memberDoc = await db
         .collection('companies')
         .doc(companyId)
-        .collection('users')
+        .collection('members')
         .doc(context.auth.uid)
         .get();
       if (memberDoc.exists) {
@@ -1302,13 +1554,13 @@ exports.deleteCompanyInvitation = functions.https.onCall(async (data, context) =
     const invite = inviteSnap.data();
     const companyId = invite.companyId;
 
-    let authorized = await isPlatformAdminUid(context.auth.uid);
+    let authorized = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
 
     if (!authorized) {
       const memberDoc = await db
         .collection('companies')
         .doc(companyId)
-        .collection('users')
+        .collection('members')
         .doc(context.auth.uid)
         .get();
       if (memberDoc.exists) {
@@ -1424,7 +1676,7 @@ exports.createOwnerCompany = functions.https.onCall(async (data, context) => {
     // Batch write: company doc, owner membership, user profile
     const batch = db.batch();
     batch.set(companyRef, newCompany);
-    batch.set(companyRef.collection('users').doc(uid), ownerMembership);
+    batch.set(companyRef.collection('members').doc(uid), ownerMembership);
 
     if (!userProfileDoc.exists) {
       batch.set(userProfileRef, userProfile);
@@ -1441,7 +1693,7 @@ exports.createOwnerCompany = functions.https.onCall(async (data, context) => {
   } catch (error) {
     // Preserve original details in logs for debugging
     functions.logger.error('[DEBUG][Register] createOwnerCompany failed', {
-      errorMessage: error && error.message ? error.message : String(error),
+      errorMessage: error && error.message ? error.message : 'unknown error',
       errorStack: error && error.stack ? error.stack : null,
       uid: context.auth?.uid,
       data: data,
@@ -1470,26 +1722,55 @@ exports.createInvoiceAtomic = functions.https.onCall(async (data, context) => {
 
   try {
     // Authorization: platform admin OR company member
-    let authorized = await isPlatformAdminUid(context.auth.uid);
+    let authorized = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
     if (!authorized) {
       const memberRef = db
         .collection('companies')
         .doc(companyId)
-        .collection('users')
+        .collection('members')
         .doc(context.auth.uid);
       const memberDoc = await memberRef.get();
       if (memberDoc.exists) authorized = true;
     }
     if (!authorized) throw new functions.https.HttpsError('permission-denied', 'Not authorized');
 
-    const invoiceRef = db.collection('companies').doc(companyId).collection('invoices').doc();
+    const invoiceId = invoice.id;
+    const isUpdate = !!invoiceId;
+    const invoiceRef = isUpdate
+      ? db.collection('companies').doc(companyId).collection('invoices').doc(invoiceId)
+      : db.collection('companies').doc(companyId).collection('invoices').doc();
 
     const result = await db.runTransaction(async (tx) => {
       let costTotal = 0;
       const itemsWithCost = [];
 
+      // If updating, fetch the old invoice to calculate stock deltas
+      let oldInvoice = null;
+      if (isUpdate) {
+        const oldSnap = await tx.get(invoiceRef);
+        if (oldSnap.exists) {
+          oldInvoice = oldSnap.data();
+        }
+      }
+
+      // Build a map of old items by productId for quick lookup during delta calculation
+      const oldItemsByProductId = {};
+      if (oldInvoice && Array.isArray(oldInvoice.items)) {
+        for (const oldItem of oldInvoice.items) {
+          const key = String(oldItem.productId);
+          if (!oldItemsByProductId[key]) {
+            oldItemsByProductId[key] = [];
+          }
+          oldItemsByProductId[key].push(oldItem);
+        }
+      }
+
+      // Track which old items have been matched
+      const matchedOldItems = new Set();
+
       // Preload all product docs and validate stock
-      for (const item of invoice.items) {
+      for (let itemIndex = 0; itemIndex < invoice.items.length; itemIndex++) {
+        const item = invoice.items[itemIndex];
         if (!item.productId)
           throw new functions.https.HttpsError(
             'invalid-argument',
@@ -1510,10 +1791,54 @@ exports.createInvoiceAtomic = functions.https.onCall(async (data, context) => {
           throw new functions.https.HttpsError('invalid-argument', 'Item quantity must be > 0');
 
         const available = Number(prod.stock) || 0;
-        if (available < quantity) {
+
+        // Calculate stock delta: how much stock to adjust
+        let stockDelta = quantity; // Default: new quantity (for create)
+
+        if (isUpdate && oldItemsByProductId[String(item.productId)]) {
+          // For update: find matching old item and calculate delta
+          const oldItems = oldItemsByProductId[String(item.productId)];
+          let matchedOldItem = null;
+
+          // Try to match by position first (same index)
+          if (itemIndex < oldItems.length && !matchedOldItems.has(`${String(item.productId)}_${itemIndex}`)) {
+            matchedOldItem = oldItems[itemIndex];
+            matchedOldItems.add(`${String(item.productId)}_${itemIndex}`);
+          } else {
+            // Fall back to first unmatched item
+            for (let i = 0; i < oldItems.length; i++) {
+              if (!matchedOldItems.has(`${String(item.productId)}_${i}`)) {
+                matchedOldItem = oldItems[i];
+                matchedOldItems.add(`${String(item.productId)}_${i}`);
+                break;
+              }
+            }
+          }
+
+          if (matchedOldItem) {
+            const oldQuantity = Number(matchedOldItem.quantity) || 0;
+            stockDelta = quantity - oldQuantity; // Delta: positive = need more stock, negative = return stock
+          }
+        }
+
+        // Validate stock availability (only for positive deltas)
+        if (stockDelta > 0 && available < stockDelta) {
+          const productName = prod.name || item.productId;
+          const errorMsg = `الصنف "${productName}" لا يملك مخزون كافي. المتاح: ${available}، المطلوب إضافة: ${stockDelta}`;
           throw new functions.https.HttpsError(
             'failed-precondition',
-            `Insufficient stock for product ${item.productId}`
+            errorMsg
+          );
+        }
+
+        // Ensure we don't go below zero (safety check)
+        const newStock = available - stockDelta;
+        if (newStock < 0) {
+          const productName = prod.name || item.productId;
+          const errorMsg = `الصنف "${productName}" سيصبح مخزونه سالباً. المتاح: ${available}، المطلوب خصم: ${stockDelta}`;
+          throw new functions.https.HttpsError(
+            'failed-precondition',
+            errorMsg
           );
         }
 
@@ -1527,43 +1852,104 @@ exports.createInvoiceAtomic = functions.https.onCall(async (data, context) => {
 
         itemsWithCost.push(Object.assign({}, item, { unitCost }));
 
-        // Update product stock
-        const newStock = available - quantity;
-        tx.update(prodRef, {
-          stock: newStock,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+        // Update product stock (only if delta != 0)
+        if (stockDelta !== 0) {
+          tx.update(prodRef, {
+            stock: newStock,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
 
-        // Update inventory snapshot (merge)
-        const invRef = db
-          .collection('companies')
-          .doc(companyId)
-          .collection('inventory')
-          .doc(String(item.productId));
-        tx.set(
-          invRef,
-          {
+          // Update inventory snapshot (merge)
+          const invRef = db
+            .collection('companies')
+            .doc(companyId)
+            .collection('inventory')
+            .doc(String(item.productId));
+          tx.set(
+            invRef,
+            {
+              productId: String(item.productId),
+              quantity: newStock,
+              lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+
+          // Append stock ledger entry for the change
+          const ledgerRef = db.collection('companies').doc(companyId).collection('stockLedger').doc();
+          tx.set(ledgerRef, {
             productId: String(item.productId),
-            quantity: newStock,
-            lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
+            change: -Math.abs(stockDelta), // Negative for deduction, positive for return
+            qtyBefore: available,
+            qtyAfter: newStock,
+            unitCost: unitCost == null ? null : Number(unitCost),
+            sourceType: isUpdate ? 'INVOICE_ADJUSTMENT' : 'SALE',
+            referenceCollection: 'invoices',
+            referenceId: invoiceRef.id,
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            createdBy: context.auth.uid,
+          });
+        }
+      }
 
-        // Append stock ledger entry for the sale (write fields expected by security rules)
-        const ledgerRef = db.collection('companies').doc(companyId).collection('stockLedger').doc();
-        tx.set(ledgerRef, {
-          productId: String(item.productId),
-          change: -Math.abs(quantity),
-          qtyBefore: available,
-          qtyAfter: newStock,
-          unitCost: unitCost == null ? null : Number(unitCost),
-          sourceType: 'SALE',
-          referenceCollection: 'invoices',
-          referenceId: invoiceRef.id,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
-          createdBy: context.auth.uid,
-        });
+      // Handle removed items (in update case): return their stock
+      if (isUpdate && oldInvoice && Array.isArray(oldInvoice.items)) {
+        for (let oldItemIndex = 0; oldItemIndex < oldInvoice.items.length; oldItemIndex++) {
+          const oldItem = oldInvoice.items[oldItemIndex];
+          const matchKey = `${String(oldItem.productId)}_${oldItemIndex}`;
+          if (!matchedOldItems.has(matchKey)) {
+            // This old item was removed, return its stock
+            const prodRef = db
+              .collection('companies')
+              .doc(companyId)
+              .collection('products')
+              .doc(String(oldItem.productId));
+            const prodSnap = await tx.get(prodRef);
+            if (prodSnap.exists) {
+              const prod = prodSnap.data();
+              const oldQuantity = Number(oldItem.quantity) || 0;
+              const available = Number(prod.stock) || 0;
+              const newStock = available + oldQuantity; // Return stock
+
+              tx.update(prodRef, {
+                stock: newStock,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+
+              // Update inventory snapshot
+              const invRef = db
+                .collection('companies')
+                .doc(companyId)
+                .collection('inventory')
+                .doc(String(oldItem.productId));
+              tx.set(
+                invRef,
+                {
+                  productId: String(oldItem.productId),
+                  quantity: newStock,
+                  lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
+
+              // Record ledger entry for return
+              const unitCost = Number(oldItem.unitCost) || 0;
+              const ledgerRef = db.collection('companies').doc(companyId).collection('stockLedger').doc();
+              tx.set(ledgerRef, {
+                productId: String(oldItem.productId),
+                change: oldQuantity, // Positive: stock return
+                qtyBefore: available,
+                qtyAfter: newStock,
+                unitCost: unitCost == null ? null : Number(unitCost),
+                sourceType: 'INVOICE_REMOVAL',
+                referenceCollection: 'invoices',
+                referenceId: invoiceRef.id,
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                createdBy: context.auth.uid,
+              });
+            }
+          }
+        }
       }
 
       // Compute totals: prefer client-provided totals, but compute subtotal if missing
@@ -1586,7 +1972,7 @@ exports.createInvoiceAtomic = functions.https.onCall(async (data, context) => {
         paymentsSummary: invoice.paymentsSummary || { paid: 0, due: total },
         status:
           invoice.paymentsSummary && invoice.paymentsSummary.paid >= total ? 'paid' : 'unpaid',
-        createdAt: now,
+        createdAt: isUpdate && oldInvoice ? oldInvoice.createdAt : now,
         updatedAt: now,
       });
 
@@ -1617,12 +2003,12 @@ exports.createPurchaseAtomic = functions.https.onCall(async (data, context) => {
 
   try {
     // Authorization: platform admin OR company member with role owner/manager
-    let authorized = await isPlatformAdminUid(context.auth.uid);
+    let authorized = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
     if (!authorized) {
       const memberRef = db
         .collection('companies')
         .doc(companyId)
-        .collection('users')
+        .collection('members')
         .doc(context.auth.uid);
       const memberDoc = await memberRef.get();
       if (memberDoc.exists) {
@@ -1771,12 +2157,12 @@ exports.createReturnAtomic = functions.https.onCall(async (data, context) => {
 
   try {
     // Authorization: platform admin OR company member with role owner/manager/employee
-    let authorized = await isPlatformAdminUid(context.auth.uid);
+    let authorized = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
     if (!authorized) {
       const memberRef = db
         .collection('companies')
         .doc(companyId)
-        .collection('users')
+        .collection('members')
         .doc(context.auth.uid);
       const memberDoc = await memberRef.get();
       if (memberDoc.exists) {
@@ -1920,12 +2306,12 @@ exports.assignCompanyRole = functions.https.onCall(async (data, context) => {
     );
 
   try {
-    let authorized = await isPlatformAdminUid(context.auth.uid);
+    let authorized = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
     if (!authorized) {
       const memberDoc = await db
         .collection('companies')
         .doc(companyId)
-        .collection('users')
+        .collection('members')
         .doc(context.auth.uid)
         .get();
       if (memberDoc.exists) {
@@ -1935,7 +2321,7 @@ exports.assignCompanyRole = functions.https.onCall(async (data, context) => {
     }
     if (!authorized) throw new functions.https.HttpsError('permission-denied', 'Not authorized');
 
-    const userRef = db.collection('companies').doc(companyId).collection('users').doc(uid);
+    const userRef = db.collection('companies').doc(companyId).collection('members').doc(uid);
     await userRef.set({ role }, { merge: true });
 
     // Audit
@@ -1966,12 +2352,12 @@ exports.setInvoicePosted = functions.https.onCall(async (data, context) => {
 
   try {
     // Authorization: platform admin OR company member with owner/manager
-    let authorized = await isPlatformAdminUid(context.auth.uid);
+    let authorized = await isPlatformAdminUid(context.auth.uid, context.auth.token?.email);
     if (!authorized) {
       const memberRef = db
         .collection('companies')
         .doc(companyId)
-        .collection('users')
+        .collection('members')
         .doc(context.auth.uid);
       const memberDoc = await memberRef.get();
       if (memberDoc.exists) {

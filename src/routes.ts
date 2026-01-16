@@ -38,7 +38,7 @@ export const routes = [
     title: 'قبول الدعوة',
   },
   { path: '/complete-setup', component: CompleteCompanySetupPage, title: 'إكمال الإعداد' },
-  { path: '/', component: Dashboard, title: 'ملخّص' },
+  { path: '/dashboard', component: Dashboard, title: 'ملخّص' },
   { path: '/invoices', component: InvoiceList, title: 'الفواتير' },
   { path: '/invoices/new', component: InvoiceForm, title: 'فاتورة جديدة' },
   { path: '/invoices/edit/:id', component: InvoiceForm, title: 'تعديل فاتورة' },

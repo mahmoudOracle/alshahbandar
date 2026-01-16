@@ -7,6 +7,7 @@ import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
 import { mapFirestoreError } from '../../../services/firebaseErrors';
+import { getErrorMessage } from '../../../src/utils/errorMessage';
 
 interface CreateCompanyModalProps {
   isOpen: boolean;
@@ -86,10 +87,7 @@ const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
       onCompanyCreated(newCompany);
       resetForm();
     } catch (error: unknown) {
-      console.error(
-        '[DEBUG][CreateCompany] Firestore write error',
-        error instanceof Error ? error.message : String(error)
-      );
+      console.error('[DEBUG][CreateCompany] Firestore write error', getErrorMessage(error));
       const code = (error as Record<string, unknown>)?.code as string | undefined;
       if (code === 'already-exists') {
         setErrors((prev) => ({ ...prev, companyId: 'معرف الشركة هذا مستخدم بالفعل.' }));

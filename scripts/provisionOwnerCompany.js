@@ -90,7 +90,7 @@ async function run() {
       console.log('[provision] Created company', COMPANY_ID);
     }
 
-    const membershipRef = db.collection('companies').doc(COMPANY_ID).collection('users').doc(uid);
+    const membershipRef = db.collection('companies').doc(COMPANY_ID).collection('members').doc(uid);
     await membershipRef.set(
       {
         uid,

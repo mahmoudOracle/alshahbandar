@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   HomeIcon,
@@ -27,7 +27,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { settings } = useSettings();
-  const { user, signOutUser, activeRole, isPlatformAdmin } = useAuth();
+  const { user, signOutUser, activeRole, isPlatformAdmin, authRole, activeCompanyId } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -40,10 +40,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { config } = useTenantConfig();
   const lang = (config && config.language) || 'ar';
 
-  const groups = [
+  const tenantGroups = [
     {
       title: 'الرئيسية',
-      items: [{ to: '/', text: 'ملخّص', icon: HomeIcon }],
+      items: [{ to: '/dashboard', text: 'ملخّص', icon: HomeIcon }],
     },
     {
       title: 'البيع والعملاء',
@@ -66,17 +66,21 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       items: [
         { to: '/expenses', text: 'المصروفات', icon: CurrencyDollarIcon },
         { to: '/reports', text: 'التقارير', icon: ChartPieIcon },
-        { to: '/settings', text: t('settings', lang) || 'الإعدادات', icon: Cog6ToothIcon },
+        { to: '/settings', text: 'الإعدادات', icon: Cog6ToothIcon },
       ],
     },
   ];
-
-  if (isPlatformAdmin) {
-    groups.push({
+const platformGroups = [
+    {
       title: 'المنصة',
-      items: [{ to: '/platform', text: 'شركات المنصة', icon: BuildingOffice2Icon }],
-    });
-  }
+      items: [{ to: '/platform', text: 'لوحة المنصة', icon: BuildingOffice2Icon }],
+    },
+  ];
+
+
+  const isTenantMode = !isPlatformAdmin;
+  const groups =
+    authRole === 'unknown' ? [] : isTenantMode ? tenantGroups : isPlatformAdmin ? platformGroups : [];
 
   const sidebarClasses = `
     ${isCollapsed ? 'w-20' : 'w-64'} bg-white dark:bg-gray-800 shadow-lg flex flex-col p-3

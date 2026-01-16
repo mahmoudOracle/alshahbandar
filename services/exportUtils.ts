@@ -60,3 +60,23 @@ export const exportElementAs = async (
     link.click();
   }
 };
+
+const normalizeEgyptianPhone = (phone?: string) => {
+  if (!phone) return '';
+  const trimmed = String(phone).trim();
+  if (!trimmed) return '';
+  const cleaned = trimmed.replace(/[^\d+]/g, '');
+  const digits = cleaned.startsWith('+') ? cleaned.slice(1) : cleaned;
+  if (digits.startsWith('20')) return digits;
+  if (digits.startsWith('01') && digits.length === 11) {
+    return `20${digits.slice(1)}`;
+  }
+  return digits;
+};
+
+export const buildWhatsAppUrl = (phone: string | undefined, message: string) => {
+  const normalized = normalizeEgyptianPhone(phone);
+  const base = normalized ? `https://wa.me/${normalized}` : 'https://wa.me/';
+  const text = encodeURIComponent(message || '');
+  return `${base}?text=${text}`;
+};

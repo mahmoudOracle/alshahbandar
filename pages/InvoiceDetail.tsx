@@ -13,28 +13,40 @@ import { useSettings } from '../contexts/SettingsContext';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { mapFirestoreError } from '../services/firebaseErrors';
-import { exportElementAs } from '../services/exportUtils';
+import { buildWhatsAppUrl, exportElementAs } from '../services/exportUtils';
 import { Modal } from '../components/ui/Modal';
 import ReturnForm from './ReturnForm';
+import { QRCodeCanvas } from 'qrcode.react';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
 
-const formatDate = (value?: string) => {
-  try {
-    if (!value) return '—';
-    const d = new Date(value);
-    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('ar-EG');
-  } catch {
-    return '—';
+const toDateValue = (value: unknown): Date | null => {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
+  const maybe = value as { toDate?: () => Date };
+  if (typeof maybe.toDate === 'function') return maybe.toDate();
+  return null;
+};
+
+const formatDate = (value?: unknown) => {
+  const date = toDateValue(value);
+  return date ? date.toLocaleDateString('ar-EG') : '-';
 };
 
 const InvoiceDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { activeCompanyId, activeRole } = useAuth();
+  const { activeCompanyId, activeRole, activeCompany } = useAuth();
   const canWrite = useCanWrite('invoices');
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [showReturnForm, setShowReturnForm] = useState(false);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [whatsAppPhone, setWhatsAppPhone] = useState('');
   const [returns, setReturns] = useState<ReturnDoc[]>([]);
   const { settings, loading: settingsLoading } = useSettings();
   const [loading, setLoading] = useState(true);
@@ -72,11 +84,11 @@ const InvoiceDetail: React.FC = () => {
     if (!customer || !invoice || !settings) return;
     const subject = `فاتورة ${invoice.invoiceNumber} من ${settings.businessName}`;
     const body = `
-مرحبًا ${customer.name}
+السيد/ة ${customer.name}
 
-مرفق تفاصيل الفاتورة رقم ${invoice.invoiceNumber}.
+يرجى الاطلاع على الفاتورة رقم ${invoice.invoiceNumber}.
 
-الإجمالي: ${invoice.total.toFixed(2)} ${settings.currency}
+الإجمالي: ${Number(invoice.total || 0).toFixed(2)} ${settings.currency}
 تاريخ الاستحقاق: ${formatDate(invoice.dueDate)}
 
 ${settings.businessName}
@@ -87,7 +99,7 @@ ${settings.businessName}
 
   const handleDelete = async () => {
     if (!invoice || !activeCompanyId) return;
-    const ok = window.confirm('هل أنت متأكد من حذف الفاتورة؟ يمكن التراجع فورًا.');
+    const ok = window.confirm('هل أنت متأكد من حذف الفاتورة؟ يمكنك التراجع لاحقًا.');
     if (!ok) return;
     try {
       const res = await deleteInvoice(activeCompanyId, invoice.id);
@@ -96,8 +108,8 @@ ${settings.businessName}
           label: 'تراجع',
           onClick: async () => {
             try {
-              const ok = await undeleteDocument(activeCompanyId, 'invoices', invoice.id);
-              if (ok) {
+              const restored = await undeleteDocument(activeCompanyId, 'invoices', invoice.id);
+              if (restored) {
                 navigate(`/invoices/${invoice.id}`);
               }
             } catch (e) {
@@ -115,17 +127,52 @@ ${settings.businessName}
   };
 
   if (loading || settingsLoading) return <div>جاري تحميل الفاتورة...</div>;
-  if (!invoice || !settings) return <div>لم يتم العثور على الفاتورة.</div>;
+  if (!invoice || !settings) return <div>لا يمكن العثور على الفاتورة.</div>;
 
   const statusLabel = () => {
-    const isOverdue = invoice.status === InvoiceStatus.Due && new Date(invoice.dueDate) < new Date();
+    const isOverdue =
+      invoice.status === InvoiceStatus.Due && toDateValue(invoice.dueDate) && toDateValue(invoice.dueDate)! < new Date();
     if (invoice.status === InvoiceStatus.Paid) return 'مدفوعة';
     if (invoice.status === InvoiceStatus.Cancelled) return 'ملغاة';
-    return isOverdue ? 'متأخرة' : 'مستحقة';
+    return isOverdue ? 'متأخرة' : 'غير مدفوعة';
   };
 
   const canCreatePayments =
     activeRole === 'owner' || activeRole === 'manager' || activeRole === 'employee';
+
+  const remainingAmount = Math.max(
+    0,
+    Number(invoice.paymentsSummary?.due ?? Number(invoice.total || 0) - (invoice.paymentsSummary?.paid || 0))
+  );
+
+  const companyName =
+    (activeCompany as { companyName?: string } | null)?.companyName ||
+    settings?.businessName ||
+    'الشركة';
+
+  const invoiceUrl = (() => {
+    const origin = window.location.origin;
+    if (invoice?.id) return `${origin}/#/invoices/${invoice.id}`;
+    return `${origin}${window.location.hash || ''}`;
+  })();
+
+  const whatsappMessage = [
+    `فاتورة من ${companyName}`,
+    `رقم الفاتورة: ${invoice.invoiceNumber}`,
+    `الإجمالي: ${Number(invoice.total || 0).toFixed(2)} ${settings.currency}`,
+    `المتبقي: ${remainingAmount.toFixed(2)} ${settings.currency}`,
+    `الرابط: ${invoiceUrl}`,
+  ].join('\n');
+
+  const customerPhone =
+    (customer as unknown as { mobilePhone?: string; phone?: string })?.mobilePhone ||
+    (customer as unknown as { phone?: string })?.phone ||
+    '';
+
+  const openWhatsApp = (phone?: string) => {
+    const url = buildWhatsAppUrl(phone, whatsappMessage);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   return (
     <>
@@ -181,7 +228,9 @@ ${settings.businessName}
               {formatDate(invoice.dueDate)}
             </p>
             <p>
-              <span className="font-semibold text-gray-700 dark:text-gray-300">طريقة الدفع:</span>{' '}
+              <span className="font-semibold text-gray-700 dark:text-gray-300">
+                طريقة الدفع:
+              </span>{' '}
               {invoice.paymentType}
             </p>
             <div className="mt-4 text-lg font-bold">{statusLabel()}</div>
@@ -193,7 +242,7 @@ ${settings.businessName}
             <thead className="bg-gray-100 dark:bg-gray-700">
               <tr>
                 <th className="px-6 py-3 text-right text-sm font-semibold text-gray-600 dark:text-gray-300">
-                  الصنف
+                  البيان
                 </th>
                 <th className="px-6 py-3 text-center text-sm font-semibold text-gray-600 dark:text-gray-300">
                   الكمية
@@ -207,18 +256,22 @@ ${settings.businessName}
               </tr>
             </thead>
             <tbody>
-              {invoice.items.map((item) => (
-                <tr key={item.id} className="border-b dark:border-gray-700">
-                  <td className="px-6 py-4">{item.productName}</td>
-                  <td className="px-6 py-4 text-center">{item.quantity}</td>
-                  <td className="px-6 py-4 text-center">
-                    {item.price.toFixed(2)} {settings.currency}
-                  </td>
-                  <td className="px-6 py-4 text-left">
-                    {(item.quantity * item.price).toFixed(2)} {settings.currency}
-                  </td>
-                </tr>
-              ))}
+              {invoice.items.map((item) => {
+                const unitPrice = Number(item.price ?? item.unitPrice ?? 0);
+                const lineTotal = Number(item.quantity || 0) * unitPrice;
+                return (
+                  <tr key={item.id} className="border-b dark:border-gray-700">
+                    <td className="px-6 py-4">{item.productName}</td>
+                    <td className="px-6 py-4 text-center">{item.quantity}</td>
+                    <td className="px-6 py-4 text-center">
+                      {unitPrice.toFixed(2)} {settings.currency}
+                    </td>
+                    <td className="px-6 py-4 text-left">
+                      {lineTotal.toFixed(2)} {settings.currency}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </section>
@@ -228,14 +281,14 @@ ${settings.businessName}
             <div className="flex justify-between py-2">
               <span className="font-semibold text-gray-700 dark:text-gray-300">الإجمالي الفرعي:</span>
               <span>
-                {invoice.subtotal.toFixed(2)} {settings.currency}
+                {Number(invoice.subtotal || 0).toFixed(2)} {settings.currency}
               </span>
             </div>
             {invoice.paymentsSummary && (
               <div className="flex justify-between py-2">
                 <span className="font-semibold text-gray-700 dark:text-gray-300">المدفوع:</span>
                 <span>
-                  {(invoice.paymentsSummary.paid || 0).toFixed(2)} {settings.currency}
+                  {Number(invoice.paymentsSummary.paid || 0).toFixed(2)} {settings.currency}
                 </span>
               </div>
             )}
@@ -245,14 +298,14 @@ ${settings.businessName}
                   الضريبة ({invoice.taxRate || 0}%):
                 </span>
                 <span>
-                  {invoice.taxAmount.toFixed(2)} {settings.currency}
+                  {Number(invoice.taxAmount || 0).toFixed(2)} {settings.currency}
                 </span>
               </div>
             )}
             <div className="flex justify-between py-3 bg-gray-100 dark:bg-gray-700 px-4 rounded-md mt-2">
               <span className="font-bold text-xl text-gray-900 dark:text-white">الإجمالي:</span>
               <span className="font-bold text-xl text-gray-900 dark:text-white">
-                {invoice.total.toFixed(2)} {settings.currency}
+                {Number(invoice.total || 0).toFixed(2)} {settings.currency}
               </span>
             </div>
           </div>
@@ -292,7 +345,7 @@ ${settings.businessName}
           <button
             onClick={() => setShowPaymentForm(true)}
             className="px-4 py-2 text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:bg-gray-400"
-            disabled={Number(invoice.paymentsSummary?.due ?? Math.max(0, invoice.total - (invoice.paymentsSummary?.paid || 0))) <= 0}
+            disabled={remainingAmount <= 0}
           >
             تسجيل دفعة
           </button>
@@ -302,7 +355,7 @@ ${settings.businessName}
             onClick={() => setShowReturnForm(true)}
             className="px-4 py-2 text-white bg-amber-600 rounded-md hover:bg-amber-700"
           >
-            مرتجع
+            إنشاء مرتجع
           </button>
         )}
         <button
@@ -316,6 +369,18 @@ ${settings.businessName}
           className="px-4 py-2 text-white bg-green-500 rounded-md hover:bg-green-600"
         >
           تصدير PNG
+        </button>
+        <button
+          onClick={() => {
+            if (customerPhone) {
+              openWhatsApp(customerPhone);
+            } else {
+              setShowWhatsAppModal(true);
+            }
+          }}
+          className="px-4 py-2 text-white bg-emerald-600 rounded-md hover:bg-emerald-700"
+        >
+          مشاركة عبر واتساب
         </button>
       </div>
       {canWrite && !canCreatePayments && (
@@ -347,7 +412,7 @@ ${settings.businessName}
       <Modal
         isOpen={showReturnForm}
         onClose={() => setShowReturnForm(false)}
-        title="مرتجع للفاتورة"
+        title="إنشاء مرتجع للفاتورة"
       >
         {invoice && (
           <ReturnForm
@@ -366,6 +431,48 @@ ${settings.businessName}
         )}
       </Modal>
 
+      <Modal
+        isOpen={showWhatsAppModal}
+        onClose={() => setShowWhatsAppModal(false)}
+        title="مشاركة عبر واتساب"
+      >
+        <div className="space-y-4">
+          <Input
+            label="رقم الهاتف"
+            value={whatsAppPhone}
+            onChange={(e) => setWhatsAppPhone(e.target.value)}
+            placeholder="01xxxxxxxxx"
+          />
+          <div className="text-sm text-gray-500">سيتم فتح واتساب برسالة جاهزة.</div>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setShowWhatsAppModal(false)}>
+              إلغاء
+            </Button>
+            <Button
+              onClick={() => {
+                if (!whatsAppPhone.trim()) {
+                  addNotification('أدخل رقم الهاتف أولًا.', 'error');
+                  return;
+                }
+                openWhatsApp(whatsAppPhone);
+                setShowWhatsAppModal(false);
+                setWhatsAppPhone('');
+              }}
+            >
+              فتح واتساب
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <div className="max-w-4xl mx-auto mt-6 bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+        <h3 className="text-lg font-bold mb-3">QR الفاتورة</h3>
+        <div className="flex flex-col items-center gap-3">
+          <QRCodeCanvas value={invoiceUrl} size={160} />
+          <p className="text-sm text-gray-500">امسح الكود لفتح الفاتورة</p>
+        </div>
+      </div>
+
       <div className="max-w-4xl mx-auto mt-8 bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
         <h3 className="text-lg font-bold mb-3">مرتجعات هذه الفاتورة</h3>
         {returns.length === 0 ? (
@@ -375,7 +482,7 @@ ${settings.businessName}
             {returns.map((ret) => (
               <div key={ret.id} className="border-b border-gray-200 dark:border-gray-700 pb-2">
                 <div className="flex justify-between text-sm">
-                  <span>{(ret.date as any)?.toDate ? (ret.date as any).toDate().toLocaleDateString('ar-EG') : formatDate(String(ret.date))}</span>
+                  <span>{formatDate(ret.date)}</span>
                   <span>الإجمالي: {Number(ret.totalReturnAmount || 0).toFixed(2)}</span>
                 </div>
                 {ret.reason && <div className="text-xs text-gray-500 mt-1">{ret.reason}</div>}

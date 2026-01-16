@@ -6,6 +6,7 @@ import { useNotification } from '../contexts/NotificationContext';
 import { createCustomerInvitation } from '../services/dataService';
 import { UserPlusIcon } from '@heroicons/react/24/outline';
 import { UserRole } from '../types';
+import { getErrorMessage } from '../src/utils/errorMessage';
 
 const NewCustomerInvitationPage: React.FC = () => {
   // FIX: Replaced non-existent 'isManager' with a proper role check.
@@ -37,17 +38,17 @@ const NewCustomerInvitationPage: React.FC = () => {
       setCompanyName('');
       setNotes('');
     } catch (error: unknown) {
-      console.error(error instanceof Error ? error.message : String(error));
-      let errorMessage = 'An unexpected error occurred. Please try again.';
+      console.error(getErrorMessage(error));
+      let errorMessage = 'حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.';
       const code = (error as Record<string, unknown>)?.code as string | undefined;
       if (code === 'functions/failed-precondition') {
         errorMessage =
-          'Email service is not configured on the backend. Please contact your administrator.';
+          'خدمة البريد غير مفعّلة على الخادم. يرجى التواصل مع الإدارة.';
       } else if (code === 'internal') {
         errorMessage =
-          'A server error occurred while sending the invitation. Please check the function logs or contact support.';
+          'حدث خطأ في الخادم أثناء إرسال الدعوة. يرجى التواصل مع الدعم.';
       } else if ((error as Record<string, unknown>)?.message) {
-        errorMessage = `Failed to send invitation: ${(error as Record<string, unknown>).message}`;
+        errorMessage = getErrorMessage(error, errorMessage);
       }
       addNotification(errorMessage, 'error');
     } finally {

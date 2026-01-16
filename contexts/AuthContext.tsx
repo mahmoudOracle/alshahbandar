@@ -7,19 +7,16 @@ import React, {
   useCallback,
 } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
-import { UserRole, CompanyMembership } from '../types';
+import { UserRole, CompanyMembership, Company } from '../types';
 import * as authService from '../services/authService';
-import * as dataService from '../services/dataService';
-import {
-  getUserProfile,
-  getCompany,
-  getCompanyMembershipByUid,
-  createOwnerMembershipIfMissing,
-} from '../services/firestoreService';
+import { getCompany, upsertUserProfile } from '../services/firestoreService';
 import { FullPageSpinner } from '../components/Spinner';
-// Notification context not required in this module
 import { DEBUG_MODE } from '../config';
 import { validateUserDataIsolation, cleanupSessionData } from '../services/dataTenantUtils';
+import { getErrorMessage } from '../src/utils/errorMessage';
+
+export type AuthPhase = 'loading' | 'resolved' | 'unauthorized' | 'terminal_error';
+export type CompanyPhase = 'idle' | 'loading' | 'resolved' | 'error';
 
 export type WriteableSection =
   | 'invoices'
@@ -35,340 +32,246 @@ export type WriteableSection =
 
 interface AuthContextType {
   firebaseUser: FirebaseUser | null;
-  authLoading: boolean;
+  authPhase: AuthPhase;
+  companyPhase: CompanyPhase;
+  authErrorMessage: string | null;
   isPlatformAdmin: boolean;
+  authRole: 'platformAdmin' | 'tenant' | 'unknown' | null;
+  authLoading: boolean;
   companyMemberships: CompanyMembership[];
   activeCompanyId: string | null;
-  activeCompany: unknown | null;
+  activeCompany: Company | null;
   activeRole: UserRole | null;
   setActiveCompanyId: (companyId: string | null) => void;
   signOutUser: () => Promise<void>;
-  onboardingError: string | null;
-  clearOnboardingError: () => void;
   hasRole?: (role: string | string[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// --- Constants ---
 const ACTIVE_COMPANY_ID_KEY = 'app:activeCompanyId';
 const ACTIVE_ROLE_KEY = 'app:activeRole';
+const PLATFORM_ADMIN_EMAIL = 'mahmoud.shineh3m@gmail.com';
+const TENANT_ALLOWED_EMAILS = ['hoodaalawamry@gmail.com'];
+const TENANT_COMPANY_ID = 'uv9acIebvvNgx9ftSnPh';
+
+// --- Error Messages ---
+const OFFLINE_ERROR_MESSAGE =
+  '\u062a\u0639\u0630\u0631\u0020\u0627\u0644\u0627\u062a\u0635\u0627\u0644\u0020\u0628\u0642\u0627\u0639\u062f\u0629\u0020\u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a\u002e\u0020\u062a\u0623\u0643\u062f\u0020\u0645\u0646\u0020\u062a\u0634\u063a\u064a\u0644\u0020\u0627\u0644\u0645\u062d\u0627\u0643\u064a\u0627\u062a\u0020\u0623\u0648\u0020\u0625\u064a\u0642\u0627\u0641\u0020\u0648\u0636\u0639\u0020\u0627\u0644\u0645\u062d\u0627\u0643\u064a\u0627\u062a\u002e';
+const MSG_UNAUTHORIZED = '\u063a\u064a\u0631\u0020\u0645\u0635\u0631\u062d';
+const MSG_COMPANY_FALLBACK = '\u0634\u0631\u0643\u0629';
+const MSG_NO_COMPANY = '\u0644\u0627\u0020\u062a\u0648\u062c\u062f\u0020\u0634\u0631\u0643\u0629\u0020\u0645\u0631\u062a\u0628\u0637\u0629\u0020\u0628\u0647\u0630\u0627\u0020\u0627\u0644\u062d\u0633\u0627\u0628\u002e';
+const MSG_COMPANY_INCOMPLETE = '\u0628\u064a\u0627\u0646\u0627\u062a\u0020\u0627\u0644\u0634\u0631\u0643\u0629\u0020\u063a\u064a\u0631\u0020\u0645\u0643\u062a\u0645\u0644\u0629\u002e\u0020\u064a\u0631\u062c\u0649\u0020\u0627\u0644\u062a\u0648\u0627\u0635\u0644\u0020\u0645\u0639\u0020\u0627\u0644\u0625\u062f\u0627\u0631\u0629\u002e';
+const MSG_COMPANY_PENDING = '\u0627\u0644\u0634\u0631\u0643\u0629\u0020\u063a\u064a\u0631\u0020\u0645\u0641\u0639\u0644\u0629\u0020\u062d\u0627\u0644\u064a\u0627\u002e\u0020\u064a\u0631\u062c\u0649\u0020\u0627\u0644\u062a\u0648\u0627\u0635\u0644\u0020\u0645\u0639\u0020\u0627\u0644\u0625\u062f\u0627\u0631\u0629\u002e';
+const MSG_COMPANY_BLOCKED = '\u062a\u0645\u0020\u0625\u064a\u0642\u0627\u0641\u0020\u0627\u0644\u0634\u0631\u0643\u0629\u002e\u0020\u064a\u0631\u062c\u0649\u0020\u0627\u0644\u062a\u0648\u0627\u0635\u0644\u0020\u0645\u0639\u0020\u0627\u0644\u0625\u062f\u0627\u0631\u0629\u002e';
+const MSG_COMPANY_PAUSED =
+  '\u062a\u0645\u0020\u0625\u064a\u0642\u0627\u0641\u0020\u0627\u0644\u0634\u0631\u0643\u0629\u0020\u0645\u0624\u0642\u062a\u064b\u0627\u002e\u0020\u062a\u0648\u0627\u0635\u0644\u0020\u0645\u0639\u0020\u0625\u062f\u0627\u0631\u0629\u0020\u0627\u0644\u0646\u0638\u0627\u0645\u002e';
+const MSG_PERMISSION_DENIED = '\u0644\u064a\u0633\u0020\u0644\u062f\u064a\u0643\u0020\u0635\u0644\u0627\u062d\u064a\u0627\u062a\u0020\u0644\u0644\u0648\u0635\u0648\u0644\u0020\u0625\u0644\u0649\u0020\u0628\u064a\u0627\u0646\u0627\u062a\u0020\u0627\u0644\u0634\u0631\u0643\u0629\u002e\u0020\u064a\u0631\u062c\u0649\u0020\u0627\u0644\u062a\u0648\u0627\u0635\u0644\u0020\u0645\u0639\u0020\u0627\u0644\u0625\u062f\u0627\u0631\u0629\u002e';
+const MSG_GENERIC_ERROR = '\u062d\u062f\u062b\u0020\u062e\u0637\u0623\u0020\u0623\u062b\u0646\u0627\u0621\u0020\u062a\u062d\u0645\u064a\u0644\u0020\u0628\u064a\u0627\u0646\u0627\u062a\u0020\u0627\u0644\u062d\u0633\u0627\u0628\u002e\u0020\u064a\u0631\u062c\u0649\u0020\u0627\u0644\u0645\u062d\u0627\u0648\u0644\u0629\u0020\u0645\u0631\u0629\u0020\u0623\u062e\u0631\u0649\u002e';
+
+const isOfflineError = (err: unknown): boolean => {
+  const code = (err as any)?.code;
+  const message = (err as any)?.message?.toLowerCase() || '';
+  return code === 'client-offline' || message.includes('offline') || message.includes('firestore');
+};
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [authPhase, setAuthPhase] = useState<AuthPhase>('loading');
+  const [companyPhase, setCompanyPhase] = useState<CompanyPhase>('idle');
+  const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [authRole, setAuthRole] = useState<'platformAdmin' | 'tenant' | 'unknown' | null>(null);
   const [companyMemberships, setCompanyMemberships] = useState<CompanyMembership[]>([]);
-  const [activeCompany, setActiveCompany] = useState<unknown | null>(null);
-  const companyCacheRef = React.useRef<Map<string, unknown>>(new Map());
+  const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const [activeCompanyId, setActiveCompanyIdState] = useState<string | null>(() => {
     try {
       return localStorage.getItem(ACTIVE_COMPANY_ID_KEY);
-    } catch (e) {
-      /* ignore localStorage read errors (privacy/browser settings) */ return null;
+    } catch {
+      return null;
     }
   });
-  const [onboardingError, setOnboardingError] = useState<string | null>(null);
 
-  // notification context is available via useNotification when needed
+  // Track if we've already resolved auth to prevent re-entry
+  const authResolvedRef = React.useRef(false);
+  const companyResolvedRef = React.useRef(false);
 
-  const setActiveCompanyId = useCallback(
-    (companyId: string | null) => {
-      // Validate company ID format before setting
+  const setActiveCompanyId = useCallback((companyId: string | null) => {
+    setActiveCompanyIdState(companyId);
+    try {
       if (companyId) {
-        if (typeof companyId !== 'string' || companyId.length === 0) {
-          console.error('[AUTH] Invalid companyId provided:', companyId);
-          return;
-        }
-        // Security: Ensure company ID matches one of user's memberships
-        const isMemberOfCompany = companyMemberships.some((m) => m.companyId === companyId);
-        if (!isMemberOfCompany) {
-          console.error('[AUTH] User attempted to switch to unauthorized company:', companyId);
-          return;
-        }
+        localStorage.setItem(ACTIVE_COMPANY_ID_KEY, companyId);
+      } else {
+        localStorage.removeItem(ACTIVE_COMPANY_ID_KEY);
+        cleanupSessionData(null);
       }
+    } catch (e) {
+      /* ignore */
+    }
+  }, []);
 
-      setActiveCompanyIdState(companyId);
-      try {
-        if (companyId) {
-          localStorage.setItem(ACTIVE_COMPANY_ID_KEY, companyId);
-        } else {
-          localStorage.removeItem(ACTIVE_COMPANY_ID_KEY);
-          cleanupSessionData(null);
-        }
-      } catch (e) {
-        /* ignore localStorage write errors (privacy/browser settings) */
-      }
-    },
-    [companyMemberships]
-  );
-
+  // Auth listener effect: registered ONCE per mount with [] dependency array
+  // This ensures onAuthStateChanged is subscribed to exactly once (or twice in StrictMode dev)
   useEffect(() => {
-    setAuthLoading(true);
+    if (DEBUG_MODE) console.count("[AUTH] onAuthStateChanged listener registered");
+    
     const unsubscribe = authService.subscribeToAuthChanges(async (user) => {
+      if (DEBUG_MODE) {
+        console.log('[AUTH] Auth state changed', {
+          userId: user?.uid,
+          email: user?.email,
+          authResolvedRef: authResolvedRef.current,
+        });
+      }
+      
+      // GUARD: If we've already resolved auth and company, skip re-entry
+      // This prevents loops when auth listener fires multiple times
+      if (authResolvedRef.current) {
+        if (DEBUG_MODE) console.log('[AUTH] Skipping re-entry - auth already resolved');
+        return;
+      }
+
+      // Mark auth as being resolved to prevent concurrent/duplicate processing
+      authResolvedRef.current = true;
+
+      // Reset states for this auth change
+      setAuthPhase('loading');
+      setCompanyPhase('idle');
+      setAuthErrorMessage(null);
+      setActiveCompany(null);
+      setCompanyMemberships([]);
+      companyResolvedRef.current = false;
+
+      if (!user) {
+        if (DEBUG_MODE) console.info('[AUTH] Auth resolved: No user.');
+        setFirebaseUser(null);
+        setAuthRole(null);
+        setActiveCompanyId(null);
+        setAuthPhase('resolved');
+        return;
+      }
+
+      setFirebaseUser(user);
+      const email = (user.email || '').trim().toLowerCase();
+
       try {
-        if (!user) {
-          if (DEBUG_MODE) console.log('[AUTH] onAuthChange: no user (signed out)');
-          setFirebaseUser(null);
+        await upsertUserProfile(user);
+
+        const isPlatformEmail = email === PLATFORM_ADMIN_EMAIL;
+        const isTenantEmail = TENANT_ALLOWED_EMAILS.includes(email);
+
+        if (!isPlatformEmail && !isTenantEmail) {
+          throw new Error(MSG_UNAUTHORIZED);
+        }
+
+        if (isPlatformEmail) {
+          setIsPlatformAdmin(true);
+          setAuthRole('platformAdmin');
+          setActiveCompanyId(null);
+          setCompanyPhase('resolved'); // No company needed for platform admin
+          companyResolvedRef.current = true;
+          
+          // PLATFORM ADMIN: Redirect to platform dashboard on first login
+          const currentHash = window.location.hash || '#/';
+          if (!currentHash.startsWith('#/platform')) {
+            if (DEBUG_MODE) console.log('[AUTH] Redirecting platform admin to /#/platform');
+            window.location.replace('/#/platform');
+          }
+          
+          if (DEBUG_MODE) console.info('[AUTH] Auth resolved: Platform Admin.');
+        } else { // Tenant user
           setIsPlatformAdmin(false);
-          setCompanyMemberships([]);
-          setActiveCompanyIdState(null);
-          localStorage.removeItem(ACTIVE_COMPANY_ID_KEY);
-          localStorage.removeItem(ACTIVE_ROLE_KEY);
-          setOnboardingError(null);
-          setAuthLoading(false);
-          return;
-        }
+          setAuthRole('tenant');
+          setActiveCompanyId(TENANT_COMPANY_ID);
+          setCompanyPhase('loading');
 
-        setFirebaseUser(user);
-        if (DEBUG_MODE)
-          console.log('[AUTH] Logged in user detected, uid:', user.uid, 'email:', user.email);
+          if (DEBUG_MODE) console.count('[COMPANY] Fetching company document');
+          const company = await getCompany(TENANT_COMPANY_ID);
+          if (DEBUG_MODE) console.count('[COMPANY] Company fetch completed');
 
-        // Run independent reads in parallel to reduce latency
-        const [isAdmin, profile] = await Promise.all([
-          dataService.checkIfPlatformAdmin(user.uid).catch(() => false),
-          getUserProfile(user.uid).catch(() => null),
-        ]);
+          if (!company) throw new Error(MSG_NO_COMPANY);
+          if (!company.companyName || !company.status) throw new Error(MSG_COMPANY_INCOMPLETE);
+          if (company.isActive === false) throw new Error(MSG_COMPANY_PAUSED);
+          if (company.status !== 'approved') {
+            const msg = company.status === 'pending' ? MSG_COMPANY_PENDING : MSG_COMPANY_BLOCKED;
+            throw new Error(msg);
+          }
 
-        setIsPlatformAdmin(isAdmin);
-        if (DEBUG_MODE) console.log(`[AUTH] isPlatformAdmin: ${isAdmin}`);
+          setActiveCompany(company);
+          setCompanyMemberships([{
+            companyId: TENANT_COMPANY_ID,
+            companyName: company.companyName || MSG_COMPANY_FALLBACK,
+            role: UserRole.Owner,
+            status: 'active',
+          }]);
+          setCompanyPhase('resolved');
+          companyResolvedRef.current = true;
 
-        if (!profile) {
-          if (DEBUG_MODE) console.warn('[FIRESTORE] User profile not found for uid:', user.uid);
-          setOnboardingError('بيانات الشركة غير مكتملة. يرجى التواصل مع الإدارة أو تسجيل الدخول مرة أخرى.');
-          setCompanyMemberships([]);
-          setActiveCompanyIdState(null);
-          setAuthLoading(false);
-          return;
-        }
-
-        if (DEBUG_MODE)
-          console.log('[FIRESTORE] User profile retrieved:', { uid: user.uid, profile });
-        const companyId = profile.companyId as string | undefined;
-        if (!companyId) {
-          if (DEBUG_MODE) console.warn('[ACCESS] User has no companyId in profile:', user.uid);
-          setOnboardingError(
-            'مرحبًا ' +
-              (user.email || '') +
-              '\nلا يوجد حساب شركة مرتبط بحسابك.\nيرجى التواصل مع مدير الشركة لإضافة حسابك\nأو التواصل مع الدعم لإكمال بيانات الشركة.'
-          );
-          setCompanyMemberships([]);
-          setActiveCompanyIdState(null);
-          setAuthLoading(false);
-          return;
-        }
-
-        // Use cache if available
-        let company = companyCacheRef.current.get(companyId) || null;
-
-        // Fetch company and membership in parallel
-        let [companySnap, membership] = await Promise.all([
-          company
-            ? Promise.resolve(company)
-            : getCompany(companyId).catch((err) => {
-                throw err;
-              }),
-          getCompanyMembershipByUid(companyId, user.uid).catch(() => null),
-        ]);
-
-        company = companySnap;
-        if (!company) {
-          if (DEBUG_MODE) console.warn('[FIRESTORE] Company not found for companyId:', companyId);
-          setOnboardingError(
-            'مرحبًا ' +
-              (user.email || '') +
-              '\nلا يوجد حساب شركة مرتبط بحسابك.' +
-              '\nيرجى التواصل مع مدير الشركة لإضافة حسابك' +
-              '\nأو التواصل مع الدعم لإكمال بيانات الشركة.'
-          );
-          setCompanyMemberships([]);
-          setActiveCompanyIdState(null);
-          setAuthLoading(false);
-          return;
-        }
-
-        // Cache the company for subsequent reads
-        companyCacheRef.current.set(companyId, company);
-
-        if (DEBUG_MODE)
-          console.log('[FIRESTORE] Company retrieved:', { companyId, status: company.status });
-
-        // Minimal validation: require companyName and status
-        if (!company.companyName || !company.status) {
-          console.warn('[DATA] Company document missing minimal required fields:', {
-            companyId,
-            company,
-          });
-          setOnboardingError('بيانات الشركة غير مكتملة. يرجى التواصل مع الإدارة.');
-          setCompanyMemberships([]);
-          setActiveCompanyIdState(null);
-          setAuthLoading(false);
-          return;
-        }
-
-        if (company.status !== 'approved') {
-          const msg =
-            company.status === 'pending'
-              ? 'الشركة تحت المراجعة. يرجى التواصل مع الإدارة.'
-              : 'تم إيقاف الشركة. يرجى التواصل مع الإدارة.';
-          if (DEBUG_MODE)
-            console.warn('[ACCESS] Company access blocked, status:', company.status, 'companyId:', companyId);
-          setOnboardingError(msg);
-          setCompanyMemberships([]);
-          setActiveCompanyIdState(null);
-          setAuthLoading(false);
-          return;
-        }
-
-        // Attempt to repair missing membership doc for owners (uid/email match)
-        if (!membership && company) {
-          const ownerUid = (company as { ownerUid?: string }).ownerUid;
-          const ownerEmail = (company as { email?: string }).email;
-          const emailMatches =
-            ownerEmail &&
-            user.email &&
-            ownerEmail.trim().toLowerCase() === user.email.trim().toLowerCase();
-          const uidMatches = ownerUid && ownerUid === user.uid;
-          if (uidMatches || emailMatches) {
-            const created = await createOwnerMembershipIfMissing(companyId, user, UserRole.Owner);
-            if (created) {
-              membership = created;
-              setOnboardingError(null);
-            } else {
-              setOnboardingError('تعذر إنشاء عضويتك. يرجى التواصل مع الإدارة.');
-            }
-          } else {
-            setOnboardingError('لا توجد عضوية لحسابك في هذه الشركة. يرجى التواصل مع الإدارة لإضافتك.');
+          const currentHash = window.location.hash || '#/';
+          if (!currentHash.startsWith('#/dashboard')) {
+            window.location.replace('/#/dashboard');
           }
         }
 
-        // Prepare membership data (use profile.role if membership doc missing)
-        const roleFromProfile = (profile.role as UserRole) || UserRole.Owner;
-        const memberRole = membership?.role || roleFromProfile;
-        const membershipObj: CompanyMembership = {
-          companyId,
-          companyName: company.companyName,
-          role: memberRole,
-          status: 'active',
-        };
+        setAuthPhase('resolved');
+      } catch (err) {
+        console.error('[AUTH] Critical error during auth/company resolution:', err);
+        const rawMessage = getErrorMessage(err, MSG_GENERIC_ERROR);
+        const code = (err as any)?.code;
 
-        // Batch update state to minimize re-renders
-        setCompanyMemberships([membershipObj]);
-        setActiveCompanyIdState(companyId);
-        setActiveCompany(company);
-        setOnboardingError(null);
-        setAuthLoading(false);
-      } catch (err: unknown) {
-        console.error('[AUTH] Error during auth processing:', err);
-        if (DEBUG_MODE) console.error('[AUTH] error details:', err);
-        const msg = ((): string => {
-          if (typeof err === 'object' && err !== null && 'message' in err) {
-            try {
-              return String((err as { message?: unknown }).message || '');
-            } catch {
-              return String(err);
-            }
-          }
-          return String(err ?? '');
-        })().toLowerCase();
-
-        const code =
-          typeof err === 'object' && err !== null && 'code' in err
-            ? String((err as { code?: unknown }).code)
-            : '';
-
-        if (
-          code === 'client-offline' ||
-          /client offline|failed to reach firestore|could not reach cloud firestore|net::err_connection_closed/.test(
-            msg
-          )
-        ) {
-          console.error('[AUTH] Network/offline detected while accessing Firestore', err);
-          setOnboardingError('لا يوجد اتصال بالإنترنت. يرجى التحقق من الاتصال والمحاولة مرة أخرى.');
-        } else if (code === 'permission-denied' || /permission/i.test(msg)) {
-          setOnboardingError('ليس لديك صلاحية للوصول إلى بيانات الشركة. يرجى التواصل مع الإدارة.');
+        if (isOfflineError(err) || code === 'client-offline') {
+          setAuthErrorMessage(OFFLINE_ERROR_MESSAGE);
+        } else if (code === 'permission-denied' || /permission/i.test(rawMessage)) {
+          setAuthErrorMessage(MSG_PERMISSION_DENIED);
         } else {
-          setOnboardingError('حدث خطأ أثناء تحميل بيانات الشركة. يرجى المحاولة مرة أخرى.');
+          setAuthErrorMessage(rawMessage);
         }
-        setCompanyMemberships([]);
-        setAuthLoading(false);
+        
+        // Determine final error phase
+        if (rawMessage === MSG_UNAUTHORIZED) {
+          setAuthPhase('unauthorized');
+        } else {
+          setAuthPhase('terminal_error');
+        }
+        setCompanyPhase('error');
+        companyResolvedRef.current = true; // Mark as resolved even on error to prevent retry loops
       }
     });
 
-    return () => unsubscribe();
-  }, []);
+    return () => {
+      unsubscribe();
+      if (DEBUG_MODE) console.log('[AUTH] Auth listener unsubscribed');
+    };
+  }, []); // EMPTY dependency array - auth listener registered exactly ONCE
 
   const activeMembership = companyMemberships.find((m) => m.companyId === activeCompanyId);
   const activeRole = activeMembership ? activeMembership.role : null;
+  const authLoading = authPhase === 'loading';
 
-  // Persist active role to localStorage for UI hints only
   useEffect(() => {
     try {
       if (activeRole) localStorage.setItem(ACTIVE_ROLE_KEY, activeRole);
       else localStorage.removeItem(ACTIVE_ROLE_KEY);
     } catch (e) {
-      /* ignore localStorage write errors */
+      /* ignore */
     }
   }, [activeRole]);
 
-  // Session timeout check: Auto-logout after inactivity (30 minutes)
-  useEffect(() => {
-    if (DEBUG_MODE) return;
-    if (!firebaseUser || !activeCompanyId) return;
-
-    const SESSION_TIMEOUT_MS = 8 * 60 * 60 * 1000; // 8 hours
-    let timeoutId: ReturnType<typeof setTimeout>;
-
-    const resetTimeout = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        if (DEBUG_MODE) console.log('[AUTH] Session timeout - auto-logout');
-        authService.signOutUser().catch((e) => console.error('Logout error:', e));
-      }, SESSION_TIMEOUT_MS);
-    };
-
-    const handleUserActivity = () => {
-      resetTimeout();
-    };
-
-    // Track user activity
-    window.addEventListener('mousedown', handleUserActivity);
-    window.addEventListener('keydown', handleUserActivity);
-    window.addEventListener('scroll', handleUserActivity);
-
-    // Initial timeout
-    resetTimeout();
-
-    return () => {
-      clearTimeout(timeoutId);
-      window.removeEventListener('mousedown', handleUserActivity);
-      window.removeEventListener('keydown', handleUserActivity);
-      window.removeEventListener('scroll', handleUserActivity);
-    };
-  }, [firebaseUser, activeCompanyId]);
-
-  // Validate data isolation on company/user change
-  useEffect(() => {
-    if (firebaseUser && activeCompanyId) {
-      const isolationCheck = validateUserDataIsolation(firebaseUser, activeCompanyId);
-      if (!isolationCheck.isValid) {
-        console.error('[AUTH] Data isolation check failed:', isolationCheck);
-        // In production, could trigger logout or alert
-      }
-    }
-  }, [firebaseUser, activeCompanyId]);
-
   const value: AuthContextType = {
     firebaseUser,
-    authLoading,
+    authPhase,
+    companyPhase,
+    authErrorMessage,
     isPlatformAdmin,
+    authLoading,
+    authRole,
     companyMemberships,
     activeCompanyId,
     activeCompany,
     activeRole,
     setActiveCompanyId,
     signOutUser: authService.signOutUser,
-    onboardingError,
-    clearOnboardingError: () => setOnboardingError(null),
     hasRole: (roleOrRoles?: string | string[]) => {
       if (!roleOrRoles) return false;
       const current = activeRole;
@@ -378,7 +281,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     },
   };
 
-  if (authLoading) return <FullPageSpinner />;
+  if (authPhase === 'loading' || (authRole === 'tenant' && companyPhase === 'loading')) {
+    return <FullPageSpinner />;
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
@@ -386,19 +291,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    // Return safe defaults when used outside of provider (simplifies testing and simple usage)
     return {
       firebaseUser: null,
-      authLoading: false,
+      authPhase: 'loading',
+      companyPhase: 'idle',
+      authErrorMessage: null,
       isPlatformAdmin: false,
+      authRole: null,
+      authLoading: true,
       companyMemberships: [],
       activeCompanyId: null,
       activeCompany: null,
       activeRole: null,
       setActiveCompanyId: (_: string | null) => {},
       signOutUser: async () => {},
-      onboardingError: null,
-      clearOnboardingError: () => {},
+      hasRole: (_?: string | string[]) => false,
       user: null,
       role: null,
       companyId: null,
@@ -425,5 +332,5 @@ export function useCanWrite(section: WriteableSection): boolean {
   if (!activeRole) return false;
   if (activeRole === UserRole.Owner || activeRole === UserRole.Manager) return true;
   if (activeRole === UserRole.Employee) return section !== 'settings' && section !== 'users';
-  return false; // viewer
+  return false;
 }

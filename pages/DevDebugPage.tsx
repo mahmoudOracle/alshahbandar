@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -29,7 +29,7 @@ export default function DevDebugPage() {
       try {
         if (!user) return setError('No firebase user (not signed in)');
         const uid = user.uid;
-        const uRef = doc(db, 'users', uid);
+        const uRef = doc(db, 'members', uid);
         const uSnap = await getDoc(uRef);
         setUserDoc(uSnap.exists() ? uSnap.data() : null);
 
@@ -38,7 +38,7 @@ export default function DevDebugPage() {
         const cSnap = await getDoc(cRef);
         setCompanyDoc(cSnap.exists() ? cSnap.data() : null);
 
-        const mRef = doc(db, 'companies', companyId, 'users', uid);
+        const mRef = doc(db, 'companies', companyId, 'members', uid);
         const mSnap = await getDoc(mRef);
         setMembershipDoc(mSnap.exists() ? mSnap.data() : null);
       } catch (e: unknown) {
@@ -118,7 +118,7 @@ export default function DevDebugPage() {
       </div>
       <div className="mb-4">
         <h3 className="font-semibold">
-          companies/{companyId}/users/{user?.uid}
+          companies/{companyId}/members/{user?.uid}
         </h3>
         <pre className="bg-gray-100 p-3 rounded">{JSON.stringify(membershipDoc, null, 2)}</pre>
       </div>
@@ -139,7 +139,7 @@ export default function DevDebugPage() {
                 setError(null);
                 setSuccess(null);
                 try {
-                  const mRef = doc(db, 'companies', companyId, 'users', user.uid);
+                  const mRef = doc(db, 'companies', companyId, 'members', user.uid);
                   await setDoc(
                     mRef,
                     {
@@ -175,7 +175,7 @@ export default function DevDebugPage() {
                 setError(null);
                 setSuccess(null);
                 try {
-                  const uRef = doc(db, 'users', user.uid);
+                  const uRef = doc(db, 'members', user.uid);
                   await setDoc(
                     uRef,
                     {
