@@ -1742,7 +1742,24 @@ exports.createInvoiceAtomic = functions.https.onCall(async (data, context) => {
 
     const result = await db.runTransaction(async (tx) => {
       let costTotal = 0;
-      const itemsWithCost = [];
+      const itemsToSave = []; // This will be the final list of items with resolved details and cost
+
+      // --- Problem C: Aggregate input items first ---
+      const aggregatedInputItemsMap = new Map();
+      for (const item of invoice.items) {
+        if (item.productId) {
+          const existing = aggregatedInputItemsMap.get(item.productId);
+          if (existing) {
+            existing.quantity = (Number(existing.quantity) || 0) + (Number(item.quantity) || 0);
+            // Keep the latest price and productName from input for now, it will be validated/overwritten by product master data
+            existing.price = Number(item.price) || existing.price;
+            existing.productName = item.productName || existing.productName;
+          } else {
+            aggregatedInputItemsMap.set(item.productId, { ...item });
+          }
+        }
+      }
+      const currentInvoiceItems = Array.from(aggregatedInputItemsMap.values());
 
       // If updating, fetch the old invoice to calculate stock deltas
       let oldInvoice = null;
@@ -1753,92 +1770,66 @@ exports.createInvoiceAtomic = functions.https.onCall(async (data, context) => {
         }
       }
 
-      // Build a map of old items by productId for quick lookup during delta calculation
-      const oldItemsByProductId = {};
+      const oldQuantitiesMap = new Map(); // productId -> total quantity from old invoice
       if (oldInvoice && Array.isArray(oldInvoice.items)) {
         for (const oldItem of oldInvoice.items) {
-          const key = String(oldItem.productId);
-          if (!oldItemsByProductId[key]) {
-            oldItemsByProductId[key] = [];
-          }
-          oldItemsByProductId[key].push(oldItem);
+          const prodId = String(oldItem.productId);
+          oldQuantitiesMap.set(prodId, (oldQuantitiesMap.get(prodId) || 0) + (Number(oldItem.quantity) || 0));
         }
       }
 
-      // Track which old items have been matched
-      const matchedOldItems = new Set();
+      const productStockUpdates = new Map(); // { productId: { stock: newStock, change: actualStockChange } }
+      const stockLedgerEntries = [];
 
-      // Preload all product docs and validate stock
-      for (let itemIndex = 0; itemIndex < invoice.items.length; itemIndex++) {
-        const item = invoice.items[itemIndex];
-        if (!item.productId)
-          throw new functions.https.HttpsError(
-            'invalid-argument',
-            'Each item must have a productId'
-          );
-        const prodRef = db
-          .collection('companies')
-          .doc(companyId)
-          .collection('products')
-          .doc(String(item.productId));
+      // --- Process current invoice items (aggregated) ---
+      for (const item of currentInvoiceItems) {
+        const prodId = String(item.productId);
+        if (!prodId) {
+          throw new functions.https.HttpsError('invalid-argument', 'Each item must have a productId');
+        }
+
+        const prodRef = db.collection('companies').doc(companyId).collection('products').doc(prodId);
         const prodSnap = await tx.get(prodRef);
-        if (!prodSnap.exists)
-          throw new functions.https.HttpsError('not-found', `Product ${item.productId} not found`);
+        if (!prodSnap.exists) {
+          throw new functions.https.HttpsError('not-found', `Product ${prodId} not found`);
+        }
         const prod = prodSnap.data();
 
-        const quantity = Number(item.quantity) || 0;
-        if (quantity <= 0)
+        const newQuantity = Number(item.quantity) || 0;
+        if (newQuantity <= 0) {
           throw new functions.https.HttpsError('invalid-argument', 'Item quantity must be > 0');
-
-        const available = Number(prod.stock) || 0;
-
-        // Calculate stock delta: how much stock to adjust
-        let stockDelta = quantity; // Default: new quantity (for create)
-
-        if (isUpdate && oldItemsByProductId[String(item.productId)]) {
-          // For update: find matching old item and calculate delta
-          const oldItems = oldItemsByProductId[String(item.productId)];
-          let matchedOldItem = null;
-
-          // Try to match by position first (same index)
-          if (itemIndex < oldItems.length && !matchedOldItems.has(`${String(item.productId)}_${itemIndex}`)) {
-            matchedOldItem = oldItems[itemIndex];
-            matchedOldItems.add(`${String(item.productId)}_${itemIndex}`);
-          } else {
-            // Fall back to first unmatched item
-            for (let i = 0; i < oldItems.length; i++) {
-              if (!matchedOldItems.has(`${String(item.productId)}_${i}`)) {
-                matchedOldItem = oldItems[i];
-                matchedOldItems.add(`${String(item.productId)}_${i}`);
-                break;
-              }
-            }
-          }
-
-          if (matchedOldItem) {
-            const oldQuantity = Number(matchedOldItem.quantity) || 0;
-            stockDelta = quantity - oldQuantity; // Delta: positive = need more stock, negative = return stock
-          }
         }
 
-        // Validate stock availability (only for positive deltas)
-        if (stockDelta > 0 && available < stockDelta) {
-          const productName = prod.name || item.productId;
-          const errorMsg = `الصنف "${productName}" لا يملك مخزون كافي. المتاح: ${available}، المطلوب إضافة: ${stockDelta}`;
-          throw new functions.https.HttpsError(
-            'failed-precondition',
-            errorMsg
-          );
+        const oldQuantity = oldQuantitiesMap.get(prodId) || 0;
+        const netQuantityChange = newQuantity - oldQuantity; // Positive means more deduction, negative means less deduction/return
+
+        const availableStock = Number(prod.stock) || 0;
+        let finalStock;
+        let actualStockChangeForLedger; // How much was actually deducted/returned from current stock
+
+        if (netQuantityChange > 0) { // More items to deduct (or new item)
+          if (availableStock < netQuantityChange) {
+            const productName = prod.name || item.productName || prodId;
+            throw new functions.https.HttpsError(
+              'failed-precondition',
+              `الصنف "${productName}" لا يملك مخزون كافي. المتاح: ${availableStock}، المطلوب خصم إضافي: ${netQuantityChange}`
+            );
+          }
+          finalStock = availableStock - netQuantityChange;
+          actualStockChangeForLedger = -netQuantityChange; // Negative for deduction
+        } else if (netQuantityChange < 0) { // Fewer items to deduct (or item quantity reduced)
+          finalStock = availableStock - netQuantityChange; // availableStock + abs(netQuantityChange)
+          actualStockChangeForLedger = -netQuantityChange; // Positive for return
+        } else { // No net change in quantity for this product
+          finalStock = availableStock;
+          actualStockChangeForLedger = 0;
         }
 
-        // Ensure we don't go below zero (safety check)
-        const newStock = available - stockDelta;
-        if (newStock < 0) {
-          const productName = prod.name || item.productId;
-          const errorMsg = `الصنف "${productName}" سيصبح مخزونه سالباً. المتاح: ${available}، المطلوب خصم: ${stockDelta}`;
+        if (finalStock < 0) {
+          const productName = prod.name || item.productName || prodId;
           throw new functions.https.HttpsError(
             'failed-precondition',
-            errorMsg
+            `الصنف "${productName}" سيصبح مخزونه سالباً. المخزون الحالي: ${availableStock}, بعد التعديل: ${finalStock}`
           );
         }
 
@@ -1847,41 +1838,19 @@ exports.createInvoiceAtomic = functions.https.onCall(async (data, context) => {
             ? Number(item.unitCost)
             : Number(prod.averageCost) || Number(prod.defaultCost) || 0;
 
-        const lineCost = unitCost * quantity;
+        const lineCost = unitCost * newQuantity;
         costTotal += lineCost;
 
-        itemsWithCost.push(Object.assign({}, item, { unitCost }));
+        // --- Problem B: Ensure productName is saved ---
+        itemsToSave.push(Object.assign({}, item, { unitCost, productName: prod.name })); // Use prod.name as authoritative
 
-        // Update product stock (only if delta != 0)
-        if (stockDelta !== 0) {
-          tx.update(prodRef, {
-            stock: newStock,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
-
-          // Update inventory snapshot (merge)
-          const invRef = db
-            .collection('companies')
-            .doc(companyId)
-            .collection('inventory')
-            .doc(String(item.productId));
-          tx.set(
-            invRef,
-            {
-              productId: String(item.productId),
-              quantity: newStock,
-              lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-            },
-            { merge: true }
-          );
-
-          // Append stock ledger entry for the change
-          const ledgerRef = db.collection('companies').doc(companyId).collection('stockLedger').doc();
-          tx.set(ledgerRef, {
-            productId: String(item.productId),
-            change: -Math.abs(stockDelta), // Negative for deduction, positive for return
-            qtyBefore: available,
-            qtyAfter: newStock,
+        if (actualStockChangeForLedger !== 0) {
+          productStockUpdates.set(prodId, { stock: finalStock, change: actualStockChangeForLedger });
+          stockLedgerEntries.push({
+            productId: prodId,
+            change: actualStockChangeForLedger,
+            qtyBefore: availableStock,
+            qtyAfter: finalStock,
             unitCost: unitCost == null ? null : Number(unitCost),
             sourceType: isUpdate ? 'INVOICE_ADJUSTMENT' : 'SALE',
             referenceCollection: 'invoices',
@@ -1890,72 +1859,80 @@ exports.createInvoiceAtomic = functions.https.onCall(async (data, context) => {
             createdBy: context.auth.uid,
           });
         }
+
+        // Remove from oldQuantitiesMap as it's been processed
+        oldQuantitiesMap.delete(prodId);
       }
 
-      // Handle removed items (in update case): return their stock
-      if (isUpdate && oldInvoice && Array.isArray(oldInvoice.items)) {
-        for (let oldItemIndex = 0; oldItemIndex < oldInvoice.items.length; oldItemIndex++) {
-          const oldItem = oldInvoice.items[oldItemIndex];
-          const matchKey = `${String(oldItem.productId)}_${oldItemIndex}`;
-          if (!matchedOldItems.has(matchKey)) {
-            // This old item was removed, return its stock
-            const prodRef = db
-              .collection('companies')
-              .doc(companyId)
-              .collection('products')
-              .doc(String(oldItem.productId));
-            const prodSnap = await tx.get(prodRef);
-            if (prodSnap.exists) {
-              const prod = prodSnap.data();
-              const oldQuantity = Number(oldItem.quantity) || 0;
-              const available = Number(prod.stock) || 0;
-              const newStock = available + oldQuantity; // Return stock
-
-              tx.update(prodRef, {
-                stock: newStock,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-              });
-
-              // Update inventory snapshot
-              const invRef = db
-                .collection('companies')
-                .doc(companyId)
-                .collection('inventory')
-                .doc(String(oldItem.productId));
-              tx.set(
-                invRef,
-                {
-                  productId: String(oldItem.productId),
-                  quantity: newStock,
-                  lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-                },
-                { merge: true }
-              );
-
-              // Record ledger entry for return
-              const unitCost = Number(oldItem.unitCost) || 0;
-              const ledgerRef = db.collection('companies').doc(companyId).collection('stockLedger').doc();
-              tx.set(ledgerRef, {
-                productId: String(oldItem.productId),
-                change: oldQuantity, // Positive: stock return
-                qtyBefore: available,
-                qtyAfter: newStock,
-                unitCost: unitCost == null ? null : Number(unitCost),
-                sourceType: 'INVOICE_REMOVAL',
-                referenceCollection: 'invoices',
-                referenceId: invoiceRef.id,
-                timestamp: admin.firestore.FieldValue.serverTimestamp(),
-                createdBy: context.auth.uid,
-              });
-            }
+      // --- Handle items entirely removed from the invoice (those remaining in oldQuantitiesMap) ---
+      for (const [prodId, removedQuantity] of oldQuantitiesMap.entries()) {
+        if (removedQuantity > 0) { // This product was in the old invoice but not in the new one, so return its stock
+          const prodRef = db.collection('companies').doc(companyId).collection('products').doc(prodId);
+          const prodSnap = await tx.get(prodRef);
+          if (!prodSnap.exists) {
+            console.warn(`Product ${prodId} not found when processing removed item from old invoice.`);
+            continue;
           }
+          const prod = prodSnap.data();
+          const availableStock = Number(prod.stock) || 0;
+          const finalStock = availableStock + removedQuantity; // Return stock
+          const unitCost = Number(prod.averageCost) || Number(prod.defaultCost) || 0;
+
+          if (finalStock < 0) { // Should not happen for returns, but as a final safety check
+            const productName = prod.name || prodId;
+            throw new functions.https.HttpsError(
+              'failed-precondition',
+              `الصنف "${productName}" سيصبح مخزونه سالباً بعد إرجاع المخزون. المخزون الحالي: ${availableStock}, بعد الإرجاع: ${finalStock}`
+            );
+          }
+
+          productStockUpdates.set(prodId, { stock: finalStock, change: removedQuantity });
+          stockLedgerEntries.push({
+            productId: prodId,
+            change: removedQuantity, // Positive for return
+            qtyBefore: availableStock,
+            qtyAfter: finalStock,
+            unitCost: unitCost == null ? null : Number(unitCost),
+            sourceType: 'INVOICE_REMOVAL',
+            referenceCollection: 'invoices',
+            referenceId: invoiceRef.id,
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            createdBy: context.auth.uid,
+          });
         }
+      }
+
+      // --- Apply all accumulated product stock updates and inventory snapshots ---
+      for (const [prodId, { stock, change }] of productStockUpdates.entries()) {
+        const prodRef = db.collection('companies').doc(companyId).collection('products').doc(prodId);
+        tx.update(prodRef, {
+          stock: stock,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Update inventory snapshot (merge)
+        const invRef = db.collection('companies').doc(companyId).collection('inventory').doc(prodId);
+        tx.set(
+          invRef,
+          {
+            productId: prodId,
+            quantity: stock,
+            lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+
+      // --- Add all stock ledger entries ---
+      for (const entry of stockLedgerEntries) {
+        const ledgerRef = db.collection('companies').doc(companyId).collection('stockLedger').doc();
+        tx.set(ledgerRef, entry);
       }
 
       // Compute totals: prefer client-provided totals, but compute subtotal if missing
       let subtotal = 0;
-      for (const it of itemsWithCost) {
-        const price = Number(it.unitPrice || it.price || 0);
+      for (const it of itemsToSave) {
+        const price = Number(it.price || 0); // Assuming price from client is the sale price
         subtotal += price * (Number(it.quantity) || 0);
       }
 
@@ -1964,7 +1941,7 @@ exports.createInvoiceAtomic = functions.https.onCall(async (data, context) => {
 
       const now = admin.firestore.FieldValue.serverTimestamp();
       const invoiceToSave = Object.assign({}, invoice, {
-        items: itemsWithCost,
+        items: itemsToSave, // Use the new itemsToSave array which has productName
         costTotal,
         profit,
         subtotal,

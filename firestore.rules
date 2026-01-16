@@ -19,8 +19,14 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/companies/$(companyId)/members/$(request.auth.uid));
     }
 
+    function isCompanyOwner(companyId) {
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/companies/$(companyId)) &&
+             get(/databases/$(database)/documents/companies/$(companyId)).data.ownerUid == request.auth.uid;
+    }
+
     function isCompanyUser(companyId) {
-      return isTenantAllowed() && companyUserDoc(companyId).exists();
+      return isTenantAllowed() && (companyUserDoc(companyId).exists() || isCompanyOwner(companyId));
     }
 
     function isCompanyActive(companyId) {

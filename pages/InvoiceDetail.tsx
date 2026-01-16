@@ -6,6 +6,7 @@ import {
   deleteInvoice,
   undeleteDocument,
   getReturnsByInvoiceId,
+  getProducts,
 } from '../services/dataService';
 import PaymentForm from './PaymentForm';
 import { Invoice, InvoiceStatus, Customer, ReturnDoc } from '../types';
@@ -43,6 +44,7 @@ const InvoiceDetail: React.FC = () => {
   const canWrite = useCanWrite('invoices');
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [showReturnForm, setShowReturnForm] = useState(false);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
@@ -59,7 +61,11 @@ const InvoiceDetail: React.FC = () => {
       if (!id || !activeCompanyId) return;
       setLoading(true);
       try {
-        const invoiceData = await getInvoiceById(activeCompanyId, id);
+        const [invoiceData, productsRes] = await Promise.all([
+          getInvoiceById(activeCompanyId, id),
+          getProducts(activeCompanyId),
+        ]);
+        setProducts(productsRes.data || []);
         setInvoice(invoiceData || null);
         if (invoiceData) {
           const customerData = await getCustomerById(activeCompanyId, invoiceData.customerId);
@@ -259,9 +265,10 @@ ${settings.businessName}
               {invoice.items.map((item) => {
                 const unitPrice = Number(item.price ?? item.unitPrice ?? 0);
                 const lineTotal = Number(item.quantity || 0) * unitPrice;
+                const displayProductName = item.productName || products.find(p => p.id === item.productId)?.name || 'صنف غير معروف';
                 return (
                   <tr key={item.id} className="border-b dark:border-gray-700">
-                    <td className="px-6 py-4">{item.productName}</td>
+                    <td className="px-6 py-4">{displayProductName}</td>
                     <td className="px-6 py-4 text-center">{item.quantity}</td>
                     <td className="px-6 py-4 text-center">
                       {unitPrice.toFixed(2)} {settings.currency}

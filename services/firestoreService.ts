@@ -1282,12 +1282,13 @@ export const saveCustomer = (
   }
 };
 
-export const getProducts = (
+export const getProducts = async (
   companyId: string,
   options: QueryOptions = {}
 ): Promise<PaginatedData<Product>> => {
   // Delegate to the new tenant-aware products repository (includes simple caching)
-  return productsRepo.getProducts(companyId, options as any) as any;
+  const products = await productsRepo.getProducts(companyId, options as any);
+  return { data: products, nextCursor: undefined };
 };
 export const getProductById = (companyId: string, id: string) =>
   getById<Product>(companyId, 'products', id);
