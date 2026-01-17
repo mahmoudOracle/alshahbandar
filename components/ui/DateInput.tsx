@@ -250,7 +250,39 @@ const DateInput: React.FC<Props> = ({
           onPaste={onPaste}
           placeholder="YYYY"
           maxLength={4}
-          className="w-24 text-center px-3 py-2 border rounded-md bg-transparent focus:outline-none touch-manipulation"
+          className="w-full text-center px-3 py-2 border rounded-md bg-transparent focus:outline-none touch-manipulation"
+        />
+      </div>
+      <div className="flex gap-2 mt-2">
+        <button
+          type="button"
+          onClick={() => {
+            const today = new Date();
+            const todayIso = today.toISOString().split('T')[0];
+            const p = isoToParts(todayIso);
+            setDay(p.d);
+            setMonth(p.m);
+            setYear(p.y);
+            onChange && onChange({ target: { name, value: todayIso } });
+          }}
+          className="px-3 py-1 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+        >
+          اليوم
+        </button>
+        {/* Optional calendar picker toggle using native HTML5 date input */}
+        <input
+          type="date"
+          value={partsToIso(day, month, year)} // Ensure value is always in ISO format for the native picker
+          onChange={(e) => {
+            const val = e.target.value; // val is already in YYYY-MM-DD format
+            const p = isoToParts(val);
+            setDay(p.d);
+            setMonth(p.m);
+            setYear(p.y);
+            onChange && onChange({ target: { name, value: val } });
+          }}
+          className="px-3 py-1 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 cursor-pointer flex-shrink-0"
+          title="افتح التقويم"
         />
       </div>
       {error && (

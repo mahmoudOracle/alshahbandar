@@ -8,6 +8,18 @@ import {
   connectStorageEmulator,
   FirebaseStorage,
 } from 'firebase/storage';
+// --- IMPORTANT DEVELOPMENT CONTEXT ---
+// This project uses Firebase Emulators for local development to avoid hitting
+// production Firebase services and to enable full local testing without Blaze billing.
+//
+// The VITE_USE_EMULATORS environment variable (set in .env.local)
+// controls whether the app connects to these local emulators.
+//
+// The VITE_FREE_MODE environment variable (also in .env.local)
+// controls certain business logic (e.g., invoice saving) to either use
+// Cloud Functions (when VITE_FREE_MODE=false, typically with emulators in dev)
+// or client-side transactions (when VITE_FREE_MODE=true, for free production mode).
+// For local development, VITE_FREE_MODE should be 'false' to test Cloud Functions.
 
 /**
  * Firebase configuration object.
@@ -36,7 +48,7 @@ let storage: FirebaseStorage;
 
 try {
   if (!firebaseConfig.apiKey) {
-    throw new Error('Firebase configuration is missing API key.');
+    console.warn('⚠️ [FIREBASE] Firebase configuration is missing API key. Connecting to remote Firebase might fail.');
   }
   // Initialize Firebase immediately when this module is imported.
   // This is idempotent and safe to be in the top-level scope.
@@ -48,10 +60,9 @@ try {
   const metaEnv = (import.meta as unknown as { env?: Record<string, string> }).env;
   // Connect to local emulators only when explicitly enabled in DEV.
   try {
-    const useEmulators =
-      import.meta.env.DEV &&
-      (metaEnv?.VITE_USE_EMULATORS === 'true' || metaEnv?.VITE_USE_FIREBASE_EMULATORS === 'true');
+    const useEmulators = import.meta.env.DEV && metaEnv?.VITE_USE_EMULATORS === 'true';
     if (useEmulators) {
+      console.log('🟢 [FIREBASE] Connecting to Firebase Emulators...');
       const firestoreHost =
         metaEnv?.VITE_FIRESTORE_EMULATOR_HOST ||
         metaEnv?.VITE_FIREBASE_EMULATOR_HOST ||
@@ -77,7 +88,7 @@ try {
         // connectStorageEmulator may not be available in some SDK combos; ignore if fails
         console.warn('[FIREBASE] Failed to connect storage emulator', e);
       }
-      console.info('[FIREBASE] Connected to emulators', {
+      console.info('✅ [FIREBASE] Successfully connected to emulators', {
         firestoreHost,
         firestorePort,
         functionsHost,
@@ -85,9 +96,11 @@ try {
         authHost,
         authPort,
       });
+    } else {
+        console.log('🌐 [FIREBASE] Connecting to remote Firebase project...');
     }
   } catch (e) {
-    console.warn('[FIREBASE] Failed to connect to emulators', e);
+    console.error('🔴 [FIREBASE] Failed to connect to emulators', e);
   }
 } catch (error) {
   console.error('CRITICAL: Firebase initialization failed.', error);

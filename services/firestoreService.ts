@@ -49,13 +49,15 @@ import {
   JournalEntry,
   Purchase,
 } from '../types';
-import { db, functions } from './firebase';
+import { db, functions, auth } from './firebase';
 import { mapFirestoreError } from './firebaseErrors';
 import { enqueueOperation } from './syncService';
 import * as productsRepo from './repositories/products';
 import { serverTimestamp } from 'firebase/firestore';
 import { DEBUG_MODE } from '../config';
 import { isPosted, isPeriodLocked } from './accountingSafety';
+
+const IS_FREE_MODE = import.meta.env.VITE_FREE_MODE === 'true';
 
 // --- Retry & Network Helpers ---
 const isOfflineError = (err: unknown): boolean => {
@@ -516,6 +518,10 @@ interface QueryOptions {
   orderDirection?: 'asc' | 'desc';
   startAfter?: QueryDocumentSnapshot;
   filters?: [string, '==', unknown][];
+  dateStart?: string; // ISO date string for start of range
+  dateEnd?: string; // ISO date string for end of range
+  searchField?: string; // Field to search in (e.g., 'customerName', 'invoiceNumber')
+  searchTerm?: string; // Term to search for
 }
 
 // --- HELPER FUNCTIONS ---
@@ -537,6 +543,10 @@ const getData = async <T>(
     orderDirection = 'desc',
     startAfter: startAfterDoc,
     filters = [],
+    dateStart,
+    dateEnd,
+    searchField,
+    searchTerm,
   } = options;
 
   // Apply a conservative default limit to prevent unbounded reads.
@@ -546,10 +556,40 @@ const getData = async <T>(
 
   const constraints: QueryConstraint[] = [];
 
+  // Apply fixed filters
   filters.forEach((f) => constraints.push(where(f[0], f[1], f[2])));
 
-  if (orderByField) {
-    constraints.push(orderBy(orderByField, orderDirection));
+  // Apply date range filters. Firestore requires orderBy on the field used in range queries.
+  if (dateStart) {
+    constraints.push(where('date', '>=', dateStart));
+  }
+  if (dateEnd) {
+    constraints.push(where('date', '<=', dateEnd));
+  }
+
+  // Apply text search filter (exact match for now, or prefix search if security rules allow)
+  if (searchField && searchTerm) {
+    // Note: Firestore does not support full-text search. This will do prefix matching.
+    // For more advanced search, a dedicated search service (e.g., Algolia, ElasticSearch) is needed.
+    // If exact match is required, use '==' operator.
+    constraints.push(where(searchField, '>=', searchTerm));
+    constraints.push(where(searchField, '<=', searchTerm + '\uf8ff'));
+  }
+
+  // Apply ordering. If date filters are present, 'date' must be the first orderBy field.
+  // Otherwise, use the provided orderByField or default to 'createdAt'.
+  let finalOrderByField = orderByField;
+  if (dateStart || dateEnd) {
+    if (orderByField && orderByField !== 'date') {
+      console.warn('Firestore: orderBy field changed to "date" because date range filters are present.');
+    }
+    finalOrderByField = 'date'; // Force order by date for date range queries
+  } else if (!orderByField) {
+    finalOrderByField = 'createdAt'; // Default for non-date-range queries
+  }
+
+  if (finalOrderByField) {
+    constraints.push(orderBy(finalOrderByField, orderDirection));
   }
 
   if (startAfterDoc) {
@@ -1304,13 +1344,12 @@ export const getInvoiceById = (companyId: string, id: string) =>
 
 export const saveInvoice = async (
   companyId: string,
-  invoice: Omit<Invoice, 'id'> | Invoice
+  invoice: Omit<Invoice, 'id'> | Invoice,
+  oldInvoice?: Invoice // Add optional oldInvoice parameter
 ): Promise<Invoice> => {
   const invoiceToSave = { ...invoice };
 
-  if (!('id' in invoiceToSave) || !invoiceToSave.id) {
-    invoiceToSave.invoiceNumber = await getNextDocumentNumber(companyId, 'invoice');
-  }
+  // Common calculations, independent of FREE_MODE path
   // Compute subtotal and taxes
   invoiceToSave.subtotal = invoiceToSave.items.reduce(
     (sum, item) => sum + item.quantity * item.price,
@@ -1324,59 +1363,234 @@ export const saveInvoice = async (
   invoiceToSave.taxRate = taxRate;
   invoiceToSave.taxAmount = taxAmount;
   invoiceToSave.total = Math.round((invoiceToSave.subtotal + taxAmount) * 100) / 100;
-  // Ensure invoice items carry unitCost snapshot and compute cost/profit
-  let costTotal = 0;
-  for (const it of invoiceToSave.items) {
-    if (!it.productId) {
-      (it as any)['unitCost'] = 0;
-      continue;
-    }
-    try {
-      const prod = await getById<Product>(companyId, 'products', it.productId);
-      const unitCost =
-        typeof (it as any)['unitCost'] === 'number'
-          ? ((it as any)['unitCost'] as number)
-          : prod && typeof prod.averageCost === 'number'
-            ? (prod.averageCost as number)
-            : prod && typeof prod.defaultCost === 'number'
-              ? (prod.defaultCost as number)
-              : 0;
-      (it as any)['unitCost'] = unitCost;
-      costTotal += unitCost * it.quantity;
-    } catch (err) {
-      (it as any)['unitCost'] = 0;
-    }
-  }
-  invoiceToSave.costTotal = Math.round(costTotal * 100) / 100;
-  invoiceToSave.profit = Math.round((invoiceToSave.total - invoiceToSave.costTotal) * 100) / 100;
+  
   invoiceToSave.paymentsSummary = { paid: 0, due: invoiceToSave.total };
-  console.log('[DEBUG][InvoiceSave]', {
-    companyId,
-    invoiceId: (invoiceToSave as Record<string, unknown>)['id'],
-    subtotal: invoiceToSave.subtotal,
-    taxRate: invoiceToSave.taxRate,
-    taxAmount: invoiceToSave.taxAmount,
-    total: invoiceToSave.total,
-  });
-  // Prefer server-side atomic invoice creation to avoid client-side race conditions.
-  try {
-    const payload = await createInvoiceAtomic(companyId, invoiceToSave as Partial<Invoice>);
-    const invoiceId =
-      payload && (payload.invoiceId || payload.id) ? payload.invoiceId || payload.id : undefined;
-    if (invoiceId) {
-      const saved = await getInvoiceById(companyId, String(invoiceId));
-      if (saved) return saved;
+  
+  invoiceToSave.paymentsSummary = { paid: 0, due: invoiceToSave.total };
+  
+  // Conditionally execute save logic based on FREE_MODE
+  if (IS_FREE_MODE) {
+    // Client-side transaction for FREE_MODE
+    const result = await runTransaction(db, async (tx) => {
+      // Get current user's UID for createdBy/updatedBy fields
+      const currentUser = auth.currentUser;
+      const currentUserId = currentUser ? currentUser.uid : 'anonymous';
+
+      // 1. Determine if create vs update and get invoiceRef
+      const isUpdate = !!invoiceToSave.id;
+      const invoiceRef = invoiceToSave.id
+        ? doc(db, 'companies', companyId, 'invoices', invoiceToSave.id)
+        : doc(collection(db, 'companies', companyId, 'invoices'));
+
+      let oldInvoice: Invoice | undefined;
+      if (isUpdate) {
+        const oldInvoiceSnap = await tx.get(invoiceRef);
+        if (!oldInvoiceSnap.exists()) {
+          // This should ideally not happen if UI is working correctly, but good to guard
+          throw new Error('Invoice not found for update.'); 
+        }
+        oldInvoice = oldInvoiceSnap.data() as Invoice;
+        // Check if invoice can be edited (not posted, period not locked) - mimic server checks for client safety
+        const companyDoc = (await tx.get(doc(db, 'companies', companyId))).data() as Company;
+        if (isPosted(oldInvoice)) {
+          throw new Error('Cannot edit posted (finalized) invoice.');
+        }
+        if (isPeriodLocked(companyDoc, oldInvoice.date)) {
+          throw new Error('Accounting period locked. Edits are not permitted for the selected date.');
+        }
+      }
+
+      // 2. Generate invoiceNumber for new invoices, transaction-safe
+      if (!isUpdate || !invoiceToSave.invoiceNumber) {
+        const counterRef = doc(db, 'companies', companyId, 'counters', 'main');
+        const counterSnap = await tx.get(counterRef);
+        let nextNumber = 1;
+        if (counterSnap.exists()) {
+          const data = counterSnap.data();
+          nextNumber = (data.lastInvoiceNumber || 0) + 1;
+        }
+        tx.set(counterRef, { lastInvoiceNumber: nextNumber, updatedAt: serverTimestamp() }, { merge: true });
+        invoiceToSave.invoiceNumber = `INV-${String(nextNumber).padStart(4, '0')}`;
+      }
+
+      // 3. Stock management and cost/profit calculation within transaction
+      let costTotal = 0;
+      const productUpdates = new Map<string, { change: number; newStock: number }>();
+      const oldInvoiceItemsMap = new Map<string, number>(); // productId -> quantity from old invoice
+      const oldInvoiceItemUnitCosts = new Map<string, number>(); // productId -> unitCost from old invoice
+
+      if (oldInvoice) {
+        oldInvoice.items.forEach(item => {
+          oldInvoiceItemsMap.set(item.productId, (oldInvoiceItemsMap.get(item.productId) || 0) + item.quantity);
+          oldInvoiceItemUnitCosts.set(item.productId, item.unitCost || 0);
+        });
+      }
+
+      for (const item of invoiceToSave.items) {
+        const prodRef = doc(db, 'companies', companyId, 'products', item.productId);
+        const prodSnap = await tx.get(prodRef);
+        if (!prodSnap.exists()) {
+          throw new Error(`Product not found: ${item.productName || item.productId}`);
+        }
+        const productData = prodSnap.data() as Product;
+        const currentStock = Number(productData.stock) || 0;
+        const oldQuantity = oldInvoiceItemsMap.get(item.productId) || 0;
+        const newQuantity = Number(item.quantity) || 0;
+
+        // Ensure new quantity is valid
+        if (newQuantity <= 0) {
+          throw new Error(`Item quantity for ${item.productName || item.productId} must be greater than 0.`);
+        }
+
+                // Calculate net change for this product in terms of quantity adjustment
+                // Positive netChange means more items are being sold (stock decreases)
+                // Negative netChange means fewer items are being sold (stock increases, e.g., edit reduces quantity)
+                const netChange = newQuantity - oldQuantity;
+        
+                if (netChange !== 0) {
+                    // Determine stock change based on netChange
+                    const stockChange = -netChange; // If netChange is positive, stockChange is negative (deduction from stock)
+                                                    // If netChange is negative, stockChange is positive (addition to stock)
+        
+                    const newStock = currentStock + stockChange;
+        
+                    // Ensure stock doesn't go negative due to this transaction
+                    if (newStock < 0) {
+                        throw new Error(`Insufficient stock for product "${item.productName || productData.name}". Available: ${currentStock}, adjusted stock would be ${newStock}. Cannot fulfill, results in negative stock.`);
+                    }
+                    productUpdates.set(item.productId, { change: stockChange, newStock: newStock });
+                }
+        
+        
+                // Use product's averageCost/defaultCost if unitCost is not provided, or take from old invoice
+                const unitCost =
+                  Number(item.unitCost) ||
+                  Number(productData.averageCost) ||
+                  Number(productData.defaultCost) ||
+                  oldInvoiceItemUnitCosts.get(item.productId) || // Fallback to old invoice's unit cost
+                  0;
+        
+                (item as any).unitCost = unitCost; // Snapshot unit cost
+                costTotal += unitCost * newQuantity;
+        
+                // Remove from old map as it's been processed
+                oldInvoiceItemsMap.delete(item.productId);
+              }
+        
+              // Handle items entirely removed from the new invoice (remaining in oldInvoiceItemsMap)
+              for (const [productId, removedQuantity] of oldInvoiceItemsMap.entries()) {
+                const prodRef = doc(db, 'companies', companyId, 'products', productId);
+                const prodSnap = await tx.get(prodRef);
+                if (!prodSnap.exists()) {
+                  console.warn(`Product ${productId} not found when processing removed item from old invoice.`);
+                  continue;
+                }
+                const productData = prodSnap.data() as Product;
+                const currentStock = Number(productData.stock) || 0;
+        
+                // Stock should increase by the removed quantity (since it's no longer sold)
+                const stockChange = removedQuantity;
+                const newStock = currentStock + stockChange;
+                
+                productUpdates.set(productId, { change: stockChange, newStock: newStock });
+              }
+        
+              // Apply all product stock updates and create ledger entries
+              for (const [productId, { newStock, change }] of productUpdates.entries()) {
+                const prodRef = doc(db, 'companies', companyId, 'products', productId);
+                tx.update(prodRef, { stock: newStock, updatedAt: serverTimestamp() });
+                
+                // Add stock ledger entry for audit trail
+                const ledgerRef = doc(collection(db, 'companies', companyId, 'stockLedger'));
+                tx.set(ledgerRef, {
+                  productId: productId,
+                  productName: invoiceToSave.items.find(it => it.productId === productId)?.productName || 'Unknown Product', // Snapshot product name
+                  change: change, // Positive for increase, negative for decrease
+                  qtyBefore: newStock - change, // Calculate qtyBefore based on newStock and change
+                  qtyAfter: newStock,
+                  unitCost: invoiceToSave.items.find(it => it.productId === productId)?.unitCost || 0, // Use snapshot or default
+                  sourceType: isUpdate ? 'INVOICE_ADJUSTMENT' : 'SALE',
+                  referenceCollection: 'invoices',
+                  referenceId: invoiceRef.id,
+                  timestamp: serverTimestamp(),
+                  createdBy: currentUserId,
+                });
+              }
+        
+              // Final invoice data preparation
+              const now = serverTimestamp();
+              const finalInvoiceData = {
+                ...invoiceToSave,
+                costTotal: Math.round(costTotal * 100) / 100,
+                profit: Math.round((invoiceToSave.total - costTotal) * 100) / 100,
+                createdAt: isUpdate && oldInvoice ? oldInvoice.createdAt : now,
+                updatedAt: now,
+                // Ensure paymentsSummary is updated if any payments have been made against the old invoice
+                paymentsSummary: {
+                  paid: (oldInvoice?.paymentsSummary?.paid || 0), // Preserve old payments
+                  due: Math.max(0, invoiceToSave.total - (oldInvoice?.paymentsSummary?.paid || 0)) // Recalculate due
+                },
+                status: (oldInvoice?.paymentsSummary?.paid || 0) >= invoiceToSave.total ? InvoiceStatus.Paid : InvoiceStatus.Due,
+              };
+      tx.set(invoiceRef, finalInvoiceData);
+      return { id: invoiceRef.id, ...finalInvoiceData } as Invoice;
+    });
+    return result;
+
+  } else {
+    // Keep existing server-side createInvoiceAtomic path (emulators/dev).
+    try {
+      // Ensure invoice items carry unitCost snapshot and compute cost/profit before sending to callable
+      let costTotalServer = 0;
+      for (const it of invoiceToSave.items) {
+        if (!it.productId) {
+          (it as any)['unitCost'] = 0;
+          continue;
+        }
+        // In this path, getById is fine outside transaction as it's just for calculation
+        const prod = await getById<Product>(companyId, 'products', it.productId);
+        const unitCost =
+          typeof (it as any)['unitCost'] === 'number'
+            ? ((it as any)['unitCost'] as number)
+            : prod && typeof prod.averageCost === 'number'
+              ? (prod.averageCost as number)
+              : prod && typeof prod.defaultCost === 'number'
+                ? (prod.defaultCost as number)
+                : 0;
+        (it as any)['unitCost'] = unitCost;
+        costTotalServer += unitCost * it.quantity;
+      }
+      invoiceToSave.costTotal = Math.round(costTotalServer * 100) / 100;
+      invoiceToSave.profit = Math.round((invoiceToSave.total - invoiceToSave.costTotal) * 100) / 100;
+      
+      console.log('[DEBUG][InvoiceSave]', {
+        companyId,
+        invoiceId: (invoiceToSave as Record<string, unknown>)['id'],
+        subtotal: invoiceToSave.subtotal,
+        taxRate: invoiceToSave.taxRate,
+        taxAmount: invoiceToSave.taxAmount,
+        total: invoiceToSave.total,
+        paymentsSummary: invoiceToSave.paymentsSummary,
+      });
+
+      const payload = await createInvoiceAtomic(companyId, invoiceToSave as Partial<Invoice>);
+      const invoiceId =
+        payload && (payload.invoiceId || payload.id) ? payload.invoiceId || payload.id : undefined;
+      if (invoiceId) {
+        const saved = await getInvoiceById(companyId, String(invoiceId));
+        if (saved) return saved;
+      }
+      // If callable did not return an id or failed, require server-side atomic operation
+      throw new Error(
+        'createInvoiceAtomic callable required: cannot perform invoice creation client-side'
+      );
+    } catch (err) {
+      console.error(
+        '[FIRESTORE] createInvoiceAtomic failed or is unavailable; server-side callable is required for invoice creation',
+        err?.message || err
+      );
+      throw err;
     }
-    // If callable did not return an id or failed, require server-side atomic operation
-    throw new Error(
-      'createInvoiceAtomic callable required: cannot perform invoice creation client-side'
-    );
-  } catch (err) {
-    console.error(
-      '[FIRESTORE] createInvoiceAtomic failed or is unavailable; server-side callable is required for invoice creation',
-      err?.message || err
-    );
-    throw err;
   }
 };
 

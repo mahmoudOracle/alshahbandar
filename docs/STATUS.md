@@ -132,11 +132,34 @@ Deployment
 - Netlify build configured for Vite (`npm run build`), output `dist/`.
 - Confirm `netlify.toml` and `_redirects` include SPA fallback for HashRouter.
 
+
 Firebase
 - Ensure Firebase config in `services/firebase.ts` is correct for production.
 - Configure `VITE_USE_EMULATORS` and emulator ports only for dev.
 - Verify Firestore rules for multi-tenant isolation on all collections.
 - Deploy callable Functions listed above; ensure `getCompanyInvitations` and `isPlatformAdmin` are deployed.
+
+### Development Setup (Emulators)
+To run the app in development with Firebase Emulators, ensure you have the Firebase CLI installed and configured.
+
+1.  **Start Emulators**: In your terminal, navigate to your Firebase project root (typically the `functions` directory or the project root if `firebase.json` is there) and run:
+    ```bash
+    firebase emulators:start --only auth,firestore,functions
+    ```
+2.  **Start Development Server**: In a separate terminal, from the app's root directory, run:
+    ```bash
+    npm run dev
+    ```
+    Ensure your `.env.local` or similar environment configuration includes:
+    ```
+    VITE_USE_EMULATORS=true
+    VITE_FREE_MODE=false # For testing Cloud Functions (server-side logic)
+    ```
+    To test the client-side transaction logic (without Cloud Functions, for PROD free mode simulation), use:
+    ```
+    VITE_USE_EMULATORS=false
+    VITE_FREE_MODE=true # For testing client-side transactions (PROD free mode)
+    ```
 
 Security/Observability
 - Add error tracking (Sentry/LogRocket) and log sampling for auth + data access.

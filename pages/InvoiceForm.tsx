@@ -138,6 +138,7 @@ const InvoiceForm: React.FC = () => {
   const [draftAvailable, setDraftAvailable] = useState(false);
   const [draftData, setDraftData] = useState<unknown | null>(null);
   const draftKey = `draft:invoice:${activeCompanyId}:${id || 'new'}`;
+  const [originalInvoice, setOriginalInvoice] = useState<Invoice | undefined>(undefined);
 
   useEffect(() => {
     if (!canWrite && id) {
@@ -165,6 +166,7 @@ const InvoiceForm: React.FC = () => {
         if (id) {
           const invoiceRes = await getInvoiceById(activeCompanyId, id);
           if (invoiceRes) {
+            setOriginalInvoice(invoiceRes); // Store original invoice
             // Keep taxRate and taxAmount if present
             const asObj = invoiceRes as unknown as Record<string, unknown>;
             const { id: _id, subtotal: _subtotal, total: _total, ...invoiceData } = asObj;
@@ -303,7 +305,7 @@ const InvoiceForm: React.FC = () => {
     const invoiceToSave = { ...invoice, subtotal, total };
     try {
       const result = id
-        ? await saveInvoice(activeCompanyId, { ...invoiceToSave, id })
+        ? await saveInvoice(activeCompanyId, { ...invoiceToSave, id }, originalInvoice)
         : await saveInvoice(activeCompanyId, invoiceToSave);
       if (result) {
         addNotification(id ? 'تم حفظ التعديل بنجاح.' : 'تم حفظ الفاتورة بنجاح.', 'success');

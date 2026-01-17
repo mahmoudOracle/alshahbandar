@@ -18,6 +18,7 @@ import LogoPlaceholder from './components/LogoPlaceholder';
 import Avatar from './components/Avatar';
 import { designTokens } from './design-tokens';
 import NotAuthorizedPage from './pages/NotAuthorizedPage';
+import EmulatorConnectionBanner from './components/EmulatorConnectionBanner'; // Import the new banner
 
 // Inline small header user menu (keeps App layout simple). Uses AuthContext to access user and memberships.
 const HeaderUserMenu: React.FC = () => {
@@ -237,6 +238,8 @@ function App() {
       )}
 
       <main className="flex-1 flex flex-col overflow-hidden">
+        {/* Emulator Connection Banner at the very top of main content */}
+        <EmulatorConnectionBanner /> 
         <header
           className="shadow-sm p-3 flex flex-col sm:flex-row items-center justify-between gap-4 relative"
           style={{ background: designTokens.colors.primary[600], color: '#ffffff' }}
@@ -319,3 +322,4 @@ const AppWrapper: React.FC = () => {
 };
 
 export default AppWrapper;
+

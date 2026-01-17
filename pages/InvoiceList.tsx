@@ -28,6 +28,23 @@ import { Select } from '../components/ui/Select';
 import { Badge } from '../components/ui/Badge';
 import { Card } from '../components/ui/Card';
 
+// Simple debounce hook
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
 const getStatusBadge = (status: InvoiceStatus, dueDate: string): React.ReactNode => {
   const isOverdue = status === InvoiceStatus.Due && new Date(dueDate) < new Date();
   switch (status) {
@@ -133,10 +150,64 @@ const InvoiceList: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'All'>('All');
-  const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
+  const [dateRange, setDateRange] = useState<{
+    type: 'all' | 'today' | 'yesterday' | 'thisWeek' | 'thisMonth' | 'custom';
+    startDate?: string;
+    endDate?: string;
+    customStart?: string;
+    customEnd?: string;
+  }>({ type: 'all' });
   const [sortBy, setSortBy] = useState<'date_desc' | 'date_asc' | 'total_desc' | 'total_asc'>(
     'date_desc'
   );
+
+  
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+
+  const calculateDateRange = useCallback((type: string, date = new Date()) => {
+    const start = new Date(date);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(date);
+    end.setHours(23, 59, 59, 999);
+
+    const formatISO = (d: Date) => d.toISOString().split('T')[0];
+
+    let startDate: string | undefined = undefined;
+    let endDate: string | undefined = undefined;
+
+    switch (type) {
+      case 'today':
+        startDate = formatISO(start);
+        endDate = formatISO(end);
+        break;
+      case 'yesterday':
+        start.setDate(start.getDate() - 1);
+        end.setDate(end.getDate() - 1);
+        startDate = formatISO(start);
+        endDate = formatISO(end);
+        break;
+      case 'thisWeek':
+        start.setDate(start.getDate() - start.getDay()); // Start of week (Sunday)
+        end.setDate(start.getDate() + 6); // End of week (Saturday)
+        endDate.setHours(23, 59, 59, 999);
+        startDate = formatISO(start);
+        endDate = formatISO(end);
+        break;
+      case 'thisMonth':
+        start.setDate(1); // Start of month
+        end.setMonth(start.getMonth() + 1);
+        end.setDate(0); // Last day of month
+        endDate.setHours(23, 59, 59, 999);
+        startDate = formatISO(start);
+        endDate = formatISO(end);
+        break;
+      case 'all':
+      default:
+        break;
+    }
+    return { startDate, endDate };
+  }, []);
+
 
   const [nextCursor, setNextCursor] = useState<unknown | null>(null);
   const [prevCursors, setPrevCursors] = useState<unknown[]>([]);
@@ -148,16 +219,31 @@ const InvoiceList: React.FC = () => {
   const navigate = useNavigate();
 
   const fetchInvoices = useCallback(
-    async (cursor?: unknown, direction: 'next' | 'prev' = 'next') => {
+    async (
+      cursor?: unknown,
+      direction: 'next' | 'prev' = 'next',
+    ) => {
       if (!activeCompanyId) return;
       setLoading(true);
+
+      const [orderByField, orderDirection] = sortBy.split('_') as [string, 'asc' | 'desc'];
+      
+      const filters: [string, '==', unknown][] = [];
+      if (statusFilter !== 'All') {
+        filters.push(['status', '==', statusFilter]);
+      }
 
       try {
         const result = await getInvoices(activeCompanyId, {
           limit: PAGE_SIZE,
           startAfter: cursor as any,
-          orderBy: 'date',
-          orderDirection: 'desc',
+          orderBy: orderByField,
+          orderDirection: orderDirection,
+          dateStart: dateRange.startDate,
+          dateEnd: dateRange.endDate,
+          searchField: debouncedSearchTerm ? 'customerName' : undefined, // Assuming search by customer name
+          searchTerm: debouncedSearchTerm || undefined,
+          filters: filters.length > 0 ? filters : undefined,
         });
 
         setInvoices(result.data);
@@ -176,12 +262,13 @@ const InvoiceList: React.FC = () => {
       }
       setLoading(false);
     },
-    [activeCompanyId, addNotification]
+    [activeCompanyId, addNotification, sortBy, statusFilter, dateRange.startDate, dateRange.endDate, debouncedSearchTerm]
   );
 
   useEffect(() => {
-    fetchInvoices();
-  }, [fetchInvoices]);
+    setPrevCursors([]); // Reset pagination when filters change
+    fetchInvoices(undefined, 'next');
+  }, [fetchInvoices, sortBy, statusFilter, dateRange.startDate, dateRange.endDate, debouncedSearchTerm]);
 
   const handleNextPage = () => {
     if (nextCursor) {
@@ -191,11 +278,45 @@ const InvoiceList: React.FC = () => {
 
   const handlePrevPage = () => {
     if (prevCursors.length > 0) {
-      const prevCursor = prevCursors[prevCursors.length - 2];
-      fetchInvoices(prevCursor, 'prev');
-    } else {
-      fetchInvoices(undefined, 'prev');
+      const prevCursorToUse = prevCursors.length > 1 ? prevCursors[prevCursors.length - 2] : undefined;
+      fetchInvoices(prevCursorToUse, 'prev');
     }
+  };
+
+  const handleChangeDateRange = (type: typeof dateRange.type, date?: Date) => {
+    const { startDate, endDate } = calculateDateRange(type, date);
+    setDateRange({ type, startDate, endDate });
+  };
+
+  const handlePeriodNavigation = (direction: 'prev' | 'next') => {
+    const currentStartDate = dateRange.startDate ? new Date(dateRange.startDate) : new Date();
+    const currentEndDate = dateRange.endDate ? new Date(dateRange.endDate) : new Date();
+    const newStartDate = new Date(currentStartDate);
+    const newEndDate = new Date(currentEndDate);
+
+    if (dateRange.type === 'today' || dateRange.type === 'yesterday') {
+      const dayOffset = direction === 'prev' ? -1 : 1;
+      newStartDate.setDate(currentStartDate.getDate() + dayOffset);
+      newEndDate.setDate(currentEndDate.getDate() + dayOffset);
+    } else if (dateRange.type === 'thisWeek') {
+      const weekOffset = direction === 'prev' ? -7 : 7;
+      newStartDate.setDate(currentStartDate.getDate() + weekOffset);
+      newEndDate.setDate(currentEndDate.getDate() + weekOffset);
+    } else if (dateRange.type === 'thisMonth') {
+      const monthOffset = direction === 'prev' ? -1 : 1;
+      newStartDate.setMonth(currentStartDate.getMonth() + monthOffset);
+      newEndDate.setMonth(currentEndDate.getMonth() + monthOffset);
+      newEndDate.setDate(0); // Last day of new month
+      newStartDate.setDate(1); // First day of new month
+    } else {
+      // For 'all' or 'custom' types, navigation might not make sense or require specific logic
+      return;
+    }
+    setDateRange({
+      type: dateRange.type,
+      startDate: newStartDate.toISOString().split('T')[0],
+      endDate: newEndDate.toISOString().split('T')[0],
+    });
   };
 
   const handleDelete = async (invoiceId: string) => {
@@ -207,14 +328,14 @@ const InvoiceList: React.FC = () => {
     try {
       const res = await deleteInvoice(activeCompanyId, invoiceId);
       if (res) {
-        setInvoices((prev) => prev.filter((i) => i.id !== invoiceId));
+        // No need to filter client-side, just re-fetch
         addNotification('تم حذف الفاتورة بنجاح.', 'success', {
           label: 'تراجع',
           onClick: async () => {
             try {
               const ok = await undeleteDocument(activeCompanyId, 'invoices', invoiceId);
               if (ok) {
-                await fetchInvoices();
+                await fetchInvoices(); // Re-fetch on undo
                 return;
               }
               throw new Error('فشل استرجاع الفاتورة');
@@ -223,7 +344,7 @@ const InvoiceList: React.FC = () => {
             }
           },
         });
-        fetchInvoices();
+        fetchInvoices(); // Re-fetch all invoices after delete
       } else {
         addNotification('فشل حذف الفاتورة.', 'error');
       }
@@ -271,35 +392,12 @@ const InvoiceList: React.FC = () => {
     }
   };
 
-  const filteredInvoices = useMemo(() => {
-    return invoices.filter((invoice) => {
-      if (statusFilter !== 'All' && invoice.status !== statusFilter) return false;
-      if (
-        searchTerm &&
-        !(invoice.customerName || '').toLowerCase().includes((searchTerm || '').toLowerCase()) &&
-        !(invoice.invoiceNumber || '').toLowerCase().includes((searchTerm || '').toLowerCase())
-      )
-        return false;
-      if (dateFilter.start && invoice.date < dateFilter.start) return false;
-      if (dateFilter.end && invoice.date > dateFilter.end) return false;
-      return true;
-    });
-  }, [invoices, searchTerm, statusFilter, dateFilter]);
-
-  const sortedInvoices = useMemo(() => {
-    const list = [...filteredInvoices];
-    if (sortBy === 'date_desc')
-      return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    if (sortBy === 'date_asc')
-      return list.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    if (sortBy === 'total_desc') return list.sort((a, b) => (b.total || 0) - (a.total || 0));
-    if (sortBy === 'total_asc') return list.sort((a, b) => (a.total || 0) - (b.total || 0));
-    return list;
-  }, [filteredInvoices, sortBy]);
+  // No longer need client-side filtering/sorting, as it's done server-side
+  const displayedInvoices = invoices;
 
   if (loading || settingsLoading) return <TableSkeleton cols={7} rows={PAGE_SIZE} />;
 
-  if (invoices.length === 0 && !loading) {
+  if (invoices.length === 0 && !loading && debouncedSearchTerm === '' && statusFilter === 'All' && !dateRange.startDate) {
     return (
       <EmptyState
         icon={<DocumentTextIcon className="h-8 w-8" />}
@@ -337,36 +435,70 @@ const InvoiceList: React.FC = () => {
         />
         <div className="flex items-center gap-2 w-full md:w-auto">
           <input
-            type="text"
-            value={dateFilter.start.split('-').reverse().join('/')}
+            type="date" // Changed to date type for better UX
+            value={dateRange.customStart || dateRange.startDate || ''}
             onChange={(e) => {
               const val = e.target.value;
-              const s = val.includes('/') ? '/' : val.includes('-') ? '-' : '/';
-              const parts = val.split(s).map((p) => p.trim());
-              const iso =
-                parts.length === 3
-                  ? `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
-                  : val;
-              setDateFilter((p) => ({ ...p, start: iso }));
+              setDateRange((prev) => ({ ...prev, type: 'custom', customStart: val, startDate: val }));
             }}
             className="w-full px-3 py-2 border rounded-md"
+            placeholder="تاريخ البدء"
           />
           <span className="text-sm text-gray-500">إلى</span>
           <input
-            type="text"
-            value={dateFilter.end.split('-').reverse().join('/')}
+            type="date" // Changed to date type for better UX
+            value={dateRange.customEnd || dateRange.endDate || ''}
             onChange={(e) => {
               const val = e.target.value;
-              const s = val.includes('/') ? '/' : val.includes('-') ? '-' : '/';
-              const parts = val.split(s).map((p) => p.trim());
-              const iso =
-                parts.length === 3
-                  ? `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
-                  : val;
-              setDateFilter((p) => ({ ...p, end: iso }));
+              setDateRange((prev) => ({ ...prev, type: 'custom', customEnd: val, endDate: val }));
             }}
             className="w-full px-3 py-2 border rounded-md"
+            placeholder="تاريخ الانتهاء"
           />
+        </div>
+        <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+          <Button
+            variant={dateRange.type === 'today' ? 'primary' : 'secondary'}
+            size="sm"
+            onClick={() => handleChangeDateRange('today')}
+          >
+            اليوم
+          </Button>
+          <Button
+            variant={dateRange.type === 'yesterday' ? 'primary' : 'secondary'}
+            size="sm"
+            onClick={() => handleChangeDateRange('yesterday')}
+          >
+            أمس
+          </Button>
+          <Button
+            variant={dateRange.type === 'thisWeek' ? 'primary' : 'secondary'}
+            size="sm"
+            onClick={() => handleChangeDateRange('thisWeek')}
+          >
+            هذا الأسبوع
+          </Button>
+          <Button
+            variant={dateRange.type === 'thisMonth' ? 'primary' : 'secondary'}
+            size="sm"
+            onClick={() => handleChangeDateRange('thisMonth')}
+          >
+            هذا الشهر
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => handlePeriodNavigation('prev')}
+          >
+            <ChevronRightIcon className="h-4 w-4" /> {/* Right for previous */}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => handlePeriodNavigation('next')}
+          >
+            <ChevronLeftIcon className="h-4 w-4" /> {/* Left for next */}
+          </Button>
         </div>
         <select
           value={sortBy}
@@ -402,7 +534,7 @@ const InvoiceList: React.FC = () => {
         )}
       </div>
 
-      {sortedInvoices.length > 0 ? (
+      {displayedInvoices.length > 0 ? (
         <>
           <div className="hidden md:block overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -429,7 +561,7 @@ const InvoiceList: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {sortedInvoices.map((invoice) => (
+                {displayedInvoices.map((invoice) => (
                   <tr key={invoice.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="px-6 py-4 whitespace-nowrap">{invoice.invoiceNumber}</td>
                     <td className="px-6 py-4 whitespace-nowrap">{invoice.customerName}</td>
@@ -487,7 +619,7 @@ const InvoiceList: React.FC = () => {
           </div>
 
           <div className="md:hidden space-y-4 mt-4">
-            {sortedInvoices.map((invoice) => (
+            {displayedInvoices.map((invoice) => (
               <InvoiceCard
                 key={invoice.id}
                 invoice={invoice}

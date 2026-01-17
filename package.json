@@ -16,7 +16,11 @@
     "test:watch": "vitest --watch",
     "test:integration": "vitest --run src/__tests__/integration --environment=node",
     "test:coverage": "vitest --coverage",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "emu": "firebase emulators:start --only auth,firestore,functions --import=./firestore.rules --export-on-exit=./firestore.rules.bak.2025-11-19",
+    "dev:emu": "concurrently --kill-others-on-fail -c \"bgBlue.bold,bgGreen.bold\" -n \"EMULATORS,VITE\" \"npm run emu\" \"npm run dev\"",
+    "dev:prod": "vite --mode production",
+    "seed:emu": "ts-node scripts/seedEmulators.ts"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
@@ -40,16 +44,20 @@
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^16.0.0",
     "@types/node": "^22.14.0",
+    "@types/react": "^19.2.8",
+    "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "@vitejs/plugin-react": "^5.0.0",
     "chrome-launcher": "^1.2.1",
+    "concurrently": "^8.2.2",
     "eslint": "^8.47.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-react": "^7.33.2",
     "jsdom": "^22.0.0",
     "lighthouse": "^13.0.1",
     "prettier": "^3.7.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.9.0",
     "vite": "^6.2.0",
     "vitest": "^4.0.16"

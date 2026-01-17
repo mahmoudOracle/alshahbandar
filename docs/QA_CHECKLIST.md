@@ -1,3 +1,18 @@
+### Emulator Setup for Development
+
+To run the application with Firebase Emulators (recommended for development):
+
+1.  Start Firebase Emulators:
+    ```bash
+    firebase emulators:start --only auth,firestore,functions
+    ```
+2.  Set `VITE_USE_EMULATORS=true` in your `.env.development` file (or equivalent).
+3.  Start the development server:
+    ```bash
+    npm run dev
+    ```
+This ensures that your local development environment uses the emulators for authentication, Firestore, and Cloud Functions.
+
 # QA Checklist
 ملاحظة: هذا الملف محفوظ بترميز UTF-8
 

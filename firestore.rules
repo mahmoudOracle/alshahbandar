@@ -1,4 +1,4 @@
-﻿rules_version = '2';
+﻿﻿rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -119,9 +119,8 @@ service cloud.firestore {
         // Reads allowed for members only (platform admins do not read tenant data)
         allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
 
-        // Writes allowed only for platform admins or members with sufficient role
-        // For destructive operations (deletes) require server-side callable to set `isDeleted` flag.
-        allow create, update: if isSignedIn() && (isManagerRole(companyId) && isCompanyActive(companyId));
+        // Writes denied by default for wildcard. Must use specific collection matches.
+        allow create, update, delete: if false;
 
         // Prevent client-side hard deletes; require server-side callable to mark `isDeleted`.
         allow delete: if false;
@@ -225,11 +224,16 @@ service cloud.firestore {
     match /companies/{companyId}/members/{userId} {
       allow read: if isSignedIn() && isCompanyUser(companyId);
       allow create: if isSignedIn() && (
-        request.auth.uid == userId && isCompanyActive(companyId)
+        request.auth.uid == userId && isCompanyActive(companyId) &&
+        // Prevent creating self as owner unless already verified as company owner
+        (request.resource.data.role != 'owner' || isCompanyOwner(companyId))
       );
-      allow update, delete: if isSignedIn() && (
-        request.auth.uid == userId && isCompanyActive(companyId)
+      allow update: if isSignedIn() && isCompanyActive(companyId) && (
+        // Managers can update members, OR users can update themselves IF they don't change their role
+        hasCompanyRole(companyId, ['owner', 'manager', 'company_owner']) ||
+        (request.auth.uid == userId && request.resource.data.role == resource.data.role)
       );
+      allow delete: if false;
     }
 
     // Invitations: NOT readable/writable by regular clients. Only server-side (Cloud Functions with admin SDK)
