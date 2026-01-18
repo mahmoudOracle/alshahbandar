@@ -19,7 +19,7 @@ const LoginPage: React.FC = () => {
     setLoading(true);
     try {
       await signInWithEmail(email.trim(), password);
-      navigate('/');
+      navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
       addNotification(
         (err as Error).message || 'تعذر تسجيل الدخول. تأكد من البريد وكلمة المرور.',

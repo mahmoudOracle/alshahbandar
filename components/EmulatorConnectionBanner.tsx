@@ -9,7 +9,7 @@ const EmulatorConnectionBanner: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const interval: NodeJS.Timeout;
+    let interval: NodeJS.Timeout | undefined;
 
     const checkEmulatorStatus = async () => {
       // Only show banner in development and if emulators are intended to be used

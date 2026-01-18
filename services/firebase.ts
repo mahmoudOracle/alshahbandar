@@ -58,6 +58,12 @@ try {
   functions = getFunctions(app);
   storage = getStorage(app);
   const metaEnv = (import.meta as unknown as { env?: Record<string, string> }).env;
+  // One-time log for environment verification
+  console.log('[ENV]', {
+    DEV: import.meta.env.DEV,
+    VITE_USE_EMULATORS: import.meta.env.VITE_USE_EMULATORS,
+    VITE_FREE_MODE: import.meta.env.VITE_FREE_MODE
+  });
   // Connect to local emulators only when explicitly enabled in DEV.
   try {
     const useEmulators = import.meta.env.DEV && metaEnv?.VITE_USE_EMULATORS === 'true';
