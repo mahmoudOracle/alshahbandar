@@ -1,4 +1,5 @@
 import * as firestoreService from './firestoreService';
+import { SanityError } from '../src/utils/sanityGate';
 
 type ServiceModule = typeof firestoreService;
 
@@ -235,3 +236,6 @@ export const {
   populateDummyData,
   deleteAllCompanyData,
 } = safeService;
+
+// Export SanityError for use in components and error handling
+export { SanityError };

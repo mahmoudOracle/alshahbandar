@@ -20,6 +20,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { User } from 'firebase/auth';
+import * as SanityGate from '../src/utils/sanityGate';
 import {
   Invoice,
   Customer,
@@ -694,6 +695,30 @@ const getById = async <T>(
   return normalizeByCollection(collectionName, rawData);
 };
 
+/**
+ * Apply Sanity Gate validation and coercion before write
+ * Routes collection-specific sanitizers or passes through for unvalidated collections
+ */
+const applySanityGate = (collectionName: string, item: unknown): unknown => {
+  switch (collectionName) {
+    case 'customers':
+      return SanityGate.sanitizeCustomer(item);
+    case 'products':
+      return SanityGate.sanitizeProduct(item);
+    case 'invoices':
+      return SanityGate.sanitizeInvoice(item);
+    case 'payments':
+      return SanityGate.sanitizePayment(item);
+    case 'returns':
+      return SanityGate.sanitizeReturn(item);
+    case 'stockLedger':
+      return SanityGate.sanitizeStockLedger(item);
+    default:
+      // Collections without explicit sanitizers pass through unchanged
+      return item;
+  }
+};
+
 const saveData = async <T extends { id?: string }>(
   companyId: string,
   collectionName: string,
@@ -701,12 +726,24 @@ const saveData = async <T extends { id?: string }>(
   section: WriteableSection
 ): Promise<T> => {
   ensureWriteAllowed(section);
+  
+  // ===== SANITY GATE: Apply validation and coercion =====
+  let validatedItem: any;
+  try {
+    validatedItem = applySanityGate(collectionName, item);
+  } catch (error) {
+    if (error instanceof SanityGate.SanityError) {
+      console.error(`[SANITY_GATE] Validation failed for collection "${collectionName}":`, error.message);
+    }
+    throw error;
+  }
+  
   // Accounting safety (UI-level): prevent edits to posted or locked-period documents.
   // Note: server-side rules and callables are authoritative; this is an early guard to prevent accidental edits.
   const company = await getCompany(companyId);
 
-  if ('id' in item && item.id) {
-    const { id, ...data } = item as any;
+  if ('id' in validatedItem && validatedItem.id) {
+    const { id, ...data } = validatedItem as any;
     const docRef = doc(db, 'companies', companyId, collectionName, id);
     const existing = await getDoc(docRef);
     const existingData = existing.exists() ? existing.data() : null;
@@ -721,9 +758,9 @@ const saveData = async <T extends { id?: string }>(
     }
 
     await setDoc(docRef, data, { merge: true });
-    return item as T;
+    return validatedItem as T;
   } else {
-    const newItem = item as any;
+    const newItem = validatedItem as any;
     const dateToCheck =
       newItem && (newItem.date || newItem.createdAt)
         ? newItem.date || newItem.createdAt
@@ -732,8 +769,8 @@ const saveData = async <T extends { id?: string }>(
       throw new Error('Accounting period locked. Cannot create documents in locked period.');
     }
 
-    const docRef = await addDoc(getCollectionRef(companyId, collectionName), item);
-    return { id: docRef.id, ...item } as T;
+    const docRef = await addDoc(getCollectionRef(companyId, collectionName), validatedItem);
+    return { id: docRef.id, ...validatedItem } as T;
   }
 };
 
