@@ -27,14 +27,14 @@ const hardcodedDefaultSettings: Settings = {
 };
 
 export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const { addNotification } = useNotification();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchSettings = async () => {
-      if (!activeCompanyId) {
+      if (!companyId) {
         setLoading(false);
         setSettings(null);
         return;
@@ -42,15 +42,15 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
 
       setLoading(true);
       try {
-        const firestoreSettings = await getSettings(activeCompanyId);
+        const firestoreSettings = await getSettings(companyId);
         if (firestoreSettings) {
           setSettings({ ...firestoreSettings, source: 'firestore' });
         } else {
           console.log(
             'No settings in source. Seeding default settings for company:',
-            activeCompanyId
+            companyId
           );
-          await saveSettingsService(activeCompanyId, hardcodedDefaultSettings);
+          await saveSettingsService(companyId, hardcodedDefaultSettings);
           setSettings({ ...hardcodedDefaultSettings, source: 'firestore' });
         }
       } catch (err: unknown) {
@@ -64,12 +64,12 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
     };
 
     fetchSettings();
-  }, [activeCompanyId, addNotification]);
+  }, [companyId, addNotification]);
 
   const updateSettings = async (newSettings: Omit<Settings, 'source'>) => {
-    if (!activeCompanyId) throw new Error('No active company to save settings.');
+    if (!companyId) throw new Error('No active company to save settings.');
 
-    await saveSettingsService(activeCompanyId, newSettings);
+    await saveSettingsService(companyId, newSettings);
     setSettings({ ...newSettings, source: 'firestore' });
   };
 
@@ -80,7 +80,7 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   // If there is no active company (e.g., before user selects/joins a company),
   // provide a safe local default so the app can render without blocking.
-  if (!activeCompanyId || !settings) {
+  if (!companyId || !settings) {
     const safeUpdate = async (_: Omit<Settings, 'source'>) => {
       throw new Error('Cannot save settings: no active company');
     };

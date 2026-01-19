@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/Button';
 
 const NoAccessPage: React.FC = () => {
-  const { user, signOutUser, onboardingError } = useAuth();
+  const { user, logout, onboardingError } = useAuth();
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center p-4">
@@ -26,7 +26,7 @@ const NoAccessPage: React.FC = () => {
           )}
         </div>
         <div className="mt-6">
-          <Button variant="secondary" onClick={signOutUser} className="w-full">
+          <Button variant="secondary" onClick={logout} className="w-full">
             \u062a\u0633\u062c\u064a\u0644\u0020\u0627\u0644\u062e\u0631\u0648\u062c
           </Button>
         </div>

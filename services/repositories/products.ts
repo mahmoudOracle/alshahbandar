@@ -9,6 +9,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Product } from '../../types';
+import * as normalize from '../../src/utils/normalize';
 
 interface QueryOptions {
   limit?: number;
@@ -48,9 +49,10 @@ export const getProducts = async (
 
   const q = query(collection(db, 'companies', tenantId, 'products'), ...constraints);
   const snap = await getDocs(q);
-  const data = snap.docs.map(
-    (d) => ({ id: d.id, ...(d.data() as unknown as Record<string, unknown>) }) as Product
-  );
+  const data = snap.docs.map((d) => {
+    const raw = { id: d.id, ...(d.data() as unknown as Record<string, unknown>) } as Product;
+    return normalize.normalizeProduct(raw);
+  });
 
   productCache.set(cacheKey, { ts: Date.now(), data });
   return data;

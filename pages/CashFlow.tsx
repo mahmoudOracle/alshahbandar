@@ -5,7 +5,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import { useNotification } from '../contexts/NotificationContext';
 
 const CashFlow: React.FC = () => {
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const { settings } = useSettings();
   const { addNotification } = useNotification();
 
@@ -19,10 +19,10 @@ const CashFlow: React.FC = () => {
 
   useEffect(() => {
     const fetch = async () => {
-      if (!activeCompanyId) return;
+      if (!companyId) return;
       setLoading(true);
       try {
-        const res = await getCashFlow(activeCompanyId, dateRange.start, dateRange.end);
+        const res = await getCashFlow(companyId, dateRange.start, dateRange.end);
         setResult(res);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err || 'فشل في تحميل التقرير');
@@ -31,7 +31,7 @@ const CashFlow: React.FC = () => {
       setLoading(false);
     };
     fetch();
-  }, [activeCompanyId, dateRange.start, dateRange.end, addNotification]);
+  }, [companyId, dateRange.start, dateRange.end, addNotification]);
 
   if (loading) return <div>جاري تحميل تقرير التدفقات النقدية...</div>;
 

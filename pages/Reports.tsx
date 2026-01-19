@@ -69,7 +69,7 @@ const verifyReportCalculations = async (
 };
 
 const Reports: React.FC = () => {
-  const { activeCompanyId, firebaseUser } = useAuth();
+  const { companyId, user } = useAuth();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [returns, setReturns] = useState<ReturnDoc[]>([]);
@@ -86,11 +86,11 @@ const Reports: React.FC = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!activeCompanyId) {
+      if (!companyId) {
         setLoading(false);
         return;
       }
-      if (!firebaseUser || !isSafeToAccessCompanyData(firebaseUser.uid, activeCompanyId)) {
+      if (!user || !isSafeToAccessCompanyData(user.uid, companyId)) {
         addNotification('لا تملك صلاحية الوصول لبيانات هذه الشركة.', 'error');
         setLoading(false);
         return;
@@ -98,9 +98,9 @@ const Reports: React.FC = () => {
       setLoading(true);
       try {
         const [invoicesData, expensesData, returnsData] = await Promise.all([
-          getInvoices(activeCompanyId),
-          getExpenses(activeCompanyId),
-          getReturns(activeCompanyId),
+          getInvoices(companyId),
+          getExpenses(companyId),
+          getReturns(companyId),
         ]);
         const invoicesArray = (invoicesData as unknown as { data?: Invoice[] }).data || [];
         const expensesArray = (expensesData as unknown as { data?: Expense[] }).data || [];
@@ -111,9 +111,9 @@ const Reports: React.FC = () => {
         setReturns(returnsArray);
         
         // Verify calculations for data integrity
-        await verifyReportCalculations(activeCompanyId, invoicesArray, expensesArray);
+        await verifyReportCalculations(companyId, invoicesArray, expensesArray);
         
-        logDataAccessEvent('read', 'reports', firebaseUser.uid, activeCompanyId, {
+        logDataAccessEvent('read', 'reports', user.uid, companyId, {
           scope: ['invoices', 'expenses', 'returns'],
         });
       } catch (error: unknown) {
@@ -122,7 +122,7 @@ const Reports: React.FC = () => {
       setLoading(false);
     };
     fetchData();
-  }, [activeCompanyId, addNotification, firebaseUser]);
+  }, [companyId, addNotification, user]);
 
   useEffect(() => {
     if (preset === 'custom') return;
@@ -204,7 +204,7 @@ const Reports: React.FC = () => {
 
   if (loading || settingsLoading) return <div>جاري تحميل التقارير...</div>;
 
-  if (!activeCompanyId) {
+  if (!companyId) {
     return (
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
         <h2 className="text-2xl font-bold mb-2">لا توجد شركة نشطة</h2>

@@ -120,7 +120,7 @@ const InvoiceForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const canWrite = useCanWrite('invoices');
   const [invoice, dispatch] = useReducer(invoiceFormReducer, initialState);
 
@@ -137,7 +137,7 @@ const InvoiceForm: React.FC = () => {
   const { settings, loading: settingsLoading } = useSettings();
   const [draftAvailable, setDraftAvailable] = useState(false);
   const [draftData, setDraftData] = useState<unknown | null>(null);
-  const draftKey = `draft:invoice:${activeCompanyId}:${id || 'new'}`;
+  const draftKey = `draft:invoice:${companyId}:${id || 'new'}`;
   const [originalInvoice, setOriginalInvoice] = useState<Invoice | undefined>(undefined);
 
   useEffect(() => {
@@ -152,19 +152,19 @@ const InvoiceForm: React.FC = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!activeCompanyId) return;
+      if (!companyId) return;
       setLoading(true);
       try {
         const [customersRes, productsRes] = await Promise.all([
-          getCustomers(activeCompanyId),
-          getProducts(activeCompanyId),
+          getCustomers(companyId),
+          getProducts(companyId),
         ]);
 
         setCustomers(customersRes.data || []);
         setProducts(productsRes.data || []);
 
         if (id) {
-          const invoiceRes = await getInvoiceById(activeCompanyId, id);
+          const invoiceRes = await getInvoiceById(companyId, id);
           if (invoiceRes) {
             setOriginalInvoice(invoiceRes); // Store original invoice
             // Keep taxRate and taxAmount if present
@@ -181,7 +181,7 @@ const InvoiceForm: React.FC = () => {
         // Restore draft for new invoices
         if (!id) {
           try {
-            const draftKey = `draft:invoice:${activeCompanyId}:new`;
+            const draftKey = `draft:invoice:${companyId}:new`;
             const draft = loadDraft(draftKey);
             if (draft) {
               setDraftAvailable(true);
@@ -198,16 +198,16 @@ const InvoiceForm: React.FC = () => {
       }
     };
     fetchData();
-  }, [id, activeCompanyId, addNotification]);
+  }, [id, companyId, addNotification]);
 
   // Autosave invoice draft to localStorage (debounced)
   useEffect(() => {
-    if (!activeCompanyId) return;
-    const key = `draft:invoice:${activeCompanyId}:${id || 'new'}`;
+    if (!companyId) return;
+    const key = `draft:invoice:${companyId}:${id || 'new'}`;
     // Save only for new or when editing without explicit save
     debounceSaveDraft(key, invoice);
     return () => {};
-  }, [invoice, activeCompanyId, id]);
+  }, [invoice, companyId, id]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -297,7 +297,7 @@ const InvoiceForm: React.FC = () => {
       addNotification('تحقق من البيانات قبل الحفظ.', 'error');
       return;
     }
-    if (!activeCompanyId) {
+    if (!companyId) {
       addNotification('لا يمكن حفظ الفاتورة بدون شركة فعّالة.', 'error');
       return;
     }
@@ -305,8 +305,8 @@ const InvoiceForm: React.FC = () => {
     const invoiceToSave = { ...invoice, subtotal, total };
     try {
       const result = id
-        ? await saveInvoice(activeCompanyId, { ...invoiceToSave, id }, originalInvoice)
-        : await saveInvoice(activeCompanyId, invoiceToSave);
+        ? await saveInvoice(companyId, { ...invoiceToSave, id }, originalInvoice)
+        : await saveInvoice(companyId, invoiceToSave);
       if (result) {
         addNotification(id ? 'تم حفظ التعديل بنجاح.' : 'تم حفظ الفاتورة بنجاح.', 'success');
         navigate('/invoices');
@@ -527,10 +527,10 @@ const InvoiceForm: React.FC = () => {
               <div className="mt-4">
                 <QuickAddProduct
                   onAdd={async (p) => {
-                    if (!activeCompanyId) return;
+                    if (!companyId) return;
                     try {
                       const saved = await saveProduct(
-                        activeCompanyId,
+                        companyId,
                         ({
                             name: p.name,
                             description: p.description || '',
@@ -542,11 +542,11 @@ const InvoiceForm: React.FC = () => {
                         );
                       // clear repo cache and refresh local list
                       try {
-                        clearProductCache(activeCompanyId);
+                        clearProductCache(companyId);
                       } catch (e) {
                         /* ignore */
                       }
-                      const refreshed = await getProducts(activeCompanyId);
+                      const refreshed = await getProducts(companyId);
                       setProducts(
                         (refreshed as unknown as { data?: Product[] }).data || [
                           ...products,

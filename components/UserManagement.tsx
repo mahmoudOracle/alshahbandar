@@ -24,7 +24,7 @@ const roleMap: Record<UserRole, string> = {
 };
 
 const UserManagement: React.FC = () => {
-  const { activeCompanyId, firebaseUser } = useAuth();
+  const { companyId, user } = useAuth();
   const [users, setUsers] = useState<CompanyUser[]>([]);
   const [pendingInvitations, setPendingInvitations] = useState<CompanyInvitation[]>([]);
   const [invitationsLoading, setInvitationsLoading] = useState(false);
@@ -35,17 +35,17 @@ const UserManagement: React.FC = () => {
   const { addNotification } = useNotification();
 
   const fetchData = async () => {
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     setLoading(true);
     try {
       // Load users first; invitations are fetched separately because the invitations
       // callable may fail if Cloud Functions are not deployed or misconfigured.
-      const usersData = await getCompanyUsers(activeCompanyId);
+      const usersData = await getCompanyUsers(companyId);
       setUsers(usersData || []);
 
       try {
         setInvitationsError(null);
-        const invitationsData = await getPendingInvitations(activeCompanyId);
+        const invitationsData = await getPendingInvitations(companyId);
         setPendingInvitations(invitationsData || []);
       } catch (invErr) {
         // Don't fail the whole users panel if invitations callable fails.
@@ -67,14 +67,14 @@ const UserManagement: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, [activeCompanyId]);
+  }, [companyId]);
 
   const retryLoadInvitations = async () => {
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     setInvitationsLoading(true);
     setInvitationsError(null);
     try {
-      const invitationsData = await getPendingInvitations(activeCompanyId);
+      const invitationsData = await getPendingInvitations(companyId);
       setPendingInvitations(invitationsData || []);
     } catch (err: unknown) {
       console.warn('[UserManagement] retryLoadInvitations failed', err);
@@ -88,11 +88,11 @@ const UserManagement: React.FC = () => {
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeCompanyId || !newUserEmail || !firebaseUser?.email || !firebaseUser.uid) return;
+    if (!companyId || !newUserEmail || !user?.email || !user.uid) return;
 
     try {
-      const invitedBy = { uid: firebaseUser.uid, email: firebaseUser.email };
-      await inviteUser(activeCompanyId, newUserEmail, newUserRole, invitedBy);
+      const invitedBy = { uid: user.uid, email: user.email };
+      await inviteUser(companyId, newUserEmail, newUserRole, invitedBy);
       addNotification(`تم إنشاء دعوة لـ ${newUserEmail}.`, 'success');
 
       setNewUserEmail('');
@@ -104,9 +104,9 @@ const UserManagement: React.FC = () => {
   };
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     try {
-      const res = (await updateUserRole(activeCompanyId, userId, newRole)) as unknown as {
+      const res = (await updateUserRole(companyId, userId, newRole)) as unknown as {
         enqueued?: boolean;
       };
       if (res && res.enqueued) {
@@ -122,12 +122,12 @@ const UserManagement: React.FC = () => {
 
   const handleRemoveUser = async (userId: string, userEmail: string) => {
     if (
-      !activeCompanyId ||
+      !companyId ||
       !window.confirm(`هل أنت متأكد من إزالة المستخدم ${userEmail}؟ سيتم إلغاء وصوله فوراً.`)
     )
       return;
     try {
-      await removeUserFromCompany(activeCompanyId, userId);
+      await removeUserFromCompany(companyId, userId);
       addNotification('تمت إزالة المستخدم بنجاح.', 'success');
       fetchData();
     } catch (e) {
@@ -136,10 +136,10 @@ const UserManagement: React.FC = () => {
   };
 
   const handleCancelInvitation = async (invitationId: string, email: string) => {
-    if (!activeCompanyId || !window.confirm(`هل أنت متأكد من إلغاء الدعوة المرسلة إلى ${email}؟`))
+    if (!companyId || !window.confirm(`هل أنت متأكد من إلغاء الدعوة المرسلة إلى ${email}؟`))
       return;
     try {
-      await deleteInvitation(activeCompanyId, invitationId);
+      await deleteInvitation(companyId, invitationId);
       addNotification('تم إلغاء الدعوة بنجاح.', 'success');
       fetchData();
     } catch (error) {
@@ -190,7 +190,7 @@ const UserManagement: React.FC = () => {
                 className="flex flex-col sm:flex-row items-center justify-between p-3 bg-gray-100 dark:bg-gray-700/50 rounded-md"
               >
                 <span className="font-medium">
-                  {u.email} {u.uid === firebaseUser?.uid && '(أنت)'}
+                  {u.email} {u.uid === user?.uid && '(أنت)'}
                 </span>
                 <div className="flex items-center gap-4 mt-2 sm:mt-0">
                   {u.role === UserRole.Owner ? (

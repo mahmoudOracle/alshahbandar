@@ -40,7 +40,7 @@ const formatDate = (value?: unknown) => {
 
 const InvoiceDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { activeCompanyId, activeRole, activeCompany } = useAuth();
+  const { companyId, role, company } = useAuth();
   const canWrite = useCanWrite('invoices');
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -58,19 +58,19 @@ const InvoiceDetail: React.FC = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!id || !activeCompanyId) return;
+      if (!id || !companyId) return;
       setLoading(true);
       try {
         const [invoiceData, productsRes] = await Promise.all([
-          getInvoiceById(activeCompanyId, id),
-          getProducts(activeCompanyId),
+          getInvoiceById(companyId, id),
+          getProducts(companyId),
         ]);
         setProducts(productsRes.data || []);
         setInvoice(invoiceData || null);
         if (invoiceData) {
-          const customerData = await getCustomerById(activeCompanyId, invoiceData.customerId);
+          const customerData = await getCustomerById(companyId, invoiceData.customerId);
           setCustomer(customerData || null);
-          const returnsRes = await getReturnsByInvoiceId(activeCompanyId, invoiceData.id);
+          const returnsRes = await getReturnsByInvoiceId(companyId, invoiceData.id);
           setReturns(returnsRes.data || []);
         }
       } catch (error) {
@@ -79,7 +79,7 @@ const InvoiceDetail: React.FC = () => {
       setLoading(false);
     };
     fetchData();
-  }, [id, activeCompanyId, addNotification]);
+  }, [id, companyId, addNotification]);
 
   const handleExport = async (format: 'pdf' | 'png') => {
     if (!invoiceRef.current || !invoice) return;
@@ -104,17 +104,17 @@ ${settings.businessName}
   };
 
   const handleDelete = async () => {
-    if (!invoice || !activeCompanyId) return;
+    if (!invoice || !companyId) return;
     const ok = window.confirm('هل أنت متأكد من حذف الفاتورة؟ يمكنك التراجع لاحقًا.');
     if (!ok) return;
     try {
-      const res = await deleteInvoice(activeCompanyId, invoice.id);
+      const res = await deleteInvoice(companyId, invoice.id);
       if (res) {
         addNotification('تم حذف الفاتورة.', 'success', {
           label: 'تراجع',
           onClick: async () => {
             try {
-              const restored = await undeleteDocument(activeCompanyId, 'invoices', invoice.id);
+              const restored = await undeleteDocument(companyId, 'invoices', invoice.id);
               if (restored) {
                 navigate(`/invoices/${invoice.id}`);
               }
@@ -144,7 +144,7 @@ ${settings.businessName}
   };
 
   const canCreatePayments =
-    activeRole === 'owner' || activeRole === 'manager' || activeRole === 'employee';
+    role === 'owner' || role === 'manager' || role === 'employee';
 
   const remainingAmount = Math.max(
     0,
@@ -152,7 +152,7 @@ ${settings.businessName}
   );
 
   const companyName =
-    (activeCompany as { companyName?: string } | null)?.companyName ||
+    (company as { companyName?: string } | null)?.companyName ||
     settings?.businessName ||
     'الشركة';
 
@@ -403,10 +403,10 @@ ${settings.businessName}
             customer={customer}
             invoice={invoice}
             onPaymentSaved={async () => {
-              if (activeCompanyId && id) {
-                const inv = await getInvoiceById(activeCompanyId, id);
+              if (companyId && id) {
+                const inv = await getInvoiceById(companyId, id);
                 setInvoice(inv || null);
-                const returnsRes = await getReturnsByInvoiceId(activeCompanyId, id);
+                const returnsRes = await getReturnsByInvoiceId(companyId, id);
                 setReturns(returnsRes.data || []);
               }
               setShowPaymentForm(false);
@@ -425,10 +425,10 @@ ${settings.businessName}
           <ReturnForm
             invoice={invoice}
             onSaved={async () => {
-              if (activeCompanyId && id) {
-                const inv = await getInvoiceById(activeCompanyId, id);
+              if (companyId && id) {
+                const inv = await getInvoiceById(companyId, id);
                 setInvoice(inv || null);
-                const returnsRes = await getReturnsByInvoiceId(activeCompanyId, id);
+                const returnsRes = await getReturnsByInvoiceId(companyId, id);
                 setReturns(returnsRes.data || []);
               }
               setShowReturnForm(false);

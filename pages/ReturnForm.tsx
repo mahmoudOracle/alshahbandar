@@ -25,7 +25,7 @@ type ReturnLine = {
 };
 
 const ReturnForm: React.FC<ReturnFormProps> = ({ invoice, onSaved, onClose }) => {
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const { addNotification } = useNotification();
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [reason, setReason] = useState('');
@@ -57,7 +57,7 @@ const ReturnForm: React.FC<ReturnFormProps> = ({ invoice, onSaved, onClose }) =>
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     const selected = lines.filter((l) => l.qty > 0);
     if (selected.length === 0) {
       addNotification('اختر كمية مرتجعة واحدة على الأقل.', 'error');
@@ -70,7 +70,7 @@ const ReturnForm: React.FC<ReturnFormProps> = ({ invoice, onSaved, onClose }) =>
     }
     setSaving(true);
     try {
-      await createReturnAtomic(activeCompanyId, {
+      await createReturnAtomic(companyId, {
         invoiceId: invoice.id,
         customerId: invoice.customerId,
         items: selected.map((l) => ({

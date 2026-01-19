@@ -11,7 +11,7 @@ import { Supplier, Product } from '../types';
 import { mapFirestoreError } from '../services/firebaseErrors';
 
 const PurchasesPage: React.FC = () => {
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const { addNotification } = useNotification();
   const [loading, setLoading] = useState(true);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -24,12 +24,12 @@ const PurchasesPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const fetchLookups = async () => {
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     setLoading(true);
     try {
-      const s = await getSuppliers(activeCompanyId, { limit: 500 });
+      const s = await getSuppliers(companyId, { limit: 500 });
       setSuppliers(s.data || []);
-      const p = await getProducts(activeCompanyId, { limit: 1000 });
+      const p = await getProducts(companyId, { limit: 1000 });
       setProducts(p.data || []);
     } catch (err: unknown) {
       addNotification(mapFirestoreError(err), 'error');
@@ -42,7 +42,7 @@ const PurchasesPage: React.FC = () => {
 
   useEffect(() => {
     fetchLookups();
-  }, [activeCompanyId]);
+  }, [companyId]);
 
   const addRow = (product?: Product) => {
     const cost = Number((product as unknown as Record<string, unknown>)['cost'] ?? 0);
@@ -74,7 +74,7 @@ const PurchasesPage: React.FC = () => {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!activeCompanyId) return addNotification('الشركة غير محددة', 'error');
+    if (!companyId) return addNotification('الشركة غير محددة', 'error');
     if (!supplierId) return addNotification('اختر موردًا', 'error');
     if (!items || items.length === 0)
       return addNotification('أضف عنصرًا واحدًا على الأقل', 'error');
@@ -92,7 +92,7 @@ const PurchasesPage: React.FC = () => {
         })),
         totalAmount: total,
       };
-      await createPurchase(activeCompanyId, payload as any);
+      await createPurchase(companyId, payload as any);
       addNotification('تم إنشاء أمر الشراء', 'success');
       setSupplierId('');
       setInvoiceNumber('');

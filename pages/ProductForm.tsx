@@ -42,7 +42,7 @@ const ProductForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const canWrite = useCanWrite('products');
   const [product, setProduct] = useState<Omit<Product, 'id'>>({
     name: '',
@@ -65,9 +65,9 @@ const ProductForm: React.FC = () => {
   }, [canWrite, id, navigate, addNotification]);
 
   useEffect(() => {
-    if (id && activeCompanyId) {
+    if (id && companyId) {
       setLoading(true);
-      getProductById(activeCompanyId, id)
+      getProductById(companyId, id)
         .then((productData) => {
           if (productData) setProduct(productData);
           else addNotification('لم يتم العثور على المنتج.', 'error');
@@ -80,7 +80,7 @@ const ProductForm: React.FC = () => {
     } else {
       setLoading(false);
     }
-  }, [id, activeCompanyId, addNotification]);
+  }, [id, companyId, addNotification]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -111,12 +111,12 @@ const ProductForm: React.FC = () => {
       addNotification('تحقق من البيانات قبل الحفظ.', 'error');
       return;
     }
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     setSaving(true);
     try {
       const result = id
-        ? await saveProduct(activeCompanyId, { ...product, id })
-        : await saveProduct(activeCompanyId, product);
+        ? await saveProduct(companyId, { ...product, id })
+        : await saveProduct(companyId, product);
 
       if (result) {
         addNotification('تم حفظ المنتج بنجاح.', 'success');

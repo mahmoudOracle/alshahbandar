@@ -23,7 +23,7 @@ const RecurringInvoiceForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const canWrite = useCanWrite('recurring');
 
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -55,18 +55,18 @@ const RecurringInvoiceForm: React.FC = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!activeCompanyId) return;
+      if (!companyId) return;
       setLoading(true);
       try {
         const [customersRes, productsRes] = await Promise.all([
-          getCustomers(activeCompanyId),
-          getProducts(activeCompanyId),
+          getCustomers(companyId),
+          getProducts(companyId),
         ]);
         setCustomers(customersRes.data || []);
         setProducts(productsRes.data || []);
 
         if (id) {
-          const data = await getRecurringInvoiceById(activeCompanyId, id);
+          const data = await getRecurringInvoiceById(companyId, id);
           if (data) {
             const rest = { ...data } as Omit<RecurringInvoice, 'id'>;
             delete (rest as Record<string, unknown>)['id'];
@@ -83,7 +83,7 @@ const RecurringInvoiceForm: React.FC = () => {
       }
     };
     fetchData();
-  }, [id, activeCompanyId, addNotification, navigate]);
+  }, [id, companyId, addNotification, navigate]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -182,16 +182,16 @@ const RecurringInvoiceForm: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canWrite || !activeCompanyId) return;
+    if (!canWrite || !companyId) return;
     if (saving) return; // prevent double submit
 
     if (!validateInvoice()) return;
 
     setSaving(true);
     try {
-      console.debug('[RecurringInvoice] saving', { id, company: activeCompanyId });
+      console.debug('[RecurringInvoice] saving', { id, company: companyId });
       const payload = id ? { ...recInvoice, id } : recInvoice;
-      const result = await saveRecurringInvoice(activeCompanyId, payload);
+      const result = await saveRecurringInvoice(companyId, payload);
 
       if (result) {
         addNotification('تم حفظ الفاتورة المتكررة بنجاح!', 'success');

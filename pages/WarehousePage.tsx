@@ -7,16 +7,16 @@ import { getProducts } from '../services/dataService';
 import { Product } from '../types';
 
 const WarehousePage: React.FC = () => {
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
 
   const fetch = async () => {
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     setLoading(true);
     try {
-      const res = await getProducts(activeCompanyId, { limit: 1000 });
+      const res = await getProducts(companyId, { limit: 1000 });
       setProducts(res.data || []);
     } catch (err) {
       setProducts([]);
@@ -27,7 +27,7 @@ const WarehousePage: React.FC = () => {
 
   useEffect(() => {
     fetch();
-  }, [activeCompanyId]);
+  }, [companyId]);
 
   if (loading) return <TableSkeleton cols={4} rows={8} />;
 

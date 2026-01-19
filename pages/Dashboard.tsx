@@ -56,8 +56,7 @@ const statusToLabel = (status: string) => {
 };
 
 const Dashboard: React.FC = () => {
-  const { activeCompanyId, activeCompany, companyMemberships, onboardingError, firebaseUser, signOutUser } =
-    useAuth();
+  const { companyId, company, error, user, logout } = useAuth();
   const canWrite = useCanWrite('invoices');
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -68,7 +67,7 @@ const Dashboard: React.FC = () => {
   const { addNotification } = useNotification();
 
   const fetchData = useCallback(async () => {
-    if (!activeCompanyId) {
+    if (!companyId) {
       setInvoices([]);
       setCustomers([]);
       setExpenses([]);
@@ -79,10 +78,10 @@ const Dashboard: React.FC = () => {
     setLoading(true);
     try {
       const [invoicesRes, customersRes, expensesRes, productsRes] = await Promise.all([
-        getInvoices(activeCompanyId),
-        getCustomers(activeCompanyId),
-        getExpenses(activeCompanyId),
-        getProducts(activeCompanyId),
+        getInvoices(companyId),
+        getCustomers(companyId),
+        getExpenses(companyId),
+        getProducts(companyId),
       ]);
       setInvoices(invoicesRes.data || []);
       setCustomers(customersRes.data || []);
@@ -95,7 +94,7 @@ const Dashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeCompanyId, addNotification]);
+  }, [companyId, addNotification]);
 
   useEffect(() => {
     fetchData();
@@ -148,13 +147,11 @@ const Dashboard: React.FC = () => {
   }, [invoices, customers, expenses, products]);
 
   const companyName = useMemo(() => {
-    const membershipName =
-      companyMemberships.find((m) => m.companyId === activeCompanyId)?.companyName || '';
-    const companyDoc = activeCompany as { companyName?: string } | null;
-    return settings?.businessName || companyDoc?.companyName || membershipName || 'بدون اسم';
-  }, [settings?.businessName, activeCompany, companyMemberships, activeCompanyId]);
+    const companyDoc = company as { companyName?: string } | null;
+    return settings?.businessName || companyDoc?.companyName || 'بدون اسم';
+  }, [settings?.businessName, company]);
 
-  const companyStatus = (activeCompany as { status?: string } | null)?.status || 'unknown';
+  const companyStatus = (company as { status?: string } | null)?.status || 'unknown';
 
   if (loading || settingsLoading) {
     return (
@@ -170,8 +167,8 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  if (!activeCompanyId) {
-    const email = firebaseUser?.email || '';
+  if (!companyId) {
+    const email = user?.email || '';
     return (
       <Card header={<h2 className="text-xl font-bold">لا توجد شركة مرتبطة</h2>}>
         <div className="space-y-3">
@@ -184,7 +181,7 @@ const Dashboard: React.FC = () => {
           {onboardingError && <p className="text-sm text-danger-600">{onboardingError}</p>}
           <div className="flex flex-wrap gap-3">
             <button
-              onClick={signOutUser}
+              onClick={logout}
               className="inline-flex items-center rounded-md bg-primary-600 text-white px-4 py-2 text-sm font-medium hover:bg-primary-700"
             >
               تسجيل الخروج

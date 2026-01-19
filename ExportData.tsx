@@ -4,7 +4,7 @@ import { db } from '../services/firebase'; // Adjust path if needed
 import { useAuth } from '../contexts/AuthContext'; // Adjust path if needed
 
 const ExportData: React.FC = () => {
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const [loading, setLoading] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -42,18 +42,21 @@ const ExportData: React.FC = () => {
   };
 
   const exportCollection = async (collectionName: string, dateFilter = false) => {
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     setLoading(true);
     try {
-      let q = query(collection(db, 'companies', activeCompanyId, collectionName));
+      let q = query(collection(db, 'companies', companyId, collectionName));
 
       if (dateFilter && startDate && endDate) {
-        // Assuming 'date' field is stored as string YYYY-MM-DD or Timestamp
-        // Adjust field name 'date' based on schema
+        // Convert ISO date strings to Timestamps for Firestore comparison
+        const startDateObj = new Date(startDate);
+        const endDateObj = new Date(endDate);
+        endDateObj.setDate(endDateObj.getDate() + 1);
+        
         q = query(
-          collection(db, 'companies', activeCompanyId, collectionName),
-          where('date', '>=', startDate),
-          where('date', '<=', endDate),
+          collection(db, 'companies', companyId, collectionName),
+          where('date', '>=', Timestamp.fromDate(startDateObj)),
+          where('date', '<', Timestamp.fromDate(endDateObj)),
           orderBy('date')
         );
       }

@@ -38,7 +38,7 @@ const getStatusChip = (status: QuoteStatus) => {
 };
 
 const QuoteList: React.FC = () => {
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const canWrite = useCanWrite('quotes');
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,14 +49,14 @@ const QuoteList: React.FC = () => {
 
   useEffect(() => {
     const fetchQuotes = async () => {
-      if (!activeCompanyId) return;
+      if (!companyId) return;
       setLoading(true);
-      const result = await getQuotes(activeCompanyId);
+      const result = await getQuotes(companyId);
       setQuotes(result.data || []);
       setLoading(false);
     };
     fetchQuotes();
-  }, [activeCompanyId]);
+  }, [companyId]);
 
   const filteredQuotes = useMemo(() => {
     return quotes

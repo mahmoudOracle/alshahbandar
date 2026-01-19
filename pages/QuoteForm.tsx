@@ -89,7 +89,7 @@ const QuoteForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const canWrite = useCanWrite('quotes');
   const [quote, dispatch] = useReducer(quoteFormReducer, initialState);
 
@@ -109,17 +109,17 @@ const QuoteForm: React.FC = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!activeCompanyId) return;
+      if (!companyId) return;
       setLoading(true);
       try {
         const [customersData, productsData] = await Promise.all([
-          getCustomers(activeCompanyId),
-          getProducts(activeCompanyId),
+          getCustomers(companyId),
+          getProducts(companyId),
         ]);
         setCustomers(customersData.data || []);
         setProducts(productsData.data || []);
         if (id) {
-          const existingQuote = await getQuoteById(activeCompanyId, id);
+          const existingQuote = await getQuoteById(companyId, id);
           if (existingQuote) {
             const quoteData = { ...existingQuote } as Record<string, unknown>;
             delete quoteData.id;
@@ -135,7 +135,7 @@ const QuoteForm: React.FC = () => {
       setLoading(false);
     };
     fetchData();
-  }, [id, activeCompanyId, addNotification]);
+  }, [id, companyId, addNotification]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -167,14 +167,14 @@ const QuoteForm: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeCompanyId || !canWrite) return;
+    if (!companyId || !canWrite) return;
     setLoading(true);
     try {
       const quoteToSave = { ...quote, subtotal, total, taxAmount };
       if (id) {
-        await saveQuote(activeCompanyId, { ...quoteToSave, id });
+        await saveQuote(companyId, { ...quoteToSave, id });
       } else {
-        await saveQuote(activeCompanyId, quoteToSave);
+        await saveQuote(companyId, quoteToSave);
       }
       addNotification(id ? 'تم تحديث عرض السعر بنجاح!' : 'تم إنشاء عرض السعر بنجاح!', 'success');
       navigate('/quotes');

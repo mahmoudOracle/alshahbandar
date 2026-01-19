@@ -10,7 +10,7 @@ import { mapFirestoreError } from '../services/firebaseErrors';
 const QuoteDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const canWrite = useCanWrite('quotes');
   const [quote, setQuote] = useState<Quote | null>(null);
   const { settings, loading: settingsLoading } = useSettings();
@@ -21,20 +21,20 @@ const QuoteDetail: React.FC = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!id || !activeCompanyId) return;
+      if (!id || !companyId) return;
       setLoading(true);
-      const quoteData = await getQuoteById(activeCompanyId, id);
+      const quoteData = await getQuoteById(companyId, id);
       setQuote(quoteData || null);
       setLoading(false);
     };
     fetchData();
-  }, [id, activeCompanyId]);
+  }, [id, companyId]);
 
   const handleConvertToInvoice = async () => {
-    if (!quote || !activeCompanyId || !canWrite) return;
+    if (!quote || !companyId || !canWrite) return;
     setConverting(true);
     try {
-      const newInvoice: Invoice = await createInvoiceFromQuote(activeCompanyId, quote.id);
+      const newInvoice: Invoice = await createInvoiceFromQuote(companyId, quote.id);
       addNotification(
         `تم تحويل عرض السعر إلى الفاتورة ${newInvoice.invoiceNumber} بنجاح!`,
         'success'

@@ -32,7 +32,7 @@ const toDateValue = (value: unknown): Date | null => {
 };
 
 const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentSaved, onClose }) => {
-  const { activeCompanyId, activeRole } = useAuth();
+  const { companyId, role } = useAuth();
   const [amount, setAmount] = useState(0);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [invoiceId, setInvoiceId] = useState('');
@@ -47,13 +47,13 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
   const { addNotification } = useNotification();
 
   const canCreatePayments =
-    activeRole === UserRole.Owner ||
-    activeRole === UserRole.Manager ||
-    activeRole === UserRole.Employee;
+    role === UserRole.Owner ||
+    role === UserRole.Manager ||
+    role === UserRole.Employee;
 
   useEffect(() => {
-    if (!customer || !activeCompanyId) return;
-    getInvoices(activeCompanyId, { filters: [['customerId', '==', customer.id]] })
+    if (!customer || !companyId) return;
+    getInvoices(companyId, { filters: [['customerId', '==', customer.id]] })
       .then((result) => {
         const due = result.data.filter((inv) => inv.status === 'Due') || [];
         setUnpaidInvoices(due);
@@ -61,7 +61,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
       .catch((error) => {
         addNotification(mapFirestoreError(error), 'error');
       });
-  }, [customer, activeCompanyId, addNotification]);
+  }, [customer, companyId, addNotification]);
 
   useEffect(() => {
     if (!customer) return;
@@ -83,7 +83,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
 
   useEffect(() => {
     const loadRemaining = async () => {
-      if (!activeCompanyId || !invoiceId) {
+      if (!companyId || !invoiceId) {
         setRemaining(null);
         return;
       }
@@ -93,7 +93,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
             ? invoice
             : unpaidInvoices.find((i) => i.id === invoiceId);
         const total = Number(inv?.total || 0);
-        const paid = await totalPaidForInvoice(activeCompanyId, invoiceId);
+        const paid = await totalPaidForInvoice(companyId, invoiceId);
         const due = Math.max(0, total - paid);
         setRemaining(due);
         if (amount <= 0 || amount > due) {
@@ -104,7 +104,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
       }
     };
     void loadRemaining();
-  }, [activeCompanyId, invoiceId, invoice, unpaidInvoices]);
+  }, [companyId, invoiceId, invoice, unpaidInvoices]);
 
   const selectedInvoice = useMemo(
     () => unpaidInvoices.find((inv) => inv.id === invoiceId) || invoice || null,
@@ -145,7 +145,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
       addNotification('أدخل تاريخ الدفع.', 'error');
       return;
     }
-    if (amount <= 0 || !activeCompanyId) {
+    if (amount <= 0 || !companyId) {
       addNotification('أدخل مبلغًا صحيحًا.', 'error');
       return;
     }
@@ -161,7 +161,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
         setSaving(false);
         return;
       }
-      const result = await savePayment(activeCompanyId, {
+      const result = await savePayment(companyId, {
         customerId: customer.id,
         customerName: customer.name,
         invoiceId: invoiceId || undefined,

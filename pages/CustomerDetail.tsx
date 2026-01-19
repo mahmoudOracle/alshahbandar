@@ -45,7 +45,7 @@ type StatementRow = {
 const CustomerDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { activeCompanyId, activeRole } = useAuth();
+  const { companyId, role } = useAuth();
   const canWrite = useCanWrite('customers');
   const canCreateInvoices = useCanWrite('invoices');
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -63,13 +63,13 @@ const CustomerDetail: React.FC = () => {
   const [includeOpeningBalance, setIncludeOpeningBalance] = useState(true);
 
   const fetchData = async () => {
-    if (!id || !activeCompanyId) return;
+    if (!id || !companyId) return;
     setLoading(true);
     try {
       const [customerResult, allInvoicesResult, paymentsResult] = await Promise.all([
-        getCustomerById(activeCompanyId, id),
-        getInvoices(activeCompanyId, { filters: [['customerId', '==', id]] }),
-        getPaymentsByCustomerId(activeCompanyId, id),
+        getCustomerById(companyId, id),
+        getInvoices(companyId, { filters: [['customerId', '==', id]] }),
+        getPaymentsByCustomerId(companyId, id),
       ]);
       setCustomer(customerResult || null);
       setInvoices(allInvoicesResult.data || []);
@@ -83,7 +83,7 @@ const CustomerDetail: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, [id, activeCompanyId]);
+  }, [id, companyId]);
 
   const handlePaymentSaved = () => {
     setIsPaymentModalOpen(false);
@@ -91,7 +91,7 @@ const CustomerDetail: React.FC = () => {
   };
 
   const canCreatePayments =
-    activeRole === 'owner' || activeRole === 'manager' || activeRole === 'employee';
+    role === 'owner' || role === 'manager' || role === 'employee';
 
   const statement = useMemo(() => {
     const start = new Date(dateRange.start);

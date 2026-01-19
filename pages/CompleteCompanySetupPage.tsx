@@ -9,7 +9,7 @@ import { useNotification } from '../contexts/NotificationContext';
 import { getErrorMessage } from '../src/utils/errorMessage';
 
 const CompleteCompanySetupPage: React.FC = () => {
-  const { user, activeCompany } = useAuth();
+  const { user, company } = useAuth();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
 
@@ -35,9 +35,9 @@ const CompleteCompanySetupPage: React.FC = () => {
         setCompanyId(profile.companyId);
         // Prefer cached company from AuthContext if available
         const company: unknown =
-          activeCompany &&
-          (activeCompany as unknown as Record<string, unknown>).id === profile.companyId
-            ? activeCompany
+          company &&
+          (company as unknown as Record<string, unknown>).id === profile.companyId
+            ? company
             : await dataService.getCompany(profile.companyId);
         if (!company) {
           addNotification('لم يتم العثور على بيانات الشركة.', 'error');

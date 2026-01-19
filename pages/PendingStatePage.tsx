@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { InformationCircleIcon, ArrowLeftOnRectangleIcon } from '@heroicons/react/24/outline';
 
 const PendingStatePage: React.FC = () => {
-  const { user, signOutUser } = useAuth();
+  const { user, logout } = useAuth();
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 p-4">
@@ -23,7 +23,7 @@ const PendingStatePage: React.FC = () => {
         </p>
         <div className="mt-6 space-y-2">
           <button
-            onClick={signOutUser}
+            onClick={logout}
             className="flex w-full items-center justify-center px-4 py-2 text-white bg-primary-600 rounded-md hover:bg-primary-700"
           >
             <ArrowLeftOnRectangleIcon className="h-5 w-5 me-2" />

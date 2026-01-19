@@ -15,7 +15,7 @@ const CustomerForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const canWrite = useCanWrite('customers');
   const [customer, setCustomer] = useState<Omit<Customer, 'id' | 'createdAt'>>({
     name: '',
@@ -39,9 +39,9 @@ const CustomerForm: React.FC = () => {
   }, [canWrite, id, navigate, addNotification]);
 
   useEffect(() => {
-    if (id && activeCompanyId) {
+    if (id && companyId) {
       setLoading(true);
-      getCustomerById(activeCompanyId, id)
+      getCustomerById(companyId, id)
         .then((customerData) => {
           if (customerData) {
             const data = { ...customerData } as Record<string, unknown>;
@@ -58,7 +58,7 @@ const CustomerForm: React.FC = () => {
           setLoading(false);
         });
     }
-  }, [id, activeCompanyId, addNotification]);
+  }, [id, companyId, addNotification]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -95,16 +95,16 @@ const CustomerForm: React.FC = () => {
       addNotification('يرجى ملء جميع الحقول المطلوبة.', 'error');
       return;
     }
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     setSaving(true);
     console.log('🟢 [CUSTOMER] Saving customer', {
-      companyId: activeCompanyId,
+      companyId: companyId,
       id: id || null,
       customer,
     });
     try {
       const payload = id ? ({ ...customer, id } as Customer) : (customer as Customer);
-      const result = await saveCustomer(activeCompanyId, payload);
+      const result = await saveCustomer(companyId, payload);
 
       if (result) {
         console.log('🟢 [CUSTOMER] Customer saved', result);

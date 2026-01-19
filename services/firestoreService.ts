@@ -607,11 +607,23 @@ const getData = async <T>(
   filters.forEach((f) => constraints.push(where(f[0], f[1], f[2])));
 
   // Apply date range filters. Firestore requires orderBy on the field used in range queries.
+  // Convert ISO date strings to Firestore Timestamps for proper comparison
   if (dateStart) {
-    constraints.push(where('date', '>=', dateStart));
+    try {
+      const startDate = new Date(dateStart);
+      constraints.push(where('date', '>=', Timestamp.fromDate(startDate)));
+    } catch (err) {
+      if (DEBUG_MODE) console.warn(`[getData] Invalid dateStart format: ${dateStart}`, err);
+    }
   }
   if (dateEnd) {
-    constraints.push(where('date', '<=', dateEnd));
+    try {
+      const endDateObj = new Date(dateEnd);
+      endDateObj.setDate(endDateObj.getDate() + 1);
+      constraints.push(where('date', '<', Timestamp.fromDate(endDateObj)));
+    } catch (err) {
+      if (DEBUG_MODE) console.warn(`[getData] Invalid dateEnd format: ${dateEnd}`, err);
+    }
   }
 
   // Apply text search filter (exact match for now, or prefix search if security rules allow)

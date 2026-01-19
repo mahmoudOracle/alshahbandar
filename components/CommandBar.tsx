@@ -56,7 +56,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const canWriteInvoices = useCanWrite('invoices');
   const canWriteCustomers = useCanWrite('customers');
   const canWriteProducts = useCanWrite('products');
@@ -152,16 +152,16 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
 
   useEffect(() => {
     const performSearch = async () => {
-      if (!activeCompanyId || searchTerm.length < 3) {
+      if (!companyId || searchTerm.length < 3) {
         setSearchResults([]);
         return;
       }
       setIsSearching(true);
       try {
         const [invoicesData, customersData, expensesData] = await Promise.all([
-          getInvoices(activeCompanyId),
-          getCustomers(activeCompanyId),
-          getExpenses(activeCompanyId),
+          getInvoices(companyId),
+          getCustomers(companyId),
+          getExpenses(companyId),
         ]);
 
         const invoiceResults: SearchResultItem[] = (invoicesData.data || [])
@@ -212,7 +212,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
     }, 300);
 
     return () => clearTimeout(handler);
-  }, [searchTerm, activeCompanyId]);
+  }, [searchTerm, companyId]);
 
   useEffect(() => {
     if (isOpen) {

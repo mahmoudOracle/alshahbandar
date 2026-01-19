@@ -1,5 +1,5 @@
 ﻿import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { signInWithEmail } from '../services/authService';
 import { useNotification } from '../contexts/NotificationContext';
 import { Button } from '../components/ui/Button';
@@ -8,9 +8,11 @@ import { Card } from '../components/ui/Card';
 import useTenantConfig from '../hooks/useTenantConfig';
 import { t } from '../services/i18n';
 import LogoPlaceholder from '../components/LogoPlaceholder';
+import { useAuth } from '../contexts/AuthContext';
 import { getErrorMessage } from '../src/utils/errorMessage';
 
 const LoginPage: React.FC = () => {
+  const { isLoggedIn, status } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState<boolean>(false);
@@ -21,31 +23,31 @@ const LoginPage: React.FC = () => {
     setLoading(true);
     try {
       await signInWithEmail(email, password);
+      // No need to navigate here. The AuthProvider will change state,
+      // and the AppRouter will react accordingly.
     } catch (error: unknown) {
-      let message = 'تعذر تسجيل الدخول. تحقق من البريد وكلمة المرور.';
-      const code = (error as Record<string, unknown>)?.code as string | undefined;
-      if (code === 'auth/invalid-email') {
-        message = 'البريد الإلكتروني غير صحيح.';
-      } else if (
-        code === 'auth/user-not-found' ||
-        code === 'auth/wrong-password' ||
-        code === 'auth/invalid-credential'
-      ) {
-        message = 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
-      } else if (code === 'auth/user-disabled') {
-        message = 'تم تعطيل حسابك مؤقتًا.';
-      } else {
-        message = getErrorMessage(error, message);
-      }
+      // The AuthProvider now handles detailed error states.
+      // We just show a generic notification to the user on the login page.
+      const message = 'Login failed. Please check your email and password.';
       addNotification(message, 'error');
       console.error(getErrorMessage(error, message));
     } finally {
       setLoading(false);
     }
   };
-
+  
   const { config } = useTenantConfig();
   const lang = config?.language || 'ar';
+  
+  // If user is already logged in, redirect to the main app
+  if (isLoggedIn) {
+    return <Navigate to="/app" replace />;
+  }
+  
+  // Prevent flicker of login page while auth state is resolving
+  if (status === 'authLoading' || status === 'resolvingMembership') {
+    return null; // or a loading spinner
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-900 flex items-center justify-center p-6">

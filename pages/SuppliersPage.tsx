@@ -47,7 +47,7 @@ const toDateValue = (value: unknown): Date | null => {
 };
 
 const SuppliersPage: React.FC = () => {
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const canWriteSuppliers = useCanWrite('settings');
   const canManagePayments = useCanWrite('expenses');
   const { settings } = useSettings();
@@ -77,10 +77,10 @@ const SuppliersPage: React.FC = () => {
   const [paymentSaving, setPaymentSaving] = useState(false);
 
   const fetchSuppliers = async () => {
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     setLoading(true);
     try {
-      const res = await getSuppliers(activeCompanyId, { limit: 200 });
+      const res = await getSuppliers(companyId, { limit: 200 });
       setSuppliers(res.data || []);
     } catch (err: unknown) {
       addNotification(mapFirestoreError(err), 'error');
@@ -92,14 +92,14 @@ const SuppliersPage: React.FC = () => {
 
   useEffect(() => {
     fetchSuppliers();
-  }, [activeCompanyId]);
+  }, [companyId]);
 
   const handleSave = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!activeCompanyId || !editing) return;
+    if (!companyId || !editing) return;
     setSaving(true);
     try {
-      await saveSupplier(activeCompanyId, editing as Record<string, unknown>);
+      await saveSupplier(companyId, editing as Record<string, unknown>);
       addNotification('تم حفظ بيانات المورد.', 'success');
       setFormOpen(false);
       setEditing(null);
@@ -112,9 +112,9 @@ const SuppliersPage: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     try {
-      await deleteSupplier(activeCompanyId, id);
+      await deleteSupplier(companyId, id);
       addNotification('تم حذف المورد.', 'success');
       await fetchSuppliers();
     } catch (err: unknown) {
@@ -127,13 +127,13 @@ const SuppliersPage: React.FC = () => {
   );
 
   const openStatement = async (supplier: Supplier) => {
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     setSelectedSupplier(supplier);
     setStatementOpen(true);
     try {
       const [purchaseRes, paymentRes] = await Promise.all([
-        getPurchases(activeCompanyId, { filters: [['supplierId', '==', supplier.id]] }),
-        getSupplierPaymentsBySupplierId(activeCompanyId, supplier.id),
+        getPurchases(companyId, { filters: [['supplierId', '==', supplier.id]] }),
+        getSupplierPaymentsBySupplierId(companyId, supplier.id),
       ]);
       setPurchases((purchaseRes as any).data || []);
       setSupplierPayments(paymentRes.data || []);
@@ -219,7 +219,7 @@ const SuppliersPage: React.FC = () => {
   };
 
   const saveSupplierPay = async () => {
-    if (!activeCompanyId || !selectedSupplier) return;
+    if (!companyId || !selectedSupplier) return;
     if (!paymentMethod) {
       addNotification('اختر طريقة الدفع.', 'error');
       return;
@@ -235,7 +235,7 @@ const SuppliersPage: React.FC = () => {
     }
     setPaymentSaving(true);
     try {
-      await saveSupplierPayment(activeCompanyId, {
+      await saveSupplierPayment(companyId, {
         supplierId: selectedSupplier.id,
         supplierName: selectedSupplier.supplierName,
         amount: Number(paymentAmount),
@@ -248,7 +248,7 @@ const SuppliersPage: React.FC = () => {
       setPaymentNotes('');
       setPaymentReference('');
       setPaymentMethod('');
-      const paymentRes = await getSupplierPaymentsBySupplierId(activeCompanyId, selectedSupplier.id);
+      const paymentRes = await getSupplierPaymentsBySupplierId(companyId, selectedSupplier.id);
       setSupplierPayments(paymentRes.data || []);
       addNotification('تم تسجيل دفعة المورد.', 'success');
     } catch (err: unknown) {

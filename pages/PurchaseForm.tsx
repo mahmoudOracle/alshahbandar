@@ -8,7 +8,7 @@ import { useNotification } from '../contexts/NotificationContext';
 import { mapFirestoreError } from '../services/firebaseErrors';
 
 const PurchaseForm: React.FC = () => {
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const { addNotification } = useNotification();
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -20,10 +20,10 @@ const PurchaseForm: React.FC = () => {
 
   useEffect(() => {
     const load = async () => {
-      if (!activeCompanyId) return;
+      if (!companyId) return;
       try {
-        const s = await getSuppliers(activeCompanyId);
-        const p = await getProducts(activeCompanyId);
+        const s = await getSuppliers(companyId);
+        const p = await getProducts(companyId);
         setSuppliers((s as any).data || []);
         setProducts((p as any).data || []);
       } catch (err: unknown) {
@@ -31,7 +31,7 @@ const PurchaseForm: React.FC = () => {
       }
     };
     load();
-  }, [activeCompanyId, addNotification]);
+  }, [companyId, addNotification]);
 
   const addRow = (productId?: string) =>
     setItems((prev) => [...prev, { productId: productId || '', quantity: 1, unitPrice: 0 }]);
@@ -45,7 +45,7 @@ const PurchaseForm: React.FC = () => {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!activeCompanyId) return addNotification('الشركة غير محددة', 'error');
+    if (!companyId) return addNotification('الشركة غير محددة', 'error');
     if (!supplierId) return addNotification('اختر موردًا', 'error');
     if (!items.length) return addNotification('أضف عنصرًا واحدًا على الأقل', 'error');
 
@@ -70,7 +70,7 @@ const PurchaseForm: React.FC = () => {
         })),
         totalAmount: total,
       };
-      await createPurchase(activeCompanyId, payload as any);
+      await createPurchase(companyId, payload as any);
       addNotification('تم إنشاء أمر الشراء', 'success');
       setSupplierId('');
       setItems([]);

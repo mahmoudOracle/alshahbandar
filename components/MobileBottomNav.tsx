@@ -10,10 +10,10 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 
 const MobileBottomNav: React.FC = () => {
-  const { authRole, isPlatformAdmin } = useAuth();
+  const { status } = useAuth();
 
-  if (authRole === 'unknown') return null;
-  if (isPlatformAdmin) return null;
+  // Show mobile nav only when user is logged in
+  if (status !== 'authorized') return null;
 
   const items = [
     { to: '/dashboard', label: '\u0645\u0644\u062e\u0635', icon: HomeIcon },

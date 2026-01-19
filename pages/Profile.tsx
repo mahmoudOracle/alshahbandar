@@ -3,16 +3,16 @@ import { useAuth } from '../contexts/AuthContext';
 import Avatar from '../components/Avatar';
 
 const Profile: React.FC = () => {
-  const { firebaseUser, activeCompany } = useAuth();
-  const companyName = (activeCompany as { companyName?: string } | null)?.companyName || '';
+  const { user, company } = useAuth();
+  const companyName = (company as { companyName?: string } | null)?.companyName || '';
 
   return (
     <div className="max-w-3xl mx-auto">
       <div className="flex items-center gap-4 mb-6">
-        <Avatar name={firebaseUser?.displayName} email={firebaseUser?.email} size={64} />
+        <Avatar name={user?.displayName} email={user?.email} size={64} />
         <div>
-          <h2 className="text-2xl font-semibold">{firebaseUser?.displayName || 'المستخدم'}</h2>
-          <div className="text-sm text-gray-500">{firebaseUser?.email}</div>
+          <h2 className="text-2xl font-semibold">{user?.displayName || 'المستخدم'}</h2>
+          <div className="text-sm text-gray-500">{user?.email}</div>
         </div>
       </div>
       <section className="bg-white dark:bg-gray-800 p-4 rounded-md shadow-sm space-y-3">

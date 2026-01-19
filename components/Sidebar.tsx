@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   HomeIcon,
@@ -27,7 +27,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { settings } = useSettings();
-  const { user, signOutUser, activeRole, isPlatformAdmin, authRole, activeCompanyId } = useAuth();
+  const { user, logout, role, companyId } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -42,45 +42,44 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   const tenantGroups = [
     {
-      title: 'الرئيسية',
-      items: [{ to: '/dashboard', text: 'ملخّص', icon: HomeIcon }],
+      title: '????????',
+      items: [{ to: '/dashboard', text: '?????', icon: HomeIcon }],
     },
     {
-      title: 'البيع والعملاء',
+      title: '????? ????????',
       items: [
-        { to: '/invoices', text: 'الفواتير', icon: DocumentTextIcon },
-        { to: '/customers', text: 'العملاء', icon: UsersIcon },
-        { to: '/quotes', text: 'عروض الأسعار', icon: DocumentDuplicateIcon },
+        { to: '/invoices', text: '????????', icon: DocumentTextIcon },
+        { to: '/customers', text: '???????', icon: UsersIcon },
+        { to: '/quotes', text: '???? ???????', icon: DocumentDuplicateIcon },
       ],
     },
     {
-      title: 'المخزون',
+      title: '???????',
       items: [
-        { to: '/products', text: 'المنتجات والمخزون', icon: ArchiveBoxIcon },
-        { to: '/purchases', text: 'المشتريات', icon: CurrencyDollarIcon },
-        { to: '/suppliers', text: 'الموردون', icon: UsersIcon },
+        { to: '/products', text: '???????? ????????', icon: ArchiveBoxIcon },
+        { to: '/purchases', text: '?????????', icon: CurrencyDollarIcon },
+        { to: '/suppliers', text: '????????', icon: UsersIcon },
       ],
     },
     {
-      title: 'المال والإعدادات',
+      title: '????? ??????????',
       items: [
-        { to: '/expenses', text: 'المصروفات', icon: CurrencyDollarIcon },
-        { to: '/reports', text: 'التقارير', icon: ChartPieIcon },
-        { to: '/settings', text: 'الإعدادات', icon: Cog6ToothIcon },
+        { to: '/expenses', text: '?????????', icon: CurrencyDollarIcon },
+        { to: '/reports', text: '????????', icon: ChartPieIcon },
+        { to: '/settings', text: '?????????', icon: Cog6ToothIcon },
       ],
     },
   ];
 const platformGroups = [
     {
-      title: 'المنصة',
-      items: [{ to: '/platform', text: 'لوحة المنصة', icon: BuildingOffice2Icon }],
+      title: '??????',
+      items: [{ to: '/platform', text: '???? ??????', icon: BuildingOffice2Icon }],
     },
   ];
 
 
-  const isTenantMode = !isPlatformAdmin;
-  const groups =
-    authRole === 'unknown' ? [] : isTenantMode ? tenantGroups : isPlatformAdmin ? platformGroups : [];
+  const isTenantMode = true; // Always in single-tenant mode
+  const groups = tenantGroups;
 
   const sidebarClasses = `
     ${isCollapsed ? 'w-20' : 'w-64'} bg-white dark:bg-gray-800 shadow-lg flex flex-col p-3
@@ -190,10 +189,10 @@ const platformGroups = [
           <p className="font-semibold text-gray-800 dark:text-gray-200">
             {user?.displayName || user?.email}
           </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{activeRole}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{role || 'employee'}</p>
         </div>
         <LanguageToggle />
-        <Button variant="secondary" className="w-full mt-4" onClick={signOutUser}>
+        <Button variant="secondary" className="w-full mt-4" onClick={logout}>
           {t('logout', lang)}
         </Button>
       </div>

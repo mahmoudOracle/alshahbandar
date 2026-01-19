@@ -10,8 +10,8 @@ import { getErrorMessage } from '../src/utils/errorMessage';
 
 const NewCustomerInvitationPage: React.FC = () => {
   // FIX: Replaced non-existent 'isManager' with a proper role check.
-  const { activeRole } = useAuth();
-  const isManager = activeRole === UserRole.Owner || activeRole === UserRole.Manager;
+  const { role } = useAuth();
+  const isManager = role === UserRole.Owner || role === UserRole.Manager;
   const navigate = useNavigate();
   const { addNotification } = useNotification();
 

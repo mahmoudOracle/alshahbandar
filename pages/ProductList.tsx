@@ -121,7 +121,7 @@ const ProductCard: React.FC<{
 );
 
 const ProductList: React.FC = () => {
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const canWrite = useCanWrite('products');
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,10 +141,10 @@ const ProductList: React.FC = () => {
   const [editedProduct, setEditedProduct] = useState<Partial<Product> | null>(null);
 
   const fetchProducts = useCallback(async () => {
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     setLoading(true);
     try {
-      const result = await getProducts(activeCompanyId, { limit: PAGE_SIZE });
+      const result = await getProducts(companyId, { limit: PAGE_SIZE });
       if (Array.isArray(result)) {
         setProducts(result);
       } else {
@@ -157,18 +157,18 @@ const ProductList: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeCompanyId, addNotification]);
+  }, [companyId, addNotification]);
 
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
   const applyStockAdjustment = async (product: Product, delta: number) => {
-    if (!activeCompanyId || !canWrite) return;
+    if (!companyId || !canWrite) return;
     const nextStock = Number(product.stock || 0) + delta;
     try {
-      await saveProduct(activeCompanyId, { ...product, stock: Math.max(0, nextStock) });
-      clearProductCache(activeCompanyId);
+      await saveProduct(companyId, { ...product, stock: Math.max(0, nextStock) });
+      clearProductCache(companyId);
       setStockAdjustments((prev) => ({ ...prev, [product.id]: 0 }));
       setProducts((prev) =>
         prev.map((p) => (p.id === product.id ? { ...p, stock: Math.max(0, nextStock) } : p))
@@ -180,15 +180,15 @@ const ProductList: React.FC = () => {
   };
 
   const confirmDelete = async () => {
-    if (productToDelete && activeCompanyId) {
+    if (productToDelete && companyId) {
       try {
-        const result = await deleteProduct(activeCompanyId, productToDelete.id);
+        const result = await deleteProduct(companyId, productToDelete.id);
         if (result) {
           addNotification('تم حذف المنتج.', 'success', {
             label: 'تراجع',
             onClick: async () => {
               try {
-                const ok = await undeleteDocument(activeCompanyId, 'products', productToDelete.id);
+                const ok = await undeleteDocument(companyId, 'products', productToDelete.id);
                 if (ok) {
                   await fetchProducts();
                 }
@@ -281,16 +281,16 @@ const ProductList: React.FC = () => {
           <div className="w-full md:w-80 mb-2 md:mb-0">
             <QuickAddProduct
               onAdd={async (p) => {
-                if (!activeCompanyId) return;
+                if (!companyId) return;
                 try {
-                  await saveProduct(activeCompanyId, {
+                  await saveProduct(companyId, {
                     name: p.name,
                     description: p.description || '',
                     price: p.price,
                     stock: p.stock,
                     reorderLevel: p.reorderLevel ?? 0,
                   } as any);
-                  clearProductCache(activeCompanyId);
+                  clearProductCache(companyId);
                   addNotification('تمت إضافة المنتج بنجاح.', 'success');
                   fetchProducts();
                 } catch (err: unknown) {
@@ -428,7 +428,7 @@ const ProductList: React.FC = () => {
                             variant="secondary"
                             size="sm"
                             onClick={async () => {
-                              if (!activeCompanyId || !editedProduct) return;
+                              if (!companyId || !editedProduct) return;
                               try {
                                 const toSave = {
                                   id: product.id,
@@ -439,9 +439,9 @@ const ProductList: React.FC = () => {
                                     editedProduct.reorderLevel ?? product.reorderLevel ?? 0
                                   ),
                                 } as Product;
-                                await saveProduct(activeCompanyId, toSave);
+                                await saveProduct(companyId, toSave);
                                 try {
-                                  clearProductCache(activeCompanyId);
+                                  clearProductCache(companyId);
                                 } catch (e) {
                                   /* ignore cache clear errors */
                                 }

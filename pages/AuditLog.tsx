@@ -2,18 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 const AuditLog: React.FC = () => {
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     setLoading(true);
     (async () => {
       try {
         // Lightweight read via client-side Firestore helper (services/firestoreService has helpers)
         const { getAuditLogs } = await import('../services/firestoreService');
-        const logs = await getAuditLogs(activeCompanyId, { limit: 100 });
+        const logs = await getAuditLogs(companyId, { limit: 100 });
         setEntries(logs || []);
       } catch (e) {
         console.warn('Could not load audit logs', e);
@@ -21,9 +21,9 @@ const AuditLog: React.FC = () => {
         setLoading(false);
       }
     })();
-  }, [activeCompanyId]);
+  }, [companyId]);
 
-  if (!activeCompanyId) return <div className="p-6">Select a company to view audit logs.</div>;
+  if (!companyId) return <div className="p-6">Select a company to view audit logs.</div>;
   return (
     <div className="p-6">
       <h2 className="text-xl font-semibold mb-4">Audit Trail</h2>

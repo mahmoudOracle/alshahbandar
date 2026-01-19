@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button';
 import { useAuth } from '../contexts/AuthContext';
 
 const InventoryAudit: React.FC = () => {
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [ledger, setLedger] = useState<StockLedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -17,11 +17,11 @@ const InventoryAudit: React.FC = () => {
 
   useEffect(() => {
     const load = async () => {
-      if (!activeCompanyId) return;
+      if (!companyId) return;
       setLoading(true);
       try {
-        const invRes = await getInventory(activeCompanyId);
-        const ledgerRes = await getStockLedger(activeCompanyId, { limit: 200 });
+        const invRes = await getInventory(companyId);
+        const ledgerRes = await getStockLedger(companyId, { limit: 200 });
         setInventory(invRes.data || []);
         setLedger(ledgerRes.data || []);
       } catch (e) {
@@ -31,7 +31,7 @@ const InventoryAudit: React.FC = () => {
       }
     };
     load();
-  }, [activeCompanyId]);
+  }, [companyId]);
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -42,8 +42,8 @@ const InventoryAudit: React.FC = () => {
             <h3 className="font-semibold">جرد المخزون</h3>
             <Button
               onClick={async () => {
-                if (!activeCompanyId) return;
-                const res = await getInventory(activeCompanyId);
+                if (!companyId) return;
+                const res = await getInventory(companyId);
                 setInventory(res.data || []);
               }}
             >
@@ -106,8 +106,8 @@ const InventoryAudit: React.FC = () => {
               </select>
               <Button
                 onClick={async () => {
-                  if (!activeCompanyId) return;
-                  const res = await getStockLedger(activeCompanyId, { limit: 200 });
+                  if (!companyId) return;
+                  const res = await getStockLedger(companyId, { limit: 200 });
                   setLedger(res.data || []);
                 }}
               >

@@ -24,7 +24,7 @@ const ExpenseForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addNotification } = useNotification();
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const canWrite = useCanWrite('expenses');
 
   const [expense, setExpense] = useState<Omit<Expense, 'id'>>({
@@ -55,11 +55,11 @@ const ExpenseForm: React.FC = () => {
   }, [canWrite, id, navigate, addNotification]);
 
   const fetchDropdownData = async () => {
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     try {
       const [catsRes, vensRes] = await Promise.all([
-        getExpenseCategories(activeCompanyId),
-        getVendors(activeCompanyId),
+        getExpenseCategories(companyId),
+        getVendors(companyId),
       ]);
       setCategories(catsRes.data || []);
       setVendors(vensRes.data || []);
@@ -70,9 +70,9 @@ const ExpenseForm: React.FC = () => {
 
   useEffect(() => {
     fetchDropdownData();
-    if (id && activeCompanyId) {
+    if (id && companyId) {
       setLoading(true);
-      getExpenseById(activeCompanyId, id)
+      getExpenseById(companyId, id)
         .then((expenseData) => {
           if (expenseData) setExpense(expenseData);
           else addNotification('لم يتم العثور على المصروف.', 'error');
@@ -85,7 +85,7 @@ const ExpenseForm: React.FC = () => {
     } else {
       setLoading(false);
     }
-  }, [id, activeCompanyId, addNotification]);
+  }, [id, companyId, addNotification]);
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -98,9 +98,9 @@ const ExpenseForm: React.FC = () => {
   };
 
   const handleAddNewCategory = async () => {
-    if (!activeCompanyId || !newCategory.trim()) return;
+    if (!companyId || !newCategory.trim()) return;
     try {
-      const result = await saveExpenseCategory(activeCompanyId, { name: newCategory.trim() });
+      const result = await saveExpenseCategory(companyId, { name: newCategory.trim() });
       if (result) {
         addNotification('تمت إضافة الفئة بنجاح!', 'success');
         setNewCategory('');
@@ -116,9 +116,9 @@ const ExpenseForm: React.FC = () => {
   };
 
   const handleAddNewVendor = async () => {
-    if (!activeCompanyId || !newVendor.trim()) return;
+    if (!companyId || !newVendor.trim()) return;
     try {
-      const result = await saveVendor(activeCompanyId, { name: newVendor.trim() });
+      const result = await saveVendor(companyId, { name: newVendor.trim() });
       if (result) {
         addNotification('تمت إضافة المورد بنجاح!', 'success');
         setNewVendor('');
@@ -154,12 +154,12 @@ const ExpenseForm: React.FC = () => {
       addNotification('يرجى ملء جميع الحقول المطلوبة.', 'error');
       return;
     }
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     setSaving(true);
     try {
       const result = id
-        ? await saveExpense(activeCompanyId, { ...expense, id })
-        : await saveExpense(activeCompanyId, expense);
+        ? await saveExpense(companyId, { ...expense, id })
+        : await saveExpense(companyId, expense);
 
       if (result) {
         addNotification('تم حفظ المصروف بنجاح!', 'success');

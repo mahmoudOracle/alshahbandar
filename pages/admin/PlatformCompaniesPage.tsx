@@ -37,7 +37,7 @@ const PlatformCompaniesPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [cursors, setCursors] = useState<unknown[]>([undefined]);
 
-  const { firebaseUser, signOutUser } = useAuth();
+  const { user, logout } = useAuth();
 
   const fetchCompanies = useCallback(
     async (page: number) => {
@@ -107,7 +107,7 @@ const PlatformCompaniesPage: React.FC = () => {
 
   const handleSignOut = () => {
     console.log('[Auth][SignOut] Platform admin signed out');
-    signOutUser();
+    logout();
   };
 
   const filteredCompanies = useMemo(() => {
@@ -132,7 +132,7 @@ const PlatformCompaniesPage: React.FC = () => {
           </Button>
           <div className="flex items-center gap-2 border-s border-gray-300 dark:border-gray-600 ps-4">
             <span className="text-sm text-gray-600 dark:text-gray-300 hidden sm:inline">
-              {firebaseUser?.email}
+              {user?.email}
             </span>
             <Button variant="secondary" onClick={handleSignOut} aria-label="تسجيل الخروج">
               <ArrowLeftOnRectangleIcon className="h-5 w-5 me-2" />

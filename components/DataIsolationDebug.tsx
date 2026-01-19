@@ -8,13 +8,13 @@ import { DEBUG_MODE } from '../config';
  * Only shown in development mode for debugging purposes
  */
 export const DataIsolationDebug: React.FC = () => {
-  const { firebaseUser, activeCompanyId, companyMemberships } = useAuth();
+  const { user, companyId } = useAuth();
 
   if (!DEBUG_MODE) return null;
 
   const isolationCheck =
-    firebaseUser && activeCompanyId
-      ? validateUserDataIsolation(firebaseUser, activeCompanyId)
+    user && companyId
+      ? validateUserDataIsolation(user, companyId)
       : null;
 
   return (
@@ -24,15 +24,15 @@ export const DataIsolationDebug: React.FC = () => {
 
         <div className="mt-2 space-y-1 font-mono text-gray-300">
           <div>
-            👤 User ID: <span className="text-yellow-300">{firebaseUser?.uid.slice(0, 8)}...</span>
+            👤 User ID: <span className="text-yellow-300">{user?.uid.slice(0, 8)}...</span>
           </div>
           <div>
             🏢 Active Company:{' '}
-            <span className="text-yellow-300">{activeCompanyId?.slice(0, 8) || 'None'}...</span>
+            <span className="text-yellow-300">{companyId?.slice(0, 8) || 'None'}...</span>
           </div>
           <div>
             🔑 Role:{' '}
-            <span className="text-yellow-300">{companyMemberships[0]?.role || 'None'}</span>
+            <span className="text-yellow-300">{'N/A (single-tenant)'}</span>
           </div>
 
           {isolationCheck && (

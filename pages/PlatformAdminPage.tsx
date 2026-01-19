@@ -35,7 +35,7 @@ type PlatformSummary = {
 };
 
 const PlatformAdminPage: React.FC = () => {
-  const { isPlatformAdmin } = useAuth();
+  const auth = useAuth(););
   const [summary, setSummary] = useState<PlatformSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
@@ -65,7 +65,11 @@ const PlatformAdminPage: React.FC = () => {
   const [formLoading, setFormLoading] = useState(false);
   const [formMessage, setFormMessage] = useState<string | null>(null);
 
-  if (!isPlatformAdmin) return <NotAuthorizedPage />;
+  }, [formMessage]);
+
+  // Platform admin page - not available in single-tenant mode
+  return <NotAuthorizedPage />;
+};
 
   const formatDate = (value: unknown) => {
     if (!value) return '-';

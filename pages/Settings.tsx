@@ -17,7 +17,7 @@ import { FormSkeleton } from '../components/ui/FormSkeleton';
 
 const SettingsPage: React.FC = () => {
   const { settings: contextSettings, loading: loadingSettings, updateSettings } = useSettings();
-  const { activeRole, activeCompanyId, authRole, isPlatformAdmin } = useAuth();
+  const { role, companyId } = useAuth();
   const canWrite = useCanWrite('settings');
   const [settings, setSettings] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
@@ -40,11 +40,11 @@ const SettingsPage: React.FC = () => {
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !activeCompanyId) return;
+    if (!file || !companyId) return;
     // Upload to Firebase Storage under companies/{companyId}/logo_{timestamp}
     (async () => {
       try {
-        const path = `companies/${activeCompanyId}/assets/logo_${Date.now()}_${file.name}`;
+        const path = `companies/${companyId}/assets/logo_${Date.now()}_${file.name}`;
         const sref = storageRef(storage, path);
         const snap = await uploadBytes(sref, file);
         const url = await getDownloadURL(snap.ref);
@@ -93,7 +93,7 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  if (!activeCompanyId || (!isPlatformAdmin && authRole !== 'tenant')) {
+  if (!companyId) {
     return <NotAuthorizedPage />;
   }
 
@@ -322,7 +322,7 @@ const SettingsPage: React.FC = () => {
         )}
       </form>
 
-      {activeRole === UserRole.Owner && <UserManagement />}
+      {role === UserRole.Owner && <UserManagement />}
     </div>
   );
 };

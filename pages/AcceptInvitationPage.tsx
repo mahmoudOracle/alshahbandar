@@ -8,7 +8,7 @@ import { useNotification } from '../contexts/NotificationContext';
 import { UserRole } from '../types';
 
 const AcceptInvitationPage: React.FC = () => {
-  const { firebaseUser, authLoading } = useAuth();
+  const { user, isLoading } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -40,13 +40,13 @@ const AcceptInvitationPage: React.FC = () => {
   }, [token, inviteId]);
 
   useEffect(() => {
-    if (firebaseUser) {
+    if (user) {
       console.log(
         '[DEBUG][InviteAccept] user is logged in, redirecting to dashboard so auth flow can accept the invite.'
       );
       navigate('/', { replace: true });
     }
-  }, [firebaseUser, navigate]);
+  }, [user, navigate]);
 
   if (!token || !inviteId) {
     return (
@@ -71,7 +71,7 @@ const AcceptInvitationPage: React.FC = () => {
       </div>
     );
   }
-  const { onboardingError } = useAuth();
+  const { error } = useAuth();
   const { addNotification } = useNotification();
 
   const handleResend = async () => {
@@ -82,14 +82,14 @@ const AcceptInvitationPage: React.FC = () => {
         return;
       }
 
-      if (!firebaseUser?.email || !firebaseUser.uid) {
+      if (!user?.email || !user.uid) {
         addNotification('يرجى تسجيل الدخول أولًا لإعادة إرسال الدعوة.', 'error');
         return;
       }
 
-      await dataService.inviteUser(companyId, firebaseUser.email, UserRole.Employee, {
-        uid: firebaseUser.uid,
-        email: firebaseUser.email,
+      await dataService.inviteUser(companyId, user.email, UserRole.Employee, {
+        uid: user.uid,
+        email: user.email,
       });
       addNotification('تم إرسال الدعوة مرة أخرى إلى البريد الإلكتروني.', 'success');
     } catch (err) {

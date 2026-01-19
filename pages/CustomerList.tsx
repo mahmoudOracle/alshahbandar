@@ -78,11 +78,11 @@ const CustomerCard: React.FC<{
 );
 
 const CustomerList: React.FC = () => {
-  const { activeCompanyId, activeRole } = useAuth();
+  const { companyId, role } = useAuth();
   const canCreatePayments =
-    activeRole === UserRole.Owner ||
-    activeRole === UserRole.Manager ||
-    activeRole === UserRole.Employee;
+    role === UserRole.Owner ||
+    role === UserRole.Manager ||
+    role === UserRole.Employee;
   const canWriteCustomers = useCanWrite('customers');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,10 +100,10 @@ const CustomerList: React.FC = () => {
 
   const fetchData = useCallback(
     async (cursor?: unknown, direction: 'next' | 'prev' = 'next') => {
-      if (!activeCompanyId) return;
+      if (!companyId) return;
       setLoading(true);
       try {
-        const result = await getCustomers(activeCompanyId, {
+        const result = await getCustomers(companyId, {
           limit: PAGE_SIZE,
           startAfter: cursor as any,
         });
@@ -124,7 +124,7 @@ const CustomerList: React.FC = () => {
         setLoading(false);
       }
     },
-    [activeCompanyId, addNotification]
+    [companyId, addNotification]
   );
 
   useEffect(() => {

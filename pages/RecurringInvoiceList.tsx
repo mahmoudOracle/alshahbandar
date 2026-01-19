@@ -10,7 +10,7 @@ import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import { mapFirestoreError } from '../services/firebaseErrors';
 
 const RecurringInvoiceList: React.FC = () => {
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const canWrite = useCanWrite('recurring');
   const [recurringInvoices, setRecurringInvoices] = useState<RecurringInvoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,21 +18,21 @@ const RecurringInvoiceList: React.FC = () => {
   const { addNotification } = useNotification();
 
   const fetchRecurringInvoices = async () => {
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     setLoading(true);
-    const result = await getRecurringInvoices(activeCompanyId);
+    const result = await getRecurringInvoices(companyId);
     setRecurringInvoices(result.data || []);
     setLoading(false);
   };
 
   useEffect(() => {
     fetchRecurringInvoices();
-  }, [activeCompanyId]);
+  }, [companyId]);
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('هل أنت متأكد من رغبتك في حذف هذا الجدول؟') && activeCompanyId) {
+    if (window.confirm('هل أنت متأكد من رغبتك في حذف هذا الجدول؟') && companyId) {
       try {
-        await deleteRecurringInvoice(activeCompanyId, id);
+        await deleteRecurringInvoice(companyId, id);
         addNotification('تم حذف الفاتورة المتكررة بنجاح!', 'success');
         fetchRecurringInvoices();
       } catch (error) {

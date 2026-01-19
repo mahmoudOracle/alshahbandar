@@ -16,7 +16,7 @@ vi.mock('../../services/dataService', () => ({
 
 // Mock auth and notification hooks
 vi.mock('../../contexts/AuthContext', () => ({
-  useAuth: () => ({ activeCompanyId: 'mock-company' }),
+  useAuth: () => ({ companyId: 'mock-company' }),
 }));
 vi.mock('../../contexts/NotificationContext', () => ({
   useNotification: () => ({ addNotification: vi.fn() }),

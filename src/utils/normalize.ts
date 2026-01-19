@@ -130,9 +130,10 @@ export function toDate(value: unknown): Date | null {
  * Normalize invoice status to valid enum value
  */
 export function normalizeInvoiceStatus(value: unknown): InvoiceStatus {
-  const str = toStringSafe(value).trim();
-  if (Object.values(InvoiceStatus).includes(str as InvoiceStatus)) {
-    return str as InvoiceStatus;
+  const str = toStringSafe(value).trim().toLowerCase();
+  const normalized = str.charAt(0).toUpperCase() + str.slice(1);
+  if (Object.values(InvoiceStatus).includes(normalized as InvoiceStatus)) {
+    return normalized as InvoiceStatus;
   }
   // Fallback to Due if unrecognized
   return InvoiceStatus.Due;
@@ -142,9 +143,10 @@ export function normalizeInvoiceStatus(value: unknown): InvoiceStatus {
  * Normalize payment type to valid enum value
  */
 export function normalizePaymentType(value: unknown): PaymentType {
-  const str = toStringSafe(value).trim();
-  if (Object.values(PaymentType).includes(str as PaymentType)) {
-    return str as PaymentType;
+  const str = toStringSafe(value).trim().toLowerCase();
+  const normalized = str.charAt(0).toUpperCase() + str.slice(1);
+  if (Object.values(PaymentType).includes(normalized as PaymentType)) {
+    return normalized as PaymentType;
   }
   // Fallback to Cash
   return PaymentType.Cash;
@@ -167,9 +169,10 @@ export function normalizePaymentMethod(value: unknown): PaymentMethod {
  * Normalize quote status to valid enum value
  */
 export function normalizeQuoteStatus(value: unknown): QuoteStatus {
-  const str = toStringSafe(value).trim();
-  if (Object.values(QuoteStatus).includes(str as QuoteStatus)) {
-    return str as QuoteStatus;
+  const str = toStringSafe(value).trim().toLowerCase();
+  const normalized = str.charAt(0).toUpperCase() + str.slice(1);
+  if (Object.values(QuoteStatus).includes(normalized as QuoteStatus)) {
+    return normalized as QuoteStatus;
   }
   return QuoteStatus.Draft;
 }

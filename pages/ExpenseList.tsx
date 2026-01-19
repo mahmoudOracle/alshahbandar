@@ -155,7 +155,7 @@ const ExpenseCard: React.FC<{
 const PAGE_SIZE = 15;
 
 const ExpenseList: React.FC = () => {
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const canWrite = useCanWrite('expenses');
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [allExpensesForSummary, setAllExpensesForSummary] = useState<Expense[]>([]);
@@ -173,10 +173,10 @@ const ExpenseList: React.FC = () => {
 
   const fetchExpenses = useCallback(
     async (cursor?: unknown, direction: 'next' | 'prev' = 'next') => {
-      if (!activeCompanyId) return;
+      if (!companyId) return;
       setLoading(true);
       try {
-        const result = await getExpenses(activeCompanyId, {
+        const result = await getExpenses(companyId, {
           limit: PAGE_SIZE,
           startAfter: cursor as any,
         });
@@ -197,17 +197,17 @@ const ExpenseList: React.FC = () => {
         setLoading(false);
       }
     },
-    [activeCompanyId, addNotification]
+    [companyId, addNotification]
   );
 
   useEffect(() => {
     fetchExpenses();
-    if (activeCompanyId) {
-      getExpenses(activeCompanyId).then((res) => {
+    if (companyId) {
+      getExpenses(companyId).then((res) => {
         setAllExpensesForSummary(res.data || []);
       });
     }
-  }, [activeCompanyId, fetchExpenses]);
+  }, [companyId, fetchExpenses]);
 
   const handleNextPage = () => {
     if (nextCursor) fetchExpenses(nextCursor, 'next');
@@ -221,15 +221,15 @@ const ExpenseList: React.FC = () => {
   };
 
   const confirmDelete = async () => {
-    if (expenseToDelete && activeCompanyId) {
+    if (expenseToDelete && companyId) {
       try {
-        const result = await deleteExpense(activeCompanyId, expenseToDelete.id);
+        const result = await deleteExpense(companyId, expenseToDelete.id);
         if (result) {
           addNotification('تم حذف المصروف بنجاح!', 'success', {
             label: 'تراجع',
             onClick: async () => {
               try {
-                const ok = await undeleteDocument(activeCompanyId, 'expenses', expenseToDelete.id);
+                const ok = await undeleteDocument(companyId, 'expenses', expenseToDelete.id);
                 if (ok) await fetchExpenses(prevCursors[prevCursors.length - 1] || undefined);
               } catch (e) {
                 console.error(e);

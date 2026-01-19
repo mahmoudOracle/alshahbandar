@@ -144,7 +144,7 @@ const InvoiceCard: React.FC<{
 );
 
 const InvoiceList: React.FC = () => {
-  const { activeCompanyId } = useAuth();
+  const { companyId } = useAuth();
   const canWrite = useCanWrite('invoices');
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -223,7 +223,7 @@ const InvoiceList: React.FC = () => {
       cursor?: unknown,
       direction: 'next' | 'prev' = 'next',
     ) => {
-      if (!activeCompanyId) return;
+      if (!companyId) return;
       setLoading(true);
 
       const [orderByField, orderDirection] = sortBy.split('_') as [string, 'asc' | 'desc'];
@@ -234,7 +234,7 @@ const InvoiceList: React.FC = () => {
       }
 
       try {
-        const result = await getInvoices(activeCompanyId, {
+        const result = await getInvoices(companyId, {
           limit: PAGE_SIZE,
           startAfter: cursor as any,
           orderBy: orderByField,
@@ -262,7 +262,7 @@ const InvoiceList: React.FC = () => {
       }
       setLoading(false);
     },
-    [activeCompanyId, addNotification, sortBy, statusFilter, dateRange.startDate, dateRange.endDate, debouncedSearchTerm]
+    [companyId, addNotification, sortBy, statusFilter, dateRange.startDate, dateRange.endDate, debouncedSearchTerm]
   );
 
   useEffect(() => {
@@ -320,20 +320,20 @@ const InvoiceList: React.FC = () => {
   };
 
   const handleDelete = async (invoiceId: string) => {
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     const ok = window.confirm(
       'هل أنت متأكد أنك تريد حذف هذه الفاتورة؟ لا يمكن التراجع عن هذا الإجراء.'
     );
     if (!ok) return;
     try {
-      const res = await deleteInvoice(activeCompanyId, invoiceId);
+      const res = await deleteInvoice(companyId, invoiceId);
       if (res) {
         // No need to filter client-side, just re-fetch
         addNotification('تم حذف الفاتورة بنجاح.', 'success', {
           label: 'تراجع',
           onClick: async () => {
             try {
-              const ok = await undeleteDocument(activeCompanyId, 'invoices', invoiceId);
+              const ok = await undeleteDocument(companyId, 'invoices', invoiceId);
               if (ok) {
                 await fetchInvoices(); // Re-fetch on undo
                 return;
@@ -355,10 +355,10 @@ const InvoiceList: React.FC = () => {
   };
 
   const handleDuplicateLast = async () => {
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     setDupLoading(true);
     try {
-      const newInv = await duplicateLastInvoice(activeCompanyId);
+      const newInv = await duplicateLastInvoice(companyId);
       addNotification('تم تكرار آخر فاتورة بنجاح.', 'success', {
         label: 'عرض',
         onClick: () => navigate(`/invoices/edit/${newInv.id}`),
@@ -374,10 +374,10 @@ const InvoiceList: React.FC = () => {
   };
 
   const handleDuplicateInvoice = async (invoiceId: string) => {
-    if (!activeCompanyId) return;
+    if (!companyId) return;
     setDupLoading(true);
     try {
-      const newInv = await duplicateInvoice(activeCompanyId, invoiceId);
+      const newInv = await duplicateInvoice(companyId, invoiceId);
       addNotification('تم تكرار الفاتورة بنجاح.', 'success', {
         label: 'عرض',
         onClick: () => navigate(`/invoices/edit/${newInv.id}`),
