@@ -56,6 +56,7 @@ import * as productsRepo from './repositories/products';
 import { serverTimestamp } from 'firebase/firestore';
 import { DEBUG_MODE } from '../config';
 import { isPosted, isPeriodLocked } from './accountingSafety';
+import * as normalize from '../src/utils/normalize';
 
 const IS_FREE_MODE = import.meta.env.VITE_FREE_MODE === 'true';
 
@@ -532,6 +533,52 @@ const getCollectionRef = (companyId: string, collectionName: string) => {
 
 const DEFAULT_PAGE_LIMIT = 50; // safe default to limit reads for cost control
 
+/**
+ * Route normalization by collection name
+ * Returns normalized data of the appropriate type
+ */
+const normalizeByCollection = <T>(collectionName: string, rawData: T): T => {
+  try {
+    switch (collectionName) {
+      case 'invoices':
+        return normalize.normalizeInvoice(rawData) as T;
+      case 'customers':
+        return normalize.normalizeCustomer(rawData) as T;
+      case 'products':
+        return normalize.normalizeProduct(rawData) as T;
+      case 'payments':
+        return normalize.normalizePayment(rawData) as T;
+      case 'returns':
+        return normalize.normalizeReturn(rawData) as T;
+      case 'suppliers':
+        return normalize.normalizeSupplier(rawData) as T;
+      case 'supplierPayments':
+        return normalize.normalizeSupplierPayment(rawData) as T;
+      case 'stockLedger':
+        return normalize.normalizeStockLedger(rawData) as T;
+      case 'quotes':
+        return normalize.normalizeQuote(rawData) as T;
+      case 'recurringInvoices':
+        return normalize.normalizeRecurringInvoice(rawData) as T;
+      case 'expenses':
+        return normalize.normalizeExpense(rawData) as T;
+      case 'purchases':
+        return normalize.normalizePurchase(rawData) as T;
+      case 'journal':
+        return normalize.normalizeJournalEntry(rawData) as T;
+      default:
+        // For unknown collections, return as-is (no normalization)
+        return rawData;
+    }
+  } catch (err) {
+    if (DEBUG_MODE) {
+      console.error(`[NORMALIZE] Failed to normalize ${collectionName}:`, err);
+    }
+    // Return raw data if normalization fails
+    return rawData;
+  }
+};
+
 const getData = async <T>(
   companyId: string,
   collectionName: string,
@@ -611,7 +658,10 @@ const getData = async <T>(
     docs.pop(); // Remove the extra doc
   }
 
-  const data = docs.map((doc) => ({ id: doc.id, ...doc.data() }) as unknown as T);
+  const data = docs.map((doc) => {
+    const rawData = { id: doc.id, ...doc.data() } as unknown as T;
+    return normalizeByCollection(collectionName, rawData);
+  });
 
   return {
     data,
@@ -626,7 +676,10 @@ const getById = async <T>(
 ): Promise<T | undefined> => {
   const docRef = doc(db, 'companies', companyId, collectionName, id);
   const docSnap = await getDoc(docRef);
-  return docSnap.exists() ? ({ id: docSnap.id, ...docSnap.data() } as unknown as T) : undefined;
+  if (!docSnap.exists()) return undefined;
+  
+  const rawData = { id: docSnap.id, ...docSnap.data() } as unknown as T;
+  return normalizeByCollection(collectionName, rawData);
 };
 
 const saveData = async <T extends { id?: string }>(
