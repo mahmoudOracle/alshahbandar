@@ -1,24 +1,16 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getInvoices, getCustomers, getExpenses, getProducts } from '../services/dataService';
-import { Invoice, Customer, Expense, Product } from '../types';
+import { getInvoices, getExpenses } from '../services/dataService';
+import { Expense, Invoice } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
-import {
-  UsersIcon,
-  BanknotesIcon,
-  CurrencyDollarIcon,
-  DocumentPlusIcon,
-  UserPlusIcon,
-  ArchiveBoxIcon,
-} from '@heroicons/react/24/outline';
-import { useNotification } from '../contexts/NotificationContext';
-import { getErrorMessage } from '../src/utils/errorMessage';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import { Card } from '../components/ui/Card';
 import { StatCard } from '../components/ui/StatCard';
 import { CardSkeleton } from '../components/ui/CardSkeleton';
+import { BanknotesIcon, CurrencyDollarIcon, ChartBarIcon } from '@heroicons/react/24/outline';
+import { getErrorMessage } from '../src/utils/errorMessage';
 
-const SALES_PERIOD_DAYS = 30;
+const DAILY_LIMIT = 500;
 
 const getInvoiceTotal = (inv: Invoice) => {
   const maybe = inv as unknown as {
@@ -36,7 +28,7 @@ const getInvoiceTotal = (inv: Invoice) => {
   return 0;
 };
 
-const toDateValue = (value: unknown): Date | null => {
+const toDateObject = (value: unknown): Date | null => {
   if (!value) return null;
   if (value instanceof Date) return value;
   if (typeof value === 'string' || typeof value === 'number') {
@@ -48,250 +40,281 @@ const toDateValue = (value: unknown): Date | null => {
   return null;
 };
 
-const statusToLabel = (status: string) => {
-  if (status === 'approved') return 'مفعّلة';
-  if (status === 'pending') return 'بانتظار الموافقة';
-  if (status === 'blocked') return 'موقوفة';
-  return status || 'غير معروف';
-};
+const toISODate = (date: Date) => date.toISOString().split('T')[0];
 
 const Dashboard: React.FC = () => {
-  const { companyId, company, error, user, logout } = useAuth();
-  const canWrite = useCanWrite('invoices');
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { companyId } = useAuth();
+  const canWriteInvoices = useCanWrite('invoices');
+  const canWriteExpenses = useCanWrite('expenses');
   const { settings, loading: settingsLoading } = useSettings();
-  const { addNotification } = useNotification();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [todaySales, setTodaySales] = useState(0);
+  const [todayExpenses, setTodayExpenses] = useState(0);
+  const [yesterdaySales, setYesterdaySales] = useState(0);
+  const [yesterdayExpenses, setYesterdayExpenses] = useState(0);
+  const [recentInvoices, setRecentInvoices] = useState<Invoice[]>([]);
+  const [recentExpenses, setRecentExpenses] = useState<Expense[]>([]);
 
-  const fetchData = useCallback(async () => {
+  const fetchRangeInvoices = useCallback(
+    async (startISO: string, endISO: string) => {
+      if (!companyId) return [];
+      const stringRes = await getInvoices(companyId, {
+        filters: ([['date', '>=', startISO], ['date', '<=', endISO]] as unknown) as any,
+        orderBy: 'date',
+        orderDirection: 'asc',
+        limit: DAILY_LIMIT,
+      });
+      if (stringRes.data?.length) return stringRes.data as Invoice[];
+      const tsRes = await getInvoices(companyId, {
+        dateStart: startISO,
+        dateEnd: endISO,
+        orderDirection: 'asc',
+        limit: DAILY_LIMIT,
+      });
+      return (tsRes.data || []) as Invoice[];
+    },
+    [companyId]
+  );
+
+  const fetchRangeExpenses = useCallback(
+    async (startISO: string, endISO: string) => {
+      if (!companyId) return [];
+      const stringRes = await getExpenses(companyId, {
+        filters: ([['date', '>=', startISO], ['date', '<=', endISO]] as unknown) as any,
+        orderBy: 'date',
+        orderDirection: 'asc',
+        limit: DAILY_LIMIT,
+      });
+      if (stringRes.data?.length) return stringRes.data as Expense[];
+      const tsRes = await getExpenses(companyId, {
+        dateStart: startISO,
+        dateEnd: endISO,
+        orderDirection: 'asc',
+        limit: DAILY_LIMIT,
+      });
+      return (tsRes.data || []) as Expense[];
+    },
+    [companyId]
+  );
+
+  const fetchSummary = useCallback(async () => {
     if (!companyId) {
-      setInvoices([]);
-      setCustomers([]);
-      setExpenses([]);
-      setProducts([]);
       setLoading(false);
       return;
     }
     setLoading(true);
+    setError(null);
     try {
-      const [invoicesRes, customersRes, expensesRes, productsRes] = await Promise.all([
-        getInvoices(companyId),
-        getCustomers(companyId),
-        getExpenses(companyId),
-        getProducts(companyId),
+      const today = new Date();
+      const yesterday = new Date();
+      yesterday.setDate(today.getDate() - 1);
+      const todayISO = toISODate(today);
+      const yesterdayISO = toISODate(yesterday);
+
+      const [
+        todayInvoices,
+        todayExpenses,
+        yesterdayInvoices,
+        yesterdayExpenses,
+        recentInvoicesRes,
+        recentExpensesRes,
+      ] = await Promise.all([
+        fetchRangeInvoices(todayISO, todayISO),
+        fetchRangeExpenses(todayISO, todayISO),
+        fetchRangeInvoices(yesterdayISO, yesterdayISO),
+        fetchRangeExpenses(yesterdayISO, yesterdayISO),
+        getInvoices(companyId, { orderBy: 'date', orderDirection: 'desc', limit: 3 }),
+        getExpenses(companyId, { orderBy: 'date', orderDirection: 'desc', limit: 3 }),
       ]);
-      setInvoices(invoicesRes.data || []);
-      setCustomers(customersRes.data || []);
-      setExpenses(expensesRes.data || []);
-      setProducts(productsRes.data || []);
-    } catch (error: unknown) {
-      const msg = getErrorMessage(error, 'تعذر تحميل بيانات الملخّص. حاول مرة أخرى.');
-      console.error('Failed to fetch dashboard data:', { message: msg });
-      addNotification(msg, 'error');
+
+      const salesTotal = todayInvoices.reduce((sum, inv) => sum + getInvoiceTotal(inv), 0);
+      const expensesTotal = todayExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+      const yesterdaySalesTotal = yesterdayInvoices.reduce((sum, inv) => sum + getInvoiceTotal(inv), 0);
+      const yesterdayExpensesTotal = yesterdayExpenses.reduce(
+        (sum, exp) => sum + (exp.amount || 0),
+        0
+      );
+
+      setTodaySales(salesTotal);
+      setTodayExpenses(expensesTotal);
+      setYesterdaySales(yesterdaySalesTotal);
+      setYesterdayExpenses(yesterdayExpensesTotal);
+      setRecentInvoices(recentInvoicesRes.data || []);
+      setRecentExpenses(recentExpensesRes.data || []);
+    } catch (err) {
+      setError(getErrorMessage(err, 'تعذر تحميل ملخص اليوم. حاول مرة أخرى.'));
     } finally {
       setLoading(false);
     }
-  }, [companyId, addNotification]);
+  }, [companyId, fetchRangeInvoices, fetchRangeExpenses]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchSummary();
+  }, [fetchSummary]);
 
-  const {
-    totalInvoices,
-    totalCustomers,
-    totalSalesPeriod,
-    totalExpenses,
-    lowStockCount,
-    recentInvoices,
-    hasProducts,
-  } = useMemo(() => {
-    const periodStart = new Date();
-    periodStart.setDate(periodStart.getDate() - SALES_PERIOD_DAYS);
-    periodStart.setHours(0, 0, 0, 0);
+  const currency = settings?.currency || '';
+  const profitToday = todaySales - todayExpenses;
+  const profitYesterday = yesterdaySales - yesterdayExpenses;
+  const hasYesterday = yesterdaySales > 0 || yesterdayExpenses > 0;
+  const deltaPercent =
+    hasYesterday && Math.abs(profitYesterday) > 0
+      ? ((profitToday - profitYesterday) / Math.abs(profitYesterday)) * 100
+      : null;
 
-    const totalInvoices = invoices.length;
-    const totalCustomers = customers.length;
-    const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-    const hasProducts = products.length > 0;
-    const lowStockCount = products.filter(
-      (p) => Number(p.reorderLevel || 0) > 0 && Number(p.stock || 0) <= Number(p.reorderLevel)
-    ).length;
+  const formatMoney = useCallback(
+    (value: number) => `${value.toFixed(2)} ${currency}`.trim(),
+    [currency]
+  );
 
-    const invoicesWithDate = invoices
-      .map((inv) => ({ inv, date: toDateValue(inv.date) }))
-      .filter((item) => item.date);
+  const recentInvoicesView = useMemo(
+    () =>
+      recentInvoices.map((inv) => ({
+        id: inv.id,
+        title: inv.customerName || 'عميل',
+        date: toDateObject(inv.date)?.toLocaleDateString('ar-EG') || '-',
+        total: formatMoney(getInvoiceTotal(inv)),
+      })),
+    [recentInvoices, formatMoney]
+  );
 
-    const totalSalesPeriod = invoicesWithDate.reduce((sum, item) => {
-      if (!item.date) return sum;
-      return item.date >= periodStart ? sum + getInvoiceTotal(item.inv) : sum;
-    }, 0);
-
-    const recentInvoices = invoicesWithDate
-      .sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0))
-      .slice(0, 5)
-      .map((item) => item.inv);
-
-    return {
-      totalInvoices,
-      totalCustomers,
-      totalSalesPeriod,
-      totalExpenses,
-      lowStockCount,
-      recentInvoices,
-      hasProducts,
-    };
-  }, [invoices, customers, expenses, products]);
-
-  const companyName = useMemo(() => {
-    const companyDoc = company as { companyName?: string } | null;
-    return settings?.businessName || companyDoc?.companyName || 'بدون اسم';
-  }, [settings?.businessName, company]);
-
-  const companyStatus = (company as { status?: string } | null)?.status || 'unknown';
+  const recentExpensesView = useMemo(
+    () =>
+      recentExpenses.map((exp) => ({
+        id: exp.id,
+        title: exp.category || 'مصروف',
+        date: toDateObject(exp.date)?.toLocaleDateString('ar-EG') || '-',
+        total: formatMoney(exp.amount || 0),
+      })),
+    [recentExpenses, formatMoney]
+  );
 
   if (loading || settingsLoading) {
     return (
       <div className="space-y-6">
         <CardSkeleton />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <CardSkeleton />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <CardSkeleton />
           <CardSkeleton />
           <CardSkeleton />
         </div>
       </div>
-    );
-  }
-
-  if (!companyId) {
-    const email = user?.email || '';
-    return (
-      <Card header={<h2 className="text-xl font-bold">لا توجد شركة مرتبطة</h2>}>
-        <div className="space-y-3">
-          <p className="text-gray-600 dark:text-gray-400 whitespace-pre-line">
-            {`الحساب: ${email || ''}\nلا توجد شركة مرتبطة بهذا الحساب.`}
-          </p>
-          <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line">
-            يرجى التواصل مع مدير الشركة لإضافتك أو التأكد من بياناتك.
-          </p>
-          {onboardingError && <p className="text-sm text-danger-600">{onboardingError}</p>}
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={logout}
-              className="inline-flex items-center rounded-md bg-primary-600 text-white px-4 py-2 text-sm font-medium hover:bg-primary-700"
-            >
-              تسجيل الخروج
-            </button>
-          </div>
-        </div>
-      </Card>
     );
   }
 
   return (
     <div className="space-y-6">
-      <Card header={<h2 className="text-xl font-bold">ملخّص</h2>}>
-        <div className="flex flex-col md:flex-row justify-between gap-4">
-          <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">الشركة</p>
-            <p className="text-lg font-semibold text-gray-900 dark:text-white">{companyName}</p>
-          </div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            الحالة: {statusToLabel(String(companyStatus))}
-          </div>
-        </div>
+      <Card header={<h2 className="text-xl font-bold">ملخص اليوم</h2>}>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          الحساب بناءً على البيانات المسجلة داخل التطبيق
+        </p>
       </Card>
 
-      {canWrite && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Link
-            to="/invoices/new"
-            className="bg-primary-600 text-white rounded-lg shadow hover:bg-primary-700 transition-colors p-5 flex items-center justify-center"
-          >
-            <DocumentPlusIcon className="h-7 w-7 me-3" />
-            <span className="text-lg font-semibold">فاتورة جديدة</span>
-          </Link>
-          <Link
-            to="/customers/new"
-            className="bg-success-600 text-white rounded-lg shadow hover:bg-success-700 transition-colors p-5 flex items-center justify-center"
-          >
-            <UserPlusIcon className="h-7 w-7 me-3" />
-            <span className="text-lg font-semibold">عميل جديد</span>
-          </Link>
-        </div>
+      {error && (
+        <Card>
+          <p className="text-sm text-danger-600">{error}</p>
+        </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard
-          title="الفواتير"
-          value={String(totalInvoices)}
+          title="المبيعات اليوم"
+          value={formatMoney(todaySales)}
           icon={<BanknotesIcon className="h-6 w-6 text-primary-600" />}
         />
         <StatCard
-          title="العملاء"
-          value={String(totalCustomers)}
-          icon={<UsersIcon className="h-6 w-6 text-primary-600" />}
-        />
-        <StatCard
-          title={`مبيعات ${SALES_PERIOD_DAYS} يوم`}
-          value={`${totalSalesPeriod.toFixed(2)} ${settings?.currency || ''}`.trim()}
-          icon={<BanknotesIcon className="h-6 w-6 text-primary-600" />}
-        />
-        <StatCard
-          title="المصروفات"
-          value={`${totalExpenses.toFixed(2)} ${settings?.currency || ''}`.trim()}
+          title="المصروفات اليوم"
+          value={formatMoney(todayExpenses)}
           icon={<CurrencyDollarIcon className="h-6 w-6 text-primary-600" />}
         />
-        <Link to="/products?filter=low">
-          <StatCard
-            title="تنبيه مخزون منخفض"
-            value={
-              !hasProducts
-                ? 'لا توجد منتجات'
-                : lowStockCount > 0
-                  ? `منخفض: ${lowStockCount}`
-                  : 'لا توجد أصناف منخفضة حالياً'
-            }
-            icon={<ArchiveBoxIcon className="h-6 w-6 text-primary-600" />}
-          />
-        </Link>
+        <StatCard
+          title="صافي الربح اليوم"
+          value={formatMoney(profitToday)}
+          icon={<ChartBarIcon className="h-6 w-6 text-primary-600" />}
+          trend={
+            deltaPercent !== null ? `${Math.abs(deltaPercent).toFixed(1)}%` : undefined
+          }
+          trendDirection={deltaPercent !== null && deltaPercent >= 0 ? 'up' : 'down'}
+        />
       </div>
 
-      <Card header={<h3 className="text-lg font-bold">أحدث الفواتير</h3>}>
-        {recentInvoices.length === 0 ? (
-          <p className="text-gray-600 dark:text-gray-400">لا توجد فواتير بعد.</p>
+      {deltaPercent !== null && (
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          اليوم {deltaPercent >= 0 ? 'أفضل' : 'أسوأ'} من أمس بنسبة{' '}
+          {Math.abs(deltaPercent).toFixed(1)}%
+        </p>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {canWriteInvoices && (
+          <Link
+            to="/app/invoices/new"
+            className="inline-flex items-center justify-center rounded-md bg-primary-600 text-white px-4 py-3 text-base font-semibold hover:bg-primary-700"
+          >
+            فاتورة جديدة
+          </Link>
+        )}
+        {canWriteExpenses && (
+          <Link
+            to="/app/expenses/new"
+            className="inline-flex items-center justify-center rounded-md bg-success-600 text-white px-4 py-3 text-base font-semibold hover:bg-success-700"
+          >
+            مصروف جديد
+          </Link>
+        )}
+      </div>
+
+      <Card header={<h3 className="text-lg font-bold">آخر الفواتير</h3>}>
+        {recentInvoicesView.length === 0 ? (
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            لا توجد مبيعات مسجلة اليوم
+          </p>
         ) : (
           <div className="divide-y divide-gray-100 dark:divide-gray-700">
-            {recentInvoices.map((inv) => (
-              <div key={inv.id} className="flex items-center justify-between py-3">
+            {recentInvoicesView.map((inv) => (
+              <Link
+                key={inv.id}
+                to={`/app/invoices/${inv.id}`}
+                className="flex items-center justify-between py-3"
+              >
                 <div className="min-w-0">
-                  <p className="font-medium text-gray-900 dark:text-white truncate">
-                    {inv.customerName || 'عميل'}
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {toDateValue(inv.date)?.toLocaleDateString('ar-EG') || '-'}
-                  </p>
+                  <p className="font-medium text-gray-900 dark:text-white truncate">{inv.title}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{inv.date}</p>
                 </div>
                 <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                  {getInvoiceTotal(inv).toFixed(2)} {settings?.currency || ''}
+                  {inv.total}
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}
       </Card>
 
-      {totalInvoices === 0 && totalCustomers === 0 && totalExpenses === 0 && (
-        <Card>
-          <p className="text-gray-600 dark:text-gray-400">
-            ابدأ بإضافة عميل أو فاتورة لتظهر مؤشرات الأداء هنا.
+      <Card header={<h3 className="text-lg font-bold">آخر المصروفات</h3>}>
+        {recentExpensesView.length === 0 ? (
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            لا توجد مصروفات مسجلة اليوم
           </p>
-        </Card>
-      )}
+        ) : (
+          <div className="divide-y divide-gray-100 dark:divide-gray-700">
+            {recentExpensesView.map((exp) => (
+              <Link
+                key={exp.id}
+                to={`/app/expenses/edit/${exp.id}`}
+                className="flex items-center justify-between py-3"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-900 dark:text-white truncate">{exp.title}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{exp.date}</p>
+                </div>
+                <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  {exp.total}
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </Card>
     </div>
   );
 };

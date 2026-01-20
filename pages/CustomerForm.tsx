@@ -34,7 +34,7 @@ const CustomerForm: React.FC = () => {
       // Allow viewing
     } else if (!canWrite) {
       addNotification('ليس لديك الصلاحية للوصول لهذه الصفحة.', 'error');
-      navigate('/customers');
+      navigate('/app/customers');
     }
   }, [canWrite, id, navigate, addNotification]);
 
@@ -109,7 +109,7 @@ const CustomerForm: React.FC = () => {
       if (result) {
         console.log('🟢 [CUSTOMER] Customer saved', result);
         addNotification('تم حفظ العميل بنجاح!', 'success');
-        navigate('/customers');
+        navigate('/app/customers');
       } else {
         console.warn('🟡 [CUSTOMER] saveCustomer returned falsy', result);
         addNotification('فشل حفظ العميل.', 'error');
@@ -205,3 +205,4 @@ const CustomerForm: React.FC = () => {
 };
 
 export default CustomerForm;
+

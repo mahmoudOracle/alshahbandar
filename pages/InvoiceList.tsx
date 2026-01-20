@@ -87,14 +87,14 @@ const InvoiceCard: React.FC<{
       </div>
     </div>
     <div className="flex gap-2 mt-3 border-t border-gray-200 dark:border-gray-700 pt-3">
-      <Link to={`/invoices/${invoice.id}`} className="flex-1">
+      <Link to={`/app/invoices/${invoice.id}`} className="flex-1">
         <Button variant="secondary" size="sm" className="w-full">
           <EyeIcon className="h-4 w-4 me-2" />
           عرض
         </Button>
       </Link>
       {canWrite && (
-        <Link to={`/invoices/edit/${invoice.id}`} className="flex-1">
+        <Link to={`/app/invoices/edit/${invoice.id}`} className="flex-1">
           <Button variant="ghost" size="sm" className="w-full">
             <PencilIcon className="h-4 w-4 me-2" />
             تعديل
@@ -361,10 +361,10 @@ const InvoiceList: React.FC = () => {
       const newInv = await duplicateLastInvoice(companyId);
       addNotification('تم تكرار آخر فاتورة بنجاح.', 'success', {
         label: 'عرض',
-        onClick: () => navigate(`/invoices/edit/${newInv.id}`),
+        onClick: () => navigate(`/app/invoices/edit/${newInv.id}`),
       });
       await fetchInvoices();
-      navigate(`/invoices/edit/${newInv.id}`);
+      navigate(`/app/invoices/edit/${newInv.id}`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err || 'فشل تكرار الفاتورة.');
       addNotification(msg || 'فشل تكرار الفاتورة.', 'error');
@@ -380,10 +380,10 @@ const InvoiceList: React.FC = () => {
       const newInv = await duplicateInvoice(companyId, invoiceId);
       addNotification('تم تكرار الفاتورة بنجاح.', 'success', {
         label: 'عرض',
-        onClick: () => navigate(`/invoices/edit/${newInv.id}`),
+        onClick: () => navigate(`/app/invoices/edit/${newInv.id}`),
       });
       await fetchInvoices();
-      navigate(`/invoices/edit/${newInv.id}`);
+      navigate(`/app/invoices/edit/${newInv.id}`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err || 'فشل تكرار الفاتورة.');
       addNotification(msg || 'فشل تكرار الفاتورة.', 'error');
@@ -405,7 +405,7 @@ const InvoiceList: React.FC = () => {
         message="ابدأ بإنشاء فاتورتك الأولى لتظهر هنا."
         action={
           canWrite
-            ? { text: 'إنشاء فاتورة جديدة', onClick: () => navigate('/invoices/new') }
+            ? { text: 'إنشاء فاتورة جديدة', onClick: () => navigate('/app/invoices/new') }
             : undefined
         }
       />
@@ -515,7 +515,7 @@ const InvoiceList: React.FC = () => {
         </select>
         {canWrite && (
           <>
-            <Link to="/invoices/new" className="w-full md:w-auto">
+            <Link to="/app/invoices/new" className="w-full md:w-auto">
               <Button variant="primary" className="w-full">
                 <PlusIcon className="h-5 w-5 me-2" /> فاتورة جديدة
               </Button>
@@ -577,7 +577,7 @@ const InvoiceList: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center gap-2">
                         <Link
-                          to={`/invoices/${invoice.id}`}
+                          to={`/app/invoices/${invoice.id}`}
                           className="text-primary-600 hover:text-primary-700 p-2"
                           aria-label="عرض التفاصيل"
                         >
@@ -585,7 +585,7 @@ const InvoiceList: React.FC = () => {
                         </Link>
                         {canWrite && (
                           <Link
-                            to={`/invoices/edit/${invoice.id}`}
+                            to={`/app/invoices/edit/${invoice.id}`}
                             className="text-gray-600 hover:text-gray-900 p-2"
                             aria-label="تعديل الفاتورة"
                           >
@@ -662,3 +662,5 @@ const InvoiceList: React.FC = () => {
 };
 
 export default InvoiceList;
+
+

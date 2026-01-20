@@ -116,14 +116,14 @@ ${settings.businessName}
             try {
               const restored = await undeleteDocument(companyId, 'invoices', invoice.id);
               if (restored) {
-                navigate(`/invoices/${invoice.id}`);
+                navigate(`/app/invoices/${invoice.id}`);
               }
             } catch (e) {
               console.error(e);
             }
           },
         });
-        navigate('/invoices');
+        navigate('/app/invoices');
       } else {
         addNotification('تعذر حذف الفاتورة.', 'error');
       }
@@ -158,7 +158,7 @@ ${settings.businessName}
 
   const invoiceUrl = (() => {
     const origin = window.location.origin;
-    if (invoice?.id) return `${origin}/#/invoices/${invoice.id}`;
+    if (invoice?.id) return `${origin}/#/app/invoices/${invoice.id}`;
     return `${origin}${window.location.hash || ''}`;
   })();
 
@@ -334,7 +334,7 @@ ${settings.businessName}
         </button>
         {canWrite && (
           <Link
-            to={`/invoices/edit/${id}`}
+            to={`/app/invoices/edit/${id}`}
             className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500"
           >
             تعديل
@@ -503,3 +503,5 @@ ${settings.businessName}
 };
 
 export default InvoiceDetail;
+
+

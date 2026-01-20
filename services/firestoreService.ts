@@ -22,6 +22,17 @@ import { httpsCallable } from 'firebase/functions';
 import { User } from 'firebase/auth';
 import * as SanityGate from '../src/utils/sanityGate';
 import {
+  sanitizeInvoiceDraft,
+  sanitizePaymentDraft,
+  sanitizeProductDraft,
+  sanitizeCustomerDraft,
+  sanitizeReturnDraft,
+  sanitizeExpenseDraft,
+  sanitizeQuoteDraft,
+  sanitizePurchaseDraft,
+  sanitizeRecurringInvoiceDraft,
+} from '../src/utils/sanitize';
+import {
   Invoice,
   Customer,
   Product,
@@ -1413,11 +1424,21 @@ export const saveCustomer = (
   companyId: string,
   customer: Omit<Customer, 'id' | 'createdAt'> | Customer
 ) => {
+  // ✅ PHASE 1: Sanitize input (write-side validation)
+  let sanitizedCustomer: any;
+  try {
+    sanitizedCustomer = sanitizeCustomerDraft(customer);
+  } catch (error) {
+    console.error('[SANITIZE] Customer validation failed:', error instanceof Error ? error.message : error);
+    throw error;
+  }
+
   if ('id' in customer && customer.id) {
-    return saveData<Customer>(companyId, 'customers', customer, 'customers');
+    sanitizedCustomer.id = (customer as any).id;
+    return saveData<Customer>(companyId, 'customers', sanitizedCustomer, 'customers');
   } else {
     const newCustomerWithTimestamp: Omit<Customer, 'id'> = {
-      ...customer,
+      ...sanitizedCustomer,
       createdAt: Timestamp.now(),
     };
     return saveData<Customer>(companyId, 'customers', newCustomerWithTimestamp, 'customers');
@@ -1434,8 +1455,23 @@ export const getProducts = async (
 };
 export const getProductById = (companyId: string, id: string) =>
   getById<Product>(companyId, 'products', id);
-export const saveProduct = (companyId: string, product: Omit<Product, 'id'> | Product) =>
-  saveData<Product>(companyId, 'products', product, 'products');
+export const saveProduct = (companyId: string, product: Omit<Product, 'id'> | Product) => {
+  // ✅ PHASE 1: Sanitize input (write-side validation)
+  let sanitizedProduct: any;
+  try {
+    sanitizedProduct = sanitizeProductDraft(product);
+  } catch (error) {
+    console.error('[SANITIZE] Product validation failed:', error instanceof Error ? error.message : error);
+    throw error;
+  }
+  
+  // Preserve ID if this is an update
+  if ('id' in product && (product as any).id) {
+    sanitizedProduct.id = (product as any).id;
+  }
+  
+  return saveData<Product>(companyId, 'products', sanitizedProduct, 'products');
+};
 export const deleteProduct = (companyId: string, id: string) =>
   deleteData(companyId, 'products', id, 'products');
 
@@ -1449,7 +1485,19 @@ export const saveInvoice = async (
   invoice: Omit<Invoice, 'id'> | Invoice,
   oldInvoice?: Invoice // Add optional oldInvoice parameter
 ): Promise<Invoice> => {
-  const invoiceToSave = { ...invoice };
+  // ✅ PHASE 1: Sanitize input (write-side validation)
+  let invoiceToSave: any;
+  try {
+    invoiceToSave = sanitizeInvoiceDraft(invoice);
+  } catch (error) {
+    console.error('[SANITIZE] Invoice validation failed:', error instanceof Error ? error.message : error);
+    throw error;
+  }
+
+  // Preserve ID if this is an update
+  if ('id' in invoice && (invoice as any).id) {
+    invoiceToSave.id = (invoice as any).id;
+  }
 
   // Common calculations, independent of FREE_MODE path
   // Compute subtotal and taxes
@@ -1786,9 +1834,18 @@ export const createReturnAtomic = async (
     mode?: 'refund_cash' | 'credit_note';
   }
 ): Promise<{ id: string }> => {
+  let sanitizedPayload: any;
+  try {
+    // For atomic return operation, sanitize the return draft first
+    sanitizedPayload = sanitizeReturnDraft(payload);
+  } catch (error) {
+    console.error('[SANITIZE] Return validation failed:', error instanceof Error ? error.message : error);
+    throw error;
+  }
+  
   try {
     const fn = httpsCallable(functions, 'createReturnAtomic');
-    const res = await fn({ companyId, returnDoc: payload });
+    const res = await fn({ companyId, returnDoc: sanitizedPayload });
     const data =
       res && (res as unknown as Record<string, unknown>)['data']
         ? (res as unknown as Record<string, unknown>)['data']
@@ -1806,11 +1863,25 @@ export const savePayment = async (
   companyId: string,
   payment: Omit<Payment, 'id'> | Payment
 ): Promise<Payment> => {
+  // ✅ PHASE 1: Sanitize input (write-side validation)
+  let sanitizedPayment: any;
+  try {
+    sanitizedPayment = sanitizePaymentDraft(payment);
+  } catch (error) {
+    console.error('[SANITIZE] Payment validation failed:', error instanceof Error ? error.message : error);
+    throw error;
+  }
+
+  // Preserve ID if this is an update
+  if ('id' in payment && (payment as any).id) {
+    sanitizedPayment.id = (payment as any).id;
+  }
+
   const now = serverTimestamp();
   const payload =
-    'id' in payment && payment.id
-      ? { ...payment, updatedAt: now }
-      : { ...payment, createdAt: now, updatedAt: now };
+    'id' in sanitizedPayment && sanitizedPayment.id
+      ? { ...sanitizedPayment, updatedAt: now }
+      : { ...sanitizedPayment, createdAt: now, updatedAt: now };
   const savedPayment = await saveData<Payment>(companyId, 'payments', payload, 'payments');
 
   if (savedPayment.invoiceId) {
@@ -1860,8 +1931,23 @@ export const getExpenses = (companyId: string, options: QueryOptions = {}) =>
   getData<Expense>(companyId, 'expenses', { orderBy: 'date', ...options });
 export const getExpenseById = (companyId: string, id: string) =>
   getById<Expense>(companyId, 'expenses', id);
-export const saveExpense = (companyId: string, expense: Omit<Expense, 'id'> | Expense) =>
-  saveData<Expense>(companyId, 'expenses', expense, 'expenses');
+export const saveExpense = (companyId: string, expense: Omit<Expense, 'id'> | Expense) => {
+  // ✅ PHASE 1: Sanitize input (write-side validation)
+  let sanitizedExpense: any;
+  try {
+    sanitizedExpense = sanitizeExpenseDraft(expense);
+  } catch (error) {
+    console.error('[SANITIZE] Expense validation failed:', error instanceof Error ? error.message : error);
+    throw error;
+  }
+
+  // Preserve ID if this is an update
+  if ('id' in expense && (expense as any).id) {
+    sanitizedExpense.id = (expense as any).id;
+  }
+
+  return saveData<Expense>(companyId, 'expenses', sanitizedExpense, 'expenses');
+};
 export const deleteExpense = (companyId: string, id: string) =>
   deleteData(companyId, 'expenses', id, 'expenses');
 
@@ -2086,10 +2172,20 @@ export const saveQuote = async (
   companyId: string,
   quote: Omit<Quote, 'id'> | Quote
 ): Promise<Quote> => {
-  if (!('id' in quote)) {
-    (quote as Quote).quoteNumber = await getNextDocumentNumber(companyId, 'quote');
+  let quoteToSave: any;
+  try {
+    quoteToSave = sanitizeQuoteDraft(quote);
+  } catch (error) {
+    console.error('[SANITIZE] Quote validation failed:', error instanceof Error ? error.message : error);
+    throw error;
   }
-  return saveData<Quote>(companyId, 'quotes', quote, 'quotes');
+  if ('id' in quote && (quote as any).id) {
+    quoteToSave.id = (quote as any).id;
+  }
+  if (!('id' in quoteToSave)) {
+    (quoteToSave as Quote).quoteNumber = await getNextDocumentNumber(companyId, 'quote');
+  }
+  return saveData<Quote>(companyId, 'quotes', quoteToSave, 'quotes');
 };
 
 // --- Goods Receipts (alias to a company-scoped goodsReceipts collection)
@@ -2351,10 +2447,22 @@ export const getRecurringInvoices = (companyId: string, options: QueryOptions = 
   getData<RecurringInvoice>(companyId, 'recurringInvoices', { orderBy: 'nextDueDate', ...options });
 export const getRecurringInvoiceById = (companyId: string, id: string) =>
   getById<RecurringInvoice>(companyId, 'recurringInvoices', id);
-export const saveRecurringInvoice = (
+export const saveRecurringInvoice = async (
   companyId: string,
   rec: Omit<RecurringInvoice, 'id'> | RecurringInvoice
-) => saveData<RecurringInvoice>(companyId, 'recurringInvoices', rec, 'recurring');
+): Promise<RecurringInvoice> => {
+  let recToSave: any;
+  try {
+    recToSave = sanitizeRecurringInvoiceDraft(rec);
+  } catch (error) {
+    console.error('[SANITIZE] RecurringInvoice validation failed:', error instanceof Error ? error.message : error);
+    throw error;
+  }
+  if ('id' in rec && (rec as any).id) {
+    recToSave.id = (rec as any).id;
+  }
+  return saveData<RecurringInvoice>(companyId, 'recurringInvoices', recToSave, 'recurring');
+};
 export const deleteRecurringInvoice = (companyId: string, id: string) =>
   deleteData(companyId, 'recurringInvoices', id, 'recurring');
 export const generateInvoicesFromRecurring = async (companyId: string): Promise<Invoice[]> => {

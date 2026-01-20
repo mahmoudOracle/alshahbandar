@@ -1,4 +1,4 @@
-﻿﻿rules_version = '2';
+rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -11,31 +11,124 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.email == 'mahmoud.shineh3m@gmail.com';
     }
 
-    function isTenantAllowed() {
-      return isSignedIn() && request.auth.token.email in ['hoodaalawamry@gmail.com'];
+    function normalizeRole(value) {
+      if (!value) return null;
+      if (value is string) return value;
+      if (value is map) {
+        if (value.role is string) return value.role;
+        if (value.memberRole is string) return value.memberRole;
+        if (value.roleName is string) return value.roleName;
+      }
+      return null;
     }
 
-    function companyUserDoc(companyId) {
-      return get(/databases/$(database)/documents/companies/$(companyId)/members/$(request.auth.uid));
+    function roleAllowed(role) {
+      return role is string && ['owner', 'manager', 'staff'].hasAny([role.lower()]);
     }
 
-    function isCompanyOwner(companyId) {
-      return isSignedIn() &&
-             exists(/databases/$(database)/documents/companies/$(companyId)) &&
-             get(/databases/$(database)/documents/companies/$(companyId)).data.ownerUid == request.auth.uid;
+    function companyDoc(companyId) {
+      return get(/databases/$(database)/documents/companies/$(companyId));
     }
 
-    function isCompanyUser(companyId) {
-      return isTenantAllowed() && (companyUserDoc(companyId).exists() || isCompanyOwner(companyId));
+    function companyIsActive(companyId) {
+      const doc = companyDoc(companyId);
+      if (!doc.exists()) return true;
+      const isActiveValue = doc.data.isActive;
+      return isActiveValue == null || isActiveValue != false;
     }
 
     function isCompanyActive(companyId) {
-      return exists(/databases/$(database)/documents/companies/$(companyId)) &&
-        get(/databases/$(database)/documents/companies/$(companyId)).data.isActive != false;
+      return companyIsActive(companyId);
+    }
+
+    function memberDoc(companyId) {
+      return get(/databases/$(database)/documents/companies/$(companyId)/members/$(request.auth.uid));
+    }
+
+    function legacyCompanyUserDoc(companyId) {
+      return get(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid));
+    }
+
+    function rootUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function hasMemberRole(companyId) {
+      if (!isSignedIn()) return false;
+      const doc = memberDoc(companyId);
+      if (!doc.exists()) return false;
+      return roleAllowed(normalizeRole(doc.data.role));
+    }
+
+    function hasLegacyCompanyUserRole(companyId) {
+      if (!isSignedIn()) return false;
+      const doc = legacyCompanyUserDoc(companyId);
+      if (!doc.exists()) return false;
+      return roleAllowed(normalizeRole(doc.data.role));
+    }
+
+    function hasRootMembership(companyId) {
+      if (!isSignedIn()) return false;
+      const doc = rootUserDoc();
+      if (!doc.exists()) return false;
+      const memberships = doc.data.memberships;
+      if (!(memberships is map)) return false;
+      return roleAllowed(normalizeRole(memberships[companyId]));
+    }
+
+    function companyHasAccess(companyId) {
+      return (
+        isSignedIn() &&
+        companyIsActive(companyId) &&
+        (hasMemberRole(companyId) || hasLegacyCompanyUserRole(companyId) || hasRootMembership(companyId))
+      );
+    }
+
+    function companyUserDoc(companyId) {
+      return memberDoc(companyId);
+    }
+
+    function isCompanyOwner(companyId) {
+      if (!isSignedIn()) return false;
+      const doc = companyDoc(companyId);
+      return doc.exists() && doc.data.ownerUid == request.auth.uid;
+    }
+
+    function roleFromMember(companyId) {
+      const doc = memberDoc(companyId);
+      return doc.exists() ? normalizeRole(doc.data.role) : null;
+    }
+
+    function roleFromLegacy(companyId) {
+      const doc = legacyCompanyUserDoc(companyId);
+      return doc.exists() ? normalizeRole(doc.data.role) : null;
+    }
+
+    function roleFromRoot(companyId) {
+      const doc = rootUserDoc();
+      if (!doc.exists()) return null;
+      const memberships = doc.data.memberships;
+      if (!(memberships is map)) return null;
+      return normalizeRole(memberships[companyId]);
+    }
+
+    function roleFromAnySource(companyId) {
+      const memberRole = roleFromMember(companyId);
+      if (memberRole != null) return memberRole;
+      const legacyRole = roleFromLegacy(companyId);
+      if (legacyRole != null) return legacyRole;
+      return roleFromRoot(companyId);
     }
 
     function hasCompanyRole(companyId, roles) {
-      return isCompanyUser(companyId) && (companyUserDoc(companyId).data.role in roles);
+      if (!isSignedIn()) return false;
+      const role = roleFromAnySource(companyId);
+      if (!role) return false;
+      return roles.hasAny([role.lower()]);
+    }
+
+    function companyMemberOrAdmin(companyId) {
+      return isPlatformAdmin() || companyHasAccess(companyId);
     }
 
 
@@ -67,57 +160,57 @@ service cloud.firestore {
       }
 
       // Read allowed for authenticated members or platform admins
-      allow read: if isSignedIn() && (isPlatformAdmin() || isCompanyUser(companyId));
+      allow read: if companyMemberOrAdmin(companyId);
 
       // Company scoped subcollections
       match /customers/{docId} {
-        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
+        allow read: if companyMemberOrAdmin(companyId);
         allow create: if isSignedIn() && (isManagerRole(companyId) || isStaffRole(companyId)) && isCompanyActive(companyId);
         allow update: if isSignedIn() && (isManagerRole(companyId)) && isCompanyActive(companyId);
         allow delete: if false;
       }
 
       match /products/{docId} {
-        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
+        allow read: if companyMemberOrAdmin(companyId);
         allow create: if isSignedIn() && (isManagerRole(companyId) || isStaffRole(companyId)) && isCompanyActive(companyId);
         allow update: if isSignedIn() && (isManagerRole(companyId)) && isCompanyActive(companyId);
         allow delete: if false;
       }
 
       match /expenses/{docId} {
-        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
+        allow read: if companyMemberOrAdmin(companyId);
         allow create: if isSignedIn() && (isManagerRole(companyId) || isStaffRole(companyId)) && isCompanyActive(companyId);
         allow update: if isSignedIn() && (isManagerRole(companyId)) && isCompanyActive(companyId);
         allow delete: if false;
       }
 
       match /payments/{docId} {
-        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
+        allow read: if companyMemberOrAdmin(companyId);
         allow create: if isSignedIn() && (isManagerRole(companyId) || isStaffRole(companyId)) && isCompanyActive(companyId);
         allow update: if isSignedIn() && (isManagerRole(companyId)) && isCompanyActive(companyId);
         allow delete: if false;
       }
 
       match /returns/{docId} {
-        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
+        allow read: if companyMemberOrAdmin(companyId);
         allow create, update, delete: if false;
       }
 
       match /supplierPayments/{docId} {
-        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
+        allow read: if companyMemberOrAdmin(companyId);
         allow create, update: if isSignedIn() && (isManagerRole(companyId)) && isCompanyActive(companyId);
         allow delete: if false;
       }
 
       match /settings/{docId} {
-        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
+        allow read: if companyMemberOrAdmin(companyId);
         allow create, update: if isSignedIn() && (isManagerRole(companyId)) && isCompanyActive(companyId);
         allow delete: if false;
       }
 
       match /{document=**} {
         // Reads allowed for members only (platform admins do not read tenant data)
-        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
+        allow read: if companyMemberOrAdmin(companyId);
 
         // Writes denied by default for wildcard. Must use specific collection matches.
         allow create, update, delete: if false;
@@ -128,7 +221,7 @@ service cloud.firestore {
 
       // Invoices: prevent client-side edits/deletes when a document is posted or its period is locked
       match /invoices/{invoiceId} {
-        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
+        allow read: if companyMemberOrAdmin(companyId);
 
         function companyLockedForDate(ts) {
           // company doc may include `lockedPeriods` array of YYYY-MM strings
@@ -160,7 +253,7 @@ service cloud.firestore {
 
       // Audit logs: read allowed for company members, writes only allowed via Cloud Functions (admin SDK)
       match /auditLogs/{logId} {
-        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
+        allow read: if companyMemberOrAdmin(companyId);
         // Deny client-side writes to audit logs. Audit entries must be written by
         // trusted server-side code (Cloud Functions using Admin SDK) to ensure immutability.
         allow create, update, delete: if false;
@@ -170,7 +263,7 @@ service cloud.firestore {
       // Clients should use server-side callables or Cloud Functions to append ledger entries
       // and update inventory snapshots. These collections remain readable by company users.
       match /stockLedger/{entryId} {
-        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
+        allow read: if companyMemberOrAdmin(companyId);
         // Strict validation for ledger entries to ensure audit integrity.
         function validLedgerEntry() {
           return (
@@ -195,7 +288,7 @@ service cloud.firestore {
       }
 
       match /inventory/{productId} {
-        allow read: if isSignedIn() && isCompanyUser(companyId) && isCompanyActive(companyId);
+        allow read: if companyMemberOrAdmin(companyId);
 
         // Inventory snapshots must be consistent with product stock. Only admin callers may write.
         function validInventorySnapshot() {
@@ -222,7 +315,7 @@ service cloud.firestore {
 
     // Membership docs
     match /companies/{companyId}/members/{userId} {
-      allow read: if isSignedIn() && isCompanyUser(companyId);
+      allow read: if companyMemberOrAdmin(companyId);
       allow create: if isSignedIn() && (
         request.auth.uid == userId && isCompanyActive(companyId) &&
         // Prevent creating self as owner unless already verified as company owner

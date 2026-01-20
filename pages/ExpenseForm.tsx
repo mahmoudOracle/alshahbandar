@@ -29,7 +29,7 @@ const ExpenseForm: React.FC = () => {
 
   const [expense, setExpense] = useState<Omit<Expense, 'id'>>({
     date: new Date().toISOString().split('T')[0],
-    category: '',
+    category: 'أخرى',
     vendor: '',
     description: '',
     amount: 0,
@@ -49,8 +49,8 @@ const ExpenseForm: React.FC = () => {
     if (!canWrite && id) {
       // allow viewing
     } else if (!canWrite) {
-      addNotification('ليس لديك الصلاحية للوصول لهذه الصفحة.', 'error');
-      navigate('/expenses');
+      addNotification('لا تملك صلاحية إضافة مصروفات جديدة.', 'error');
+      navigate('/app/expenses');
     }
   }, [canWrite, id, navigate, addNotification]);
 
@@ -102,13 +102,13 @@ const ExpenseForm: React.FC = () => {
     try {
       const result = await saveExpenseCategory(companyId, { name: newCategory.trim() });
       if (result) {
-        addNotification('تمت إضافة الفئة بنجاح!', 'success');
+        addNotification('تمت إضافة الفئة بنجاح.', 'success');
         setNewCategory('');
         setIsAddingCategory(false);
         await fetchDropdownData();
         setExpense((prev) => ({ ...prev, category: result.name }));
       } else {
-        addNotification('فشل في إضافة الفئة.', 'error');
+        addNotification('حدث خطأ أثناء إضافة الفئة.', 'error');
       }
     } catch (error: unknown) {
       addNotification(mapFirestoreError(error), 'error');
@@ -120,13 +120,13 @@ const ExpenseForm: React.FC = () => {
     try {
       const result = await saveVendor(companyId, { name: newVendor.trim() });
       if (result) {
-        addNotification('تمت إضافة المورد بنجاح!', 'success');
+        addNotification('تمت إضافة المورد بنجاح.', 'success');
         setNewVendor('');
         setIsAddingVendor(false);
         await fetchDropdownData();
         setExpense((prev) => ({ ...prev, vendor: result.name }));
       } else {
-        addNotification('فشل في إضافة المورد.', 'error');
+        addNotification('حدث خطأ أثناء إضافة المورد.', 'error');
       }
     } catch (error: unknown) {
       addNotification(mapFirestoreError(error), 'error');
@@ -135,9 +135,9 @@ const ExpenseForm: React.FC = () => {
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
-    if (!expense.date) newErrors.date = 'هذا الحقل مطلوب.';
-    if (!expense.category) newErrors.category = 'هذا الحقل مطلوب.';
-    if (!expense.vendor.trim()) newErrors.vendor = 'هذا الحقل مطلوب.';
+    if (!expense.date) newErrors.date = 'الرجاء إدخال التاريخ.';
+    if (!expense.category) newErrors.category = 'الرجاء اختيار الفئة.';
+    if (!expense.vendor.trim()) newErrors.vendor = 'الرجاء إدخال المورد.';
     if (expense.amount <= 0) newErrors.amount = 'المبلغ يجب أن يكون أكبر من صفر.';
 
     setErrors(newErrors);
@@ -147,11 +147,11 @@ const ExpenseForm: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canWrite) {
-      addNotification('صلاحية غير كافية.', 'error');
+      addNotification('لا تملك صلاحية حفظ المصروفات.', 'error');
       return;
     }
     if (!validateForm()) {
-      addNotification('يرجى ملء جميع الحقول المطلوبة.', 'error');
+      addNotification('يرجى تعبئة الحقول المطلوبة.', 'error');
       return;
     }
     if (!companyId) return;
@@ -162,10 +162,10 @@ const ExpenseForm: React.FC = () => {
         : await saveExpense(companyId, expense);
 
       if (result) {
-        addNotification('تم حفظ المصروف بنجاح!', 'success');
-        navigate('/expenses');
+        addNotification('تم حفظ المصروف بنجاح.', 'success');
+        navigate('/app/expenses');
       } else {
-        addNotification('فشل حفظ المصروف.', 'error');
+        addNotification('حدث خطأ أثناء حفظ المصروف.', 'error');
       }
     } catch (error: unknown) {
       addNotification(mapFirestoreError(error), 'error');
@@ -180,8 +180,21 @@ const ExpenseForm: React.FC = () => {
       </Card>
     );
 
+  const categoryOptions = [
+    ...new Set([
+      ...categories.map((c) => c.name),
+      'إيجار',
+      'مرافق',
+      'مواصلات',
+      'مشتريات',
+      'رواتب',
+      'تسويق',
+      'أخرى',
+    ]),
+  ].map((name) => ({ value: name, label: name }));
+
   return (
-    <Card header={<h2 className="text-xl font-bold">{id ? 'عرض مصروف' : 'إضافة مصروف جديد'}</h2>}>
+    <Card header={<h2 className="text-xl font-bold">{id ? 'تعديل مصروف' : 'مصروف جديد'}</h2>}>
       <form onSubmit={handleSubmit} className="space-y-6">
         <fieldset disabled={!canWrite} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -212,7 +225,7 @@ const ExpenseForm: React.FC = () => {
               onChange={handleInputChange}
               required
               error={errors.category}
-              options={categories.map((c) => ({ value: c.name, label: c.name }))}
+              options={categoryOptions}
               placeholder="اختر فئة"
             />
             {canWrite && !isAddingCategory ? (
@@ -221,7 +234,7 @@ const ExpenseForm: React.FC = () => {
                 onClick={() => setIsAddingCategory(true)}
                 className="text-sm text-primary-600 hover:underline mt-2"
               >
-                ➕ إضافة فئة جديدة
+                إضافة فئة جديدة
               </button>
             ) : (
               canWrite && (
@@ -248,7 +261,7 @@ const ExpenseForm: React.FC = () => {
           </div>
           <div>
             <Input
-              label="البائع / المورد"
+              label="المورد / الجهة"
               name="vendor"
               list="vendors"
               value={expense.vendor}
@@ -267,7 +280,7 @@ const ExpenseForm: React.FC = () => {
                 onClick={() => setIsAddingVendor(true)}
                 className="text-sm text-primary-600 hover:underline mt-2"
               >
-                ➕ إضافة مورد جديد
+                إضافة مورد جديد
               </button>
             ) : (
               canWrite && (
@@ -293,7 +306,7 @@ const ExpenseForm: React.FC = () => {
             )}
           </div>
           <Textarea
-            label="الوصف"
+            label="ملاحظات"
             name="description"
             value={expense.description}
             onChange={handleInputChange}

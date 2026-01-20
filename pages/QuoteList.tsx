@@ -85,7 +85,7 @@ const QuoteList: React.FC = () => {
         title="لا يوجد عروض أسعار بعد"
         message="ابدأ بإنشاء عرض سعرك الأول."
         action={
-          canWrite ? { text: 'إنشاء عرض سعر', onClick: () => navigate('/quotes/new') } : undefined
+          canWrite ? { text: 'إنشاء عرض سعر', onClick: () => navigate('/app/quotes/new') } : undefined
         }
       />
     );
@@ -124,7 +124,7 @@ const QuoteList: React.FC = () => {
         </div>
         {canWrite && (
           <Link
-            to="/quotes/new"
+            to="/app/quotes/new"
             className="w-full md:w-auto flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
           >
             <PlusIcon className="h-5 w-5 me-2" />
@@ -181,14 +181,14 @@ const QuoteList: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center space-x-2 rtl:space-x-reverse">
                         <Link
-                          to={`/quotes/${quote.id}`}
+                          to={`/app/quotes/${quote.id}`}
                           className="text-blue-600 hover:text-blue-900"
                         >
                           <EyeIcon className="h-5 w-5" />
                         </Link>
                         {canWrite && (
                           <Link
-                            to={`/quotes/edit/${quote.id}`}
+                            to={`/app/quotes/edit/${quote.id}`}
                             className="text-slate-600 hover:text-slate-900"
                           >
                             <PencilIcon className="h-5 w-5" />
@@ -218,14 +218,14 @@ const QuoteList: React.FC = () => {
                   </div>
                   <div className="flex items-center space-x-2 rtl:space-x-reverse">
                     <Link
-                      to={`/quotes/${quote.id}`}
+                      to={`/app/quotes/${quote.id}`}
                       className="text-blue-600 hover:text-blue-900 p-1"
                     >
                       <EyeIcon className="h-5 w-5" />
                     </Link>
                     {canWrite && (
                       <Link
-                        to={`/quotes/edit/${quote.id}`}
+                        to={`/app/quotes/edit/${quote.id}`}
                         className="text-slate-600 hover:text-slate-900 p-1"
                       >
                         <PencilIcon className="h-5 w-5" />
@@ -258,3 +258,5 @@ const QuoteList: React.FC = () => {
 };
 
 export default QuoteList;
+
+

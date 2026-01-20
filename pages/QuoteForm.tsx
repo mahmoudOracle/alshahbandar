@@ -103,7 +103,7 @@ const QuoteForm: React.FC = () => {
       // Allow viewing
     } else if (!canWrite) {
       addNotification('ليس لديك الصلاحية للوصول لهذه الصفحة.', 'error');
-      navigate('/quotes');
+      navigate('/app/quotes');
     }
   }, [canWrite, id, navigate, addNotification]);
 
@@ -177,7 +177,7 @@ const QuoteForm: React.FC = () => {
         await saveQuote(companyId, quoteToSave);
       }
       addNotification(id ? 'تم تحديث عرض السعر بنجاح!' : 'تم إنشاء عرض السعر بنجاح!', 'success');
-      navigate('/quotes');
+      navigate('/app/quotes');
     } catch (error) {
       addNotification(mapFirestoreError(error), 'error');
     } finally {
@@ -376,3 +376,5 @@ const QuoteForm: React.FC = () => {
 };
 
 export default QuoteForm;
+
+

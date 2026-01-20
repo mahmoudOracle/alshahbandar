@@ -60,7 +60,7 @@ const ProductForm: React.FC = () => {
       // allow viewing
     } else if (!canWrite) {
       addNotification('لا تملك صلاحية إضافة المنتجات.', 'error');
-      navigate('/products');
+      navigate('/app/products');
     }
   }, [canWrite, id, navigate, addNotification]);
 
@@ -120,7 +120,7 @@ const ProductForm: React.FC = () => {
 
       if (result) {
         addNotification('تم حفظ المنتج بنجاح.', 'success');
-        navigate('/products');
+        navigate('/app/products');
       } else {
         addNotification('تعذر حفظ المنتج.', 'error');
       }
@@ -212,3 +212,4 @@ const ProductForm: React.FC = () => {
 };
 
 export default ProductForm;
+

@@ -3,7 +3,7 @@ import { getTenantConfig } from '../services/config/tenantConfig';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function useTenantConfig() {
-  const { companyId } = useAuth();
+  const { companyId, authorized } = useAuth();
   const [config, setConfig] = useState<unknown | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -12,7 +12,7 @@ export default function useTenantConfig() {
     setLoading(true);
     (async () => {
       try {
-        if (!companyId) {
+        if (!companyId || !authorized) {
           if (mounted) {
             setConfig(null);
             setLoading(false);
@@ -22,7 +22,7 @@ export default function useTenantConfig() {
         const c = await getTenantConfig(companyId);
         if (!mounted) return;
         setConfig(c as unknown);
-        if (c && c.businessName) document.title = `${c.businessName} | الشاهبندر`; // keep fallback brand
+        if (c && c.businessName) document.title = `${c.businessName} | ?????????`;
       } catch (err) {
         console.error('[useTenantConfig] error', err instanceof Error ? err.message : err);
       } finally {
@@ -32,7 +32,7 @@ export default function useTenantConfig() {
     return () => {
       mounted = false;
     };
-  }, [companyId]);
+  }, [companyId, authorized]);
 
   return { config, loading };
 }

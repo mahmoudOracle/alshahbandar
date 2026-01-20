@@ -146,7 +146,7 @@ const InvoiceForm: React.FC = () => {
     } else if (!canWrite) {
       // Disallow creating new ones
       addNotification('لا تملك صلاحية إنشاء الفاتورة.', 'error');
-      navigate('/invoices');
+      navigate('/app/invoices');
     }
   }, [canWrite, id, navigate, addNotification]);
 
@@ -309,7 +309,7 @@ const InvoiceForm: React.FC = () => {
         : await saveInvoice(companyId, invoiceToSave);
       if (result) {
         addNotification(id ? 'تم حفظ التعديل بنجاح.' : 'تم حفظ الفاتورة بنجاح.', 'success');
-        navigate('/invoices');
+        navigate('/app/invoices');
       } else {
         addNotification('تعذر حفظ الفاتورة.', 'error');
       }
@@ -615,3 +615,5 @@ const InvoiceForm: React.FC = () => {
 };
 
 export default InvoiceForm;
+
+

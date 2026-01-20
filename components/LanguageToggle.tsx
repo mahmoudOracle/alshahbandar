@@ -24,9 +24,9 @@ const LanguageToggle: React.FC = () => {
         variant={lang === 'ar' ? 'primary' : 'ghost'}
         size="sm"
         onClick={() => setLang('ar')}
-        aria-label="العربية"
+        aria-label="???????"
       >
-        العربية
+        ???????
       </Button>
       <Button
         variant={lang === 'en' ? 'primary' : 'ghost'}

@@ -184,14 +184,16 @@ describe('Entity Sanitizers', () => {
       expect(result.isActive).toBe(true);
     });
 
-    it('throws for missing name', () => {
+    it('coerces missing name to empty string', () => {
       const input = { email: 'test@example.com' };
-      expect(() => SanityGate.sanitizeCustomer(input)).toThrow();
+      const result = SanityGate.sanitizeCustomer(input);
+      expect(result.name).toBe('');
     });
 
-    it('throws for empty name', () => {
+    it('coerces empty name to empty string', () => {
       const input = { name: '   ' };
-      expect(() => SanityGate.sanitizeCustomer(input)).toThrow();
+      const result = SanityGate.sanitizeCustomer(input);
+      expect(result.name).toBe('');
     });
 
     it('truncates long name', () => {
@@ -226,9 +228,10 @@ describe('Entity Sanitizers', () => {
       expect(result.stock).toBe(50);
     });
 
-    it('throws for missing price', () => {
+    it('coerces missing price to zero', () => {
       const input = { name: 'Product', stock: 10 };
-      expect(() => SanityGate.sanitizeProduct(input)).toThrow();
+      const result = SanityGate.sanitizeProduct(input);
+      expect(result.price).toBe(0);
     });
 
     it('clamps negative price to 0', () => {
@@ -251,13 +254,14 @@ describe('Entity Sanitizers', () => {
       expect(result.stock).toBe(0);
     });
 
-    it('throws for negative price constraint', () => {
+    it('clamps deeply negative price to zero', () => {
       const input = {
         name: 'Product',
         price: -1,
         stock: 10,
       };
-      expect(() => SanityGate.sanitizeProduct(input)).toThrow();
+      const result = SanityGate.sanitizeProduct(input);
+      expect(result.price).toBe(0);
     });
   });
 
@@ -274,22 +278,24 @@ describe('Entity Sanitizers', () => {
       expect(result.price).toBe(20);
     });
 
-    it('throws for quantity <= 0', () => {
+    it('coerces zero quantity to the min threshold', () => {
       const input = {
         productId: 'prod123',
         quantity: 0,
         price: 20,
       };
-      expect(() => SanityGate.sanitizeInvoiceItem(input)).toThrow();
+      const result = SanityGate.sanitizeInvoiceItem(input);
+      expect(result.quantity).toBe(0.01);
     });
 
-    it('throws for negative price', () => {
+    it('coerces negative price to zero', () => {
       const input = {
         productId: 'prod123',
         quantity: 5,
         price: -10,
       };
-      expect(() => SanityGate.sanitizeInvoiceItem(input)).toThrow();
+      const result = SanityGate.sanitizeInvoiceItem(input);
+      expect(result.price).toBe(0);
     });
   });
 
@@ -353,9 +359,10 @@ describe('Entity Sanitizers', () => {
       expect(() => SanityGate.sanitizeInvoice(emptyItems)).toThrow();
     });
 
-    it('throws for missing customerId', () => {
+    it('coerces missing customerId to empty string', () => {
       const missingCust = { items: validInvoice.items };
-      expect(() => SanityGate.sanitizeInvoice(missingCust)).toThrow();
+      const result = SanityGate.sanitizeInvoice(missingCust);
+      expect(result.customerId).toBe('');
     });
 
     it('ensures total is non-negative', () => {
@@ -392,20 +399,22 @@ describe('Entity Sanitizers', () => {
       expect(result.method).toBe('كاش');
     });
 
-    it('throws for amount <= 0', () => {
+    it('coerces zero amount to the minimum threshold', () => {
       const input = {
         customerId: 'cust123',
         amount: 0,
       };
-      expect(() => SanityGate.sanitizePayment(input)).toThrow();
+      const result = SanityGate.sanitizePayment(input);
+      expect(result.amount).toBe(0.01);
     });
 
-    it('throws for negative amount', () => {
+    it('coerces negative amount to the minimum threshold', () => {
       const input = {
         customerId: 'cust123',
         amount: -100,
       };
-      expect(() => SanityGate.sanitizePayment(input)).toThrow();
+      const result = SanityGate.sanitizePayment(input);
+      expect(result.amount).toBe(0.01);
     });
 
     it('validates payment method', () => {
@@ -452,12 +461,13 @@ describe('Entity Sanitizers', () => {
       expect(result.totalReturnAmount).toBe(125);
     });
 
-    it('throws for missing invoiceId', () => {
+    it('coerces missing invoiceId to empty string', () => {
       const input = {
         customerId: 'cust123',
         items: [{ id: 'item1', lineTotal: 50 }],
       };
-      expect(() => SanityGate.sanitizeReturn(input)).toThrow();
+      const result = SanityGate.sanitizeReturn(input);
+      expect(result.invoiceId).toBe('');
     });
 
     it('throws for empty items', () => {

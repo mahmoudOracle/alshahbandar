@@ -39,41 +39,43 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   const { config } = useTenantConfig();
   const lang = (config && config.language) || 'ar';
+  const roleLabel =
+    role === 'owner' ? 'مالك' : role === 'manager' ? 'مدير' : role === 'staff' ? 'موظف' : 'موظف';
 
   const tenantGroups = [
     {
-      title: '????????',
-      items: [{ to: '/dashboard', text: '?????', icon: HomeIcon }],
+      title: 'الرئيسية',
+      items: [{ to: '/app/dashboard', text: t('dashboard', lang), icon: HomeIcon }],
     },
     {
-      title: '????? ????????',
+      title: 'المبيعات',
       items: [
-        { to: '/invoices', text: '????????', icon: DocumentTextIcon },
-        { to: '/customers', text: '???????', icon: UsersIcon },
-        { to: '/quotes', text: '???? ???????', icon: DocumentDuplicateIcon },
+        { to: '/app/invoices', text: t('invoices', lang), icon: DocumentTextIcon },
+        { to: '/app/customers', text: t('customers', lang), icon: UsersIcon },
+        { to: '/app/quotes', text: t('quotes', lang), icon: DocumentDuplicateIcon },
       ],
     },
     {
-      title: '???????',
+      title: 'المخزون',
       items: [
-        { to: '/products', text: '???????? ????????', icon: ArchiveBoxIcon },
-        { to: '/purchases', text: '?????????', icon: CurrencyDollarIcon },
-        { to: '/suppliers', text: '????????', icon: UsersIcon },
+        { to: '/app/products', text: t('products', lang), icon: ArchiveBoxIcon },
+        { to: '/app/purchases', text: t('purchases', lang), icon: CurrencyDollarIcon },
+        { to: '/app/suppliers', text: t('suppliers', lang), icon: UsersIcon },
       ],
     },
     {
-      title: '????? ??????????',
+      title: 'التقارير والإعدادات',
       items: [
-        { to: '/expenses', text: '?????????', icon: CurrencyDollarIcon },
-        { to: '/reports', text: '????????', icon: ChartPieIcon },
-        { to: '/settings', text: '?????????', icon: Cog6ToothIcon },
+        { to: '/app/expenses', text: t('expenses', lang), icon: CurrencyDollarIcon },
+        { to: '/app/reports', text: t('reports', lang), icon: ChartPieIcon },
+        { to: '/app/settings', text: t('settings', lang), icon: Cog6ToothIcon },
       ],
     },
   ];
 const platformGroups = [
     {
-      title: '??????',
-      items: [{ to: '/platform', text: '???? ??????', icon: BuildingOffice2Icon }],
+      title: 'المنصة',
+      items: [{ to: '/platform', text: 'لوحة المنصة', icon: BuildingOffice2Icon }],
     },
   ];
 
@@ -189,7 +191,7 @@ const platformGroups = [
           <p className="font-semibold text-gray-800 dark:text-gray-200">
             {user?.displayName || user?.email}
           </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{role || 'employee'}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{roleLabel}</p>
         </div>
         <LanguageToggle />
         <Button variant="secondary" className="w-full mt-4" onClick={logout}>
@@ -201,3 +203,6 @@ const platformGroups = [
 };
 
 export default Sidebar;
+
+
+

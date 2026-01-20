@@ -187,14 +187,14 @@ const CustomerDetail: React.FC = () => {
           {canWrite && (
             <div className="flex flex-wrap gap-2">
               <Link
-                to={`/customers/edit/${customer.id}`}
+                to={`/app/customers/edit/${customer.id}`}
                 className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500"
               >
                 <PencilIcon className="h-4 w-4 me-2" /> تعديل
               </Link>
               {canCreateInvoices && (
                 <Link
-                  to="/invoices/new"
+                  to="/app/invoices/new"
                   className="flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
                 >
                   فاتورة جديدة
@@ -387,3 +387,5 @@ const CustomerDetail: React.FC = () => {
 };
 
 export default CustomerDetail;
+
+

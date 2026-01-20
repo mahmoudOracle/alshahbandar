@@ -1,12 +1,12 @@
-﻿const resources: Record<string, Record<string, string>> = {
+const resources: Record<string, Record<string, string>> = {
   ar: {
-    app_name: 'الشاهبندر لإدارة الأعمال',
-    welcome_back: 'مرحبًا بعودتك! سجّل الدخول للمتابعة.',
+    app_name: 'الشهبندر - إدارة الأعمال',
+    welcome_back: 'مرحباً بعودتك! سجّل الدخول للمتابعة.',
     login_button: 'تسجيل الدخول',
     no_account: 'ليس لديك حساب؟',
-    create_account: 'إنشاء حساب جديد',
+    create_account: 'إنشاء حساب',
     logout: 'تسجيل الخروج',
-    dashboard: 'ملخّص',
+    dashboard: 'الملخص',
     invoices: 'الفواتير',
     purchases: 'المشتريات',
     quotes: 'عروض الأسعار',
@@ -15,12 +15,12 @@
     customers: 'العملاء',
     products: 'المنتجات',
     suppliers: 'الموردون',
-    warehouse: 'المخزون',
-    reports: 'نظرة على الشغل',
+    warehouse: 'المخزن',
+    reports: 'التقارير',
     settings: 'الإعدادات',
     sign_in: 'تسجيل الدخول',
     sign_in_sub: 'أدخل بياناتك للمتابعة',
-    login_tagline: 'إدارة أعمال احترافية وتجربة بسيطة.',
+    login_tagline: 'إدارة بسيطة وسريعة لأعمالك.',
   },
   en: {
     app_name: 'Alshahbandar Business Management',

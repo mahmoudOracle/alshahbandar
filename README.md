@@ -10,6 +10,13 @@ This application uses your browser's local storage to securely manage Firebase c
 2.  **Provide Firebase Configuration:**
     On first launch, the application will prompt you to enter your Firebase project configuration. You can find this in your Firebase project settings. Paste the entire JSON object into the provided text area and save. The app will reload and connect to your backend.
 
+## Environment configuration
+
+- Copy `.env.local.example` to `.env.local`.
+- Add `VITE_COMPANY_ID=uv9acIebvvNgx9ftSnPh` to the file.
+- Restart `npm run dev` or any running dev server after updating `.env.local`; Vite only re-reads env at startup.
+- Verify the value is loaded by opening `/dev/db` in the browser (DEV only) and checking the Env panel or watching for the new fatal error message if the var is missing.
+
 ## Backend Setup
 
 For the new invitation and multi-company features to work, you must deploy the provided Firestore rules and Cloud Functions to your Firebase project.

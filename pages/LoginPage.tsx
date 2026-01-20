@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { signInWithEmail } from '../services/authService';
 import { useNotification } from '../contexts/NotificationContext';
@@ -10,6 +10,7 @@ import { t } from '../services/i18n';
 import LogoPlaceholder from '../components/LogoPlaceholder';
 import { useAuth } from '../contexts/AuthContext';
 import { getErrorMessage } from '../src/utils/errorMessage';
+import { LoadingScreen } from '../LoadingScreen';
 
 const LoginPage: React.FC = () => {
   const { isLoggedIn, status } = useAuth();
@@ -23,30 +24,25 @@ const LoginPage: React.FC = () => {
     setLoading(true);
     try {
       await signInWithEmail(email, password);
-      // No need to navigate here. The AuthProvider will change state,
-      // and the AppRouter will react accordingly.
+      // AuthProvider will handle state updates and routing.
     } catch (error: unknown) {
-      // The AuthProvider now handles detailed error states.
-      // We just show a generic notification to the user on the login page.
-      const message = 'Login failed. Please check your email and password.';
+      const message = 'تعذر تسجيل الدخول. تحقق من البريد وكلمة المرور.';
       addNotification(message, 'error');
       console.error(getErrorMessage(error, message));
     } finally {
       setLoading(false);
     }
   };
-  
+
   const { config } = useTenantConfig();
   const lang = config?.language || 'ar';
-  
-  // If user is already logged in, redirect to the main app
+
   if (isLoggedIn) {
     return <Navigate to="/app" replace />;
   }
-  
-  // Prevent flicker of login page while auth state is resolving
+
   if (status === 'authLoading' || status === 'resolvingMembership') {
-    return null; // or a loading spinner
+    return <LoadingScreen message="جاري التحقق من صلاحيات الحساب..." />;
   }
 
   return (
@@ -54,17 +50,13 @@ const LoginPage: React.FC = () => {
       <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
         <div className="hidden md:flex flex-col items-start justify-center space-y-6 p-8 rounded-lg bg-gradient-to-br from-slate-50 to-white shadow">
           <LogoPlaceholder size={84} />
-          <h2 className="text-3xl font-extrabold text-slate-900">
-            {t('app_name', lang)}
-          </h2>
-          <p className="text-slate-600">
-            {t('login_tagline', lang) || 'إدارة أعمال احترافية وتجربة بسيطة.'}
-          </p>
+          <h2 className="text-3xl font-extrabold text-slate-900">{t('app_name', lang)}</h2>
+          <p className="text-slate-600">{t('login_tagline', lang) || 'إدارة بسيطة وسريعة لأعمالك.'}</p>
           <div className="w-full mt-4">
             <ul className="space-y-2 text-sm text-slate-600">
-              <li>• متابعة المبيعات والعملاء</li>
-              <li>• تقارير واضحة في الوقت الحقيقي</li>
-              <li>• إدارة مخزون دقيقة</li>
+              <li>واجهة واضحة وسهلة الاستخدام</li>
+              <li>متابعة يومية للمبيعات والمصروفات</li>
+              <li>قرارات أسرع بأقل خطوات</li>
             </ul>
           </div>
         </div>
@@ -98,13 +90,13 @@ const LoginPage: React.FC = () => {
                 autoComplete="current-password"
               />
               <Button type="submit" loading={loading} className="w-full" size="lg">
-                تسجيل الدخول
+                {t('login_button', lang) || 'تسجيل الدخول'}
               </Button>
             </form>
             <p className="mt-4 text-center text-sm text-slate-500">
-              ليس لديك حساب؟{' '}
+              {t('no_account', lang) || 'ليس لديك حساب؟'}{' '}
               <Link to="/register" className="font-medium text-primary-600 hover:text-primary-500">
-                إنشاء حساب جديد
+                {t('create_account', lang) || 'إنشاء حساب'}
               </Link>
             </p>
           </Card>
@@ -115,4 +107,3 @@ const LoginPage: React.FC = () => {
 };
 
 export default LoginPage;
-

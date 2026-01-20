@@ -35,7 +35,7 @@ const CustomerCard: React.FC<{
   <Card
     padding="sm"
     className="md:hidden cursor-pointer"
-    onClick={() => onNavigate(`/customers/${customer.id}`)}
+    onClick={() => onNavigate(`/app/customers/${customer.id}`)}
   >
     <div className="flex justify-between items-start mb-2">
       <div>
@@ -63,7 +63,7 @@ const CustomerCard: React.FC<{
       )}
       {canWriteCustomers && (
         <Link
-          to={`/customers/edit/${customer.id}`}
+          to={`/app/customers/edit/${customer.id}`}
           className="w-full"
           onClick={(e) => e.stopPropagation()}
         >
@@ -191,7 +191,7 @@ const CustomerList: React.FC = () => {
         message="ابدأ بإضافة أول عميل لتتبع الفواتير والمدفوعات."
         action={
           canWriteCustomers
-            ? { text: 'إضافة عميل', onClick: () => navigate('/customers/new') }
+            ? { text: 'إضافة عميل', onClick: () => navigate('/app/customers/new') }
             : undefined
         }
       />
@@ -231,7 +231,7 @@ const CustomerList: React.FC = () => {
             <option value="recent">الأحدث</option>
           </select>
           {canWriteCustomers && (
-            <Link to="/customers/new" className="w-full md:w-auto">
+            <Link to="/app/customers/new" className="w-full md:w-auto">
               <Button variant="primary" className="w-full">
                 <PlusIcon className="h-5 w-5 me-2" />
                 إضافة عميل
@@ -269,7 +269,7 @@ const CustomerList: React.FC = () => {
             {filteredCustomers.map((customer) => (
               <tr
                 key={customer.id}
-                onClick={() => navigate(`/customers/${customer.id}`)}
+                onClick={() => navigate(`/app/customers/${customer.id}`)}
                 className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-200 cursor-pointer"
               >
                 <td className="px-6 py-4 whitespace-nowrap font-medium">{customer.name}</td>
@@ -286,7 +286,7 @@ const CustomerList: React.FC = () => {
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate(`/customers/${customer.id}`);
+                        navigate(`/app/customers/${customer.id}`);
                       }}
                       aria-label="عرض العميل"
                     >
@@ -365,3 +365,4 @@ const CustomerList: React.FC = () => {
 };
 
 export default CustomerList;
+

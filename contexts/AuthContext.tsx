@@ -8,9 +8,27 @@ import React, {
 import { User, onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
+import { ENV, EnvConfigError } from '../src/config/env';
 
-// Single-tenant company ID from environment
-const COMPANY_ID = import.meta.env.VITE_COMPANY_ID || '';
+const AUTHORIZED_MEMBERSHIP_ROLES = new Set(['owner', 'manager', 'staff']);
+
+const getRoleFromDocData = (data?: Record<string, unknown>): string | null => {
+  if (!data) return null;
+  const candidate = data.role ?? data.memberRole ?? data.roleName;
+  return typeof candidate === 'string' ? candidate : null;
+};
+
+const getRoleFromMembershipEntry = (entry: unknown): string | null => {
+  if (!entry) return null;
+  if (typeof entry === 'string') return entry;
+  if (typeof entry === 'object' && entry !== null) {
+    return getRoleFromDocData(entry as Record<string, unknown>);
+  }
+  return null;
+};
+
+const isAuthorizedRole = (role: string | null | undefined): boolean =>
+  Boolean(role && AUTHORIZED_MEMBERSHIP_ROLES.has(role.toLowerCase()));
 
 // ============ STATE MACHINE ============
 export type AuthStatus =
@@ -23,12 +41,17 @@ export type AuthStatus =
   | 'error'; // An error occurred during the process
 
 // ============ CONTEXT TYPE ============
+export type AuthRole = 'owner' | 'manager' | 'staff' | null;
+
 export interface AuthContextType {
   user: User | null;
   status: AuthStatus;
   error: string | null;
   isLoading: boolean;
   isLoggedIn: boolean;
+  authLoading: boolean;
+  authorized: boolean;
+  role: AuthRole;
   companyId: string;
   logout: () => Promise<void>;
 }
@@ -43,13 +66,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [status, setStatus] = useState<AuthStatus>('authLoading');
   const [error, setError] = useState<string | null>(null);
+  const [role, setRole] = useState<AuthRole>(null);
 
   useEffect(() => {
-    // Validate company ID is set
-    if (!COMPANY_ID) {
-      console.error('VITE_COMPANY_ID is not configured');
+    let companyId: string;
+    try {
+      companyId = ENV.companyId;
+    } catch (err) {
+      console.error(err instanceof EnvConfigError ? err.message : err);
       setStatus('error');
-      setError('Environment configuration error: VITE_COMPANY_ID is missing');
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Environment configuration error: VITE_COMPANY_ID is missing'
+      );
       return;
     }
 
@@ -59,6 +89,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
       if (!firebaseUser) {
         setUser(null);
+        setRole(null);
         setStatus('loggedOut');
         return;
       }
@@ -67,36 +98,64 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setStatus('resolvingMembership');
 
       try {
-        // Check 1: Is the user a member of the company?
-        const memberDocRef = doc(
-          db,
-          'companies',
-          COMPANY_ID,
-          'members',
-          firebaseUser.uid
-        );
+        const memberDocRef = doc(db, 'companies', companyId, 'members', firebaseUser.uid);
         const memberDocSnap = await getDoc(memberDocRef);
+        const memberRole = getRoleFromDocData(memberDocSnap.data());
+        let resolvedRole: AuthRole = null;
+        let isAuthorized = memberDocSnap.exists() && isAuthorizedRole(memberRole);
+        if (isAuthorized && memberRole) {
+          resolvedRole = memberRole.toLowerCase() as AuthRole;
+        }
 
-        if (!memberDocSnap.exists()) {
+        if (!isAuthorized) {
+          const companyUserDocRef = doc(db, 'companies', companyId, 'users', firebaseUser.uid);
+          const companyUserSnap = await getDoc(companyUserDocRef);
+          const companyUserRole = getRoleFromDocData(companyUserSnap.data());
+          isAuthorized = companyUserSnap.exists() && isAuthorizedRole(companyUserRole);
+          if (isAuthorized && companyUserRole) {
+            resolvedRole = companyUserRole.toLowerCase() as AuthRole;
+          }
+
+          if (!isAuthorized) {
+            const rootUserDocRef = doc(db, 'users', firebaseUser.uid);
+            const rootUserSnap = await getDoc(rootUserDocRef);
+            const memberships =
+              rootUserSnap.exists() && typeof rootUserSnap.data()?.memberships === 'object'
+                ? (rootUserSnap.data()?.memberships || {})
+                : {};
+            const membershipEntry = memberships[companyId];
+            const membershipRole = getRoleFromMembershipEntry(membershipEntry);
+            isAuthorized = isAuthorizedRole(membershipRole);
+            if (isAuthorized && membershipRole) {
+              resolvedRole = membershipRole.toLowerCase() as AuthRole;
+            }
+          }
+        }
+
+        if (!isAuthorized) {
+          setRole(null);
           setStatus('unauthorized_notMember');
           return;
         }
 
-        // Check 2: Is the company active?
-        const companyDocRef = doc(db, 'companies', COMPANY_ID);
+        const companyDocRef = doc(db, 'companies', companyId);
         const companyDocSnap = await getDoc(companyDocRef);
+        const companyIsActive =
+          companyDocSnap.exists() && companyDocSnap.data()?.isActive === false ? false : true;
 
-        if (!companyDocSnap.exists() || !companyDocSnap.data()?.isActive) {
+        if (companyDocSnap.exists() && !companyIsActive) {
+          setRole(null);
           setStatus('unauthorized_companyInactive');
           return;
         }
 
-        // All checks passed
+        setRole(resolvedRole);
         setStatus('authorized');
       } catch (e: any) {
         console.error('Error resolving membership:', e);
         const errorMessage = e.message || 'An unexpected error occurred.';
         setError(errorMessage);
+        setRole(null);
         setStatus('error');
       }
     });
@@ -109,11 +168,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     try {
       await signOut(auth);
       setUser(null);
+      setRole(null);
       setStatus('loggedOut');
     } catch (e) {
       console.error('Error signing out:', e);
       // Even on logout error, we force the state to loggedOut
       setUser(null);
+      setRole(null);
       setStatus('loggedOut');
     }
   };
@@ -124,7 +185,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     error,
     isLoading: status === 'authLoading' || status === 'resolvingMembership',
     isLoggedIn: status === 'authorized',
-    companyId: COMPANY_ID,
+    authLoading: status === 'authLoading' || status === 'resolvingMembership',
+    authorized: status === 'authorized',
+    role,
+    companyId: (() => {
+      try {
+        return ENV.companyId;
+      } catch {
+        return '';
+      }
+    })(),
     logout,
   };
 

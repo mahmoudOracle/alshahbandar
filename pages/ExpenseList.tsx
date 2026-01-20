@@ -139,7 +139,7 @@ const ExpenseCard: React.FC<{
     <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 truncate">{expense.description}</p>
     {canWrite && (
       <div className="flex gap-2 mt-3 border-t border-gray-200 dark:border-gray-700 pt-3">
-        <Link to={`/expenses/edit/${expense.id}`} className="flex-1">
+        <Link to={`/app/expenses/edit/${expense.id}`} className="flex-1">
           <Button variant="secondary" size="sm" className="w-full">
             <PencilIcon className="h-4 w-4 me-2" /> تعديل
           </Button>
@@ -264,7 +264,7 @@ const ExpenseList: React.FC = () => {
         title="لا توجد مصروفات بعد"
         message="ابدأ بتسجيل مصروفاتك لتتبع نفقات عملك."
         action={
-          canWrite ? { text: 'إضافة مصروف', onClick: () => navigate('/expenses/new') } : undefined
+          canWrite ? { text: 'إضافة مصروف', onClick: () => navigate('/app/expenses/new') } : undefined
         }
       />
     );
@@ -285,7 +285,7 @@ const ExpenseList: React.FC = () => {
             className="w-full md:w-auto"
           />
           {canWrite && (
-            <Link to="/expenses/new" className="w-full md:w-auto">
+            <Link to="/app/expenses/new" className="w-full md:w-auto">
               <Button variant="primary" className="w-full">
                 <PlusIcon className="h-5 w-5 me-2" />
                 إضافة مصروف
@@ -332,7 +332,7 @@ const ExpenseList: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center gap-2">
                         <Link
-                          to={`/expenses/edit/${expense.id}`}
+                          to={`/app/expenses/edit/${expense.id}`}
                           className="text-gray-600 hover:text-gray-900 p-2"
                           aria-label="تعديل المصروف"
                         >
@@ -414,3 +414,6 @@ const ExpenseList: React.FC = () => {
 };
 
 export default ExpenseList;
+
+
+

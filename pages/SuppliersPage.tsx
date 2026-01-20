@@ -11,7 +11,7 @@ import {
   saveSupplier,
   deleteSupplier,
   getPurchases,
-  getSupplierPaymentsBySupplierId,
+  getSupplierPayments,
   saveSupplierPayment,
 } from '../services/dataService';
 import { Supplier, SupplierPayment } from '../types';
@@ -31,6 +31,7 @@ const PAYMENT_METHODS = [
   'تحويل بنكي',
   'أخرى',
 ] as const;
+const STATEMENT_PAGE_SIZE = 50;
 
 const toIsoDate = (date: Date) => date.toISOString().split('T')[0];
 
@@ -62,6 +63,10 @@ const SuppliersPage: React.FC = () => {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([]);
   const [purchases, setPurchases] = useState<any[]>([]);
+  const [purchaseCursor, setPurchaseCursor] = useState<unknown | null>(null);
+  const [paymentCursor, setPaymentCursor] = useState<unknown | null>(null);
+  const [statementLoading, setStatementLoading] = useState(false);
+  const [statementLoadingMore, setStatementLoadingMore] = useState(false);
   const [includeOpeningBalance, setIncludeOpeningBalance] = useState(true);
   const [dateRange, setDateRange] = useState(() => ({
     start: toIsoDate(new Date(new Date().setDate(new Date().getDate() - 90))),
@@ -130,15 +135,58 @@ const SuppliersPage: React.FC = () => {
     if (!companyId) return;
     setSelectedSupplier(supplier);
     setStatementOpen(true);
+    setStatementLoading(true);
+    setPurchaseCursor(null);
+    setPaymentCursor(null);
     try {
       const [purchaseRes, paymentRes] = await Promise.all([
-        getPurchases(companyId, { filters: [['supplierId', '==', supplier.id]] }),
-        getSupplierPaymentsBySupplierId(companyId, supplier.id),
+        getPurchases(companyId, { filters: [['supplierId', '==', supplier.id]], limit: STATEMENT_PAGE_SIZE }),
+        getSupplierPayments(companyId, { filters: [['supplierId', '==', supplier.id]], limit: STATEMENT_PAGE_SIZE }),
       ]);
       setPurchases((purchaseRes as any).data || []);
       setSupplierPayments(paymentRes.data || []);
+      setPurchaseCursor((purchaseRes as any).nextCursor ?? null);
+      setPaymentCursor(paymentRes.nextCursor ?? null);
     } catch (err: unknown) {
       addNotification(mapFirestoreError(err), 'error');
+    } finally {
+      setStatementLoading(false);
+    }
+  };
+
+  const loadMoreStatement = async () => {
+    if (!companyId || !selectedSupplier) return;
+    if (!purchaseCursor && !paymentCursor) return;
+    setStatementLoadingMore(true);
+    try {
+      const [purchaseRes, paymentRes] = await Promise.all([
+        purchaseCursor
+          ? getPurchases(companyId, {
+              filters: [['supplierId', '==', selectedSupplier.id]],
+              limit: STATEMENT_PAGE_SIZE,
+              startAfter: purchaseCursor,
+            })
+          : Promise.resolve(null),
+        paymentCursor
+          ? getSupplierPayments(companyId, {
+              filters: [['supplierId', '==', selectedSupplier.id]],
+              limit: STATEMENT_PAGE_SIZE,
+              startAfter: paymentCursor,
+            })
+          : Promise.resolve(null),
+      ]);
+      if (purchaseRes) {
+        setPurchases((prev) => [...prev, ...(purchaseRes as any).data || []]);
+        setPurchaseCursor((purchaseRes as any).nextCursor ?? null);
+      }
+      if (paymentRes) {
+        setSupplierPayments((prev) => [...prev, ...(paymentRes.data || [])]);
+        setPaymentCursor(paymentRes.nextCursor ?? null);
+      }
+    } catch (err: unknown) {
+      addNotification(mapFirestoreError(err), 'error');
+    } finally {
+      setStatementLoadingMore(false);
     }
   };
 
@@ -248,8 +296,12 @@ const SuppliersPage: React.FC = () => {
       setPaymentNotes('');
       setPaymentReference('');
       setPaymentMethod('');
-      const paymentRes = await getSupplierPaymentsBySupplierId(companyId, selectedSupplier.id);
+      const paymentRes = await getSupplierPayments(companyId, {
+        filters: [['supplierId', '==', selectedSupplier.id]],
+        limit: STATEMENT_PAGE_SIZE,
+      });
       setSupplierPayments(paymentRes.data || []);
+      setPaymentCursor(paymentRes.nextCursor ?? null);
       addNotification('تم تسجيل دفعة المورد.', 'success');
     } catch (err: unknown) {
       addNotification(mapFirestoreError(err), 'error');
@@ -398,6 +450,11 @@ const SuppliersPage: React.FC = () => {
       >
         {selectedSupplier && (
           <div className="space-y-4">
+            {statementLoading && (
+              <div className="text-center text-sm text-gray-500">
+                جاري تحميل كشف المورد...
+              </div>
+            )}
             <div className="flex flex-col md:flex-row gap-3">
               <DateInput
                 label="من"
@@ -589,6 +646,17 @@ const SuppliersPage: React.FC = () => {
                   </div>
                 )}
               </PrintableReport>
+              {(purchaseCursor || paymentCursor) && (
+                <div className="flex justify-center mt-4">
+                  <Button
+                    variant="secondary"
+                    onClick={loadMoreStatement}
+                    loading={statementLoadingMore}
+                  >
+                    تحميل المزيد
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -598,3 +666,5 @@ const SuppliersPage: React.FC = () => {
 };
 
 export default SuppliersPage;
+
+

@@ -80,6 +80,8 @@ READ_CACHE_FUNCS.add('getReports');
 // Cache returns reads
 READ_CACHE_FUNCS.add('getReturns');
 
+import { logFirestoreOperation } from './devOperationLogger';
+
 const safeService = new Proxy(
   {},
   {
@@ -92,25 +94,37 @@ const safeService = new Proxy(
         }
 
         const svc = service as unknown as Record<string, (...args: unknown[]) => unknown>;
-        if (typeof svc[String(prop)] !== 'function') {
-          const errorMsg = `Service function "${String(prop)}" does not exist.`;
+        const propStr = String(prop);
+        if (typeof svc[propStr] !== 'function') {
+          const errorMsg = `Service function "${propStr}" does not exist.`;
           console.error(errorMsg);
           return Promise.reject(new Error(errorMsg));
         }
 
-        // Handle write operations (cache invalidation)
-        const propStr = String(prop);
+        const logResult = async () => {
+          const start = Date.now();
+          try {
+            const result = await (svc[propStr](...args) as unknown);
+            logFirestoreOperation(propStr, args, Date.now() - start);
+            return result;
+          } catch (err) {
+            logFirestoreOperation(propStr, args, Date.now() - start);
+            throw err;
+          }
+        };
+
         if (CACHE_INVALIDATION_MAP[propStr]) {
-          const result = await (svc[propStr](...args) as unknown);
-          // Clear related caches after successful write
+          const result = await logResult();
           if (import.meta.env.DEV) {
-            console.log(`[CACHE INVALIDATE] Clearing caches for ${propStr}:`, CACHE_INVALIDATION_MAP[propStr]);
+            console.log(
+              `[CACHE INVALIDATE] Clearing caches for ${propStr}:`,
+              CACHE_INVALIDATION_MAP[propStr]
+            );
           }
           clearReadCache(CACHE_INVALIDATION_MAP[propStr]);
           return result;
         }
 
-        // Serve from cache for some read-only functions
         if (READ_CACHE_FUNCS.has(propStr)) {
           const key = cacheKey(prop, args);
           const cached = readCache.get(key);
@@ -121,12 +135,12 @@ const safeService = new Proxy(
             }
             return cached.data;
           }
-          const res = await (svc[propStr](...args) as unknown);
+          const res = await logResult();
           readCache.set(key, { ts: now, data: res });
           return res;
         }
 
-        return svc[propStr](...args);
+        return logResult();
       };
     },
   }

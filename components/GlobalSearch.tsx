@@ -144,7 +144,7 @@ const GlobalSearch: React.FC = () => {
                     {results.invoices.map((i) => (
                       <li
                         key={i.id}
-                        onClick={() => handleNavigate(`/invoices/${i.id}`)}
+                        onClick={() => handleNavigate(`/app/invoices/${i.id}`)}
                         className="p-3 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                       >
                         {decodeUnicode(i.invoiceNumber)}{' '}
@@ -163,7 +163,7 @@ const GlobalSearch: React.FC = () => {
                     {results.customers.map((c) => (
                       <li
                         key={c.id}
-                        onClick={() => handleNavigate(`/customers/${c.id}`)}
+                        onClick={() => handleNavigate(`/app/customers/${c.id}`)}
                         className="p-3 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                       >
                         {decodeUnicode(c.name)}
@@ -181,7 +181,7 @@ const GlobalSearch: React.FC = () => {
                     {results.products.map((p) => (
                       <li
                         key={p.id}
-                        onClick={() => handleNavigate(`/products`)}
+                        onClick={() => handleNavigate(`/app/products`)}
                         className="p-3 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                       >
                         {decodeUnicode(p.name)}
@@ -199,3 +199,4 @@ const GlobalSearch: React.FC = () => {
 };
 
 export default GlobalSearch;
+

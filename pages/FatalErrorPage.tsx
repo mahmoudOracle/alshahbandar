@@ -1,6 +1,5 @@
 import React from 'react';
 import { ShieldExclamationIcon } from '@heroicons/react/24/outline';
-import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 
 const decodeUnicode = (str: string | undefined | null): string => {
@@ -18,15 +17,26 @@ interface FatalErrorPageProps {
   showRetry?: boolean;
 }
 
+const isBrowser = typeof window !== 'undefined';
+
+const reloadPage = () => {
+  if (!isBrowser) return;
+  window.location.reload();
+};
+
+const navigateToHash = (hash: string) => () => {
+  if (!isBrowser) return;
+  window.location.hash = hash;
+};
+
 const FatalErrorPage: React.FC<FatalErrorPageProps> = ({
   title,
   message,
   showRetry = true,
 }) => {
-  const navigate = useNavigate();
-
-  const defaultTitle = 'غير مصرح';
-  const defaultMessage = 'حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.';
+  const defaultTitle = 'O§USOñ U.OæOñO-';
+  const defaultMessage =
+    'O-O_O® OrOúOœ O§USOñ U.O¦U^U,O1. USOñOªU% OU,U.O-OU^U,Oc U.OñOc OœOrOñU%.';
 
   const decodedTitle = decodeUnicode(title || defaultTitle);
   const decodedMessage = decodeUnicode(message || defaultMessage);
@@ -43,17 +53,27 @@ const FatalErrorPage: React.FC<FatalErrorPageProps> = ({
         <div className="mt-3 text-gray-600 dark:text-gray-400">
           <p className="whitespace-pre-line">{decodedMessage}</p>
         </div>
-        {showRetry && (
-          <div className="mt-6">
-            <Button
-              variant="primary"
-              onClick={() => navigate('/')}
-              className="w-full"
-            >
-              {decodeUnicode('العودة إلى الصفحة الرئيسية')}
+        <div className="mt-6 space-y-2">
+          {showRetry && (
+            <Button variant="primary" onClick={reloadPage} className="w-full">
+              {decodeUnicode('OU,O1U^O_Oc OU,U% OU,OæU?O-Oc OU,OñOÝUSO3USOc')}
             </Button>
-          </div>
-        )}
+          )}
+          <Button
+            variant="secondary"
+            onClick={navigateToHash('#/login')}
+            className="w-full"
+          >
+            Go to Login
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={navigateToHash('#/app')}
+            className="w-full"
+          >
+            Go to App
+          </Button>
+        </div>
       </div>
     </div>
   );

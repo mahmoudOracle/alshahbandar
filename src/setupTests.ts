@@ -1,5 +1,9 @@
 import '@testing-library/jest-dom';
 
+if (!process.env.VITE_COMPANY_ID) {
+  process.env.VITE_COMPANY_ID = 'uv9acIebvvNgx9ftSnPh';
+}
+
 // Place any global test setup here (mocking window APIs, polyfills, etc.)
 // Polyfill window.matchMedia for jsdom test environment (some components use it)
 if (

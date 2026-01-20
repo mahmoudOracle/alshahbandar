@@ -16,11 +16,11 @@ const MobileBottomNav: React.FC = () => {
   if (status !== 'authorized') return null;
 
   const items = [
-    { to: '/dashboard', label: '\u0645\u0644\u062e\u0635', icon: HomeIcon },
-    { to: '/invoices', label: '\u0627\u0644\u0641\u0648\u0627\u062a\u064a\u0631', icon: DocumentTextIcon },
-    { to: '/customers', label: '\u0627\u0644\u0639\u0645\u0644\u0627\u0621', icon: UsersIcon },
-    { to: '/products', label: '\u0627\u0644\u0645\u0646\u062a\u062c\u0627\u062a', icon: ArchiveBoxIcon },
-    { to: '/reports', label: '\u0627\u0644\u062a\u0642\u0627\u0631\u064a\u0631', icon: ChartPieIcon },
+    { to: '/app/dashboard', label: '\u0645\u0644\u062e\u0635', icon: HomeIcon },
+    { to: '/app/invoices', label: '\u0627\u0644\u0641\u0648\u0627\u062a\u064a\u0631', icon: DocumentTextIcon },
+    { to: '/app/customers', label: '\u0627\u0644\u0639\u0645\u0644\u0627\u0621', icon: UsersIcon },
+    { to: '/app/products', label: '\u0627\u0644\u0645\u0646\u062a\u062c\u0627\u062a', icon: ArchiveBoxIcon },
+    { to: '/app/reports', label: '\u0627\u0644\u062a\u0642\u0627\u0631\u064a\u0631', icon: ChartPieIcon },
   ];
 
   return (
@@ -47,3 +47,4 @@ const MobileBottomNav: React.FC = () => {
 };
 
 export default MobileBottomNav;
+

@@ -65,21 +65,21 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
   const resultsRef = useRef<HTMLUListElement>(null);
 
   const staticActions: StaticAction[] = [
-    { id: 'nav-1', title: 'ملخّص', category: 'Navigation', icon: HomeIcon, path: '/dashboard' },
+    { id: 'nav-1', title: 'ملخّص', category: 'Navigation', icon: HomeIcon, path: '/app/dashboard' },
     {
       id: 'nav-2',
       title: 'الفواتير',
       category: 'Navigation',
       icon: DocumentTextIcon,
-      path: '/invoices',
+      path: '/app/invoices',
     },
-    { id: 'nav-3', title: 'العملاء', category: 'Navigation', icon: UsersIcon, path: '/customers' },
+    { id: 'nav-3', title: 'العملاء', category: 'Navigation', icon: UsersIcon, path: '/app/customers' },
     {
       id: 'nav-4',
       title: 'المنتجات والمخزون',
       category: 'Navigation',
       icon: ArchiveBoxIcon,
-      path: '/products',
+      path: '/app/products',
     },
     ...(canWriteInvoices
       ? [
@@ -88,7 +88,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
             title: 'فاتورة جديدة',
             category: 'Create' as const,
             icon: DocumentPlusIcon,
-            path: '/invoices/new',
+            path: '/app/invoices/new',
           },
         ]
       : []),
@@ -99,7 +99,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
             title: 'عميل جديد',
             category: 'Create' as const,
             icon: DocumentPlusIcon,
-            path: '/customers/new',
+            path: '/app/customers/new',
           },
         ]
       : []),
@@ -110,7 +110,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
             title: 'منتج جديد',
             category: 'Create' as const,
             icon: DocumentPlusIcon,
-            path: '/products/new',
+            path: '/app/products/new',
           },
         ]
       : []),
@@ -174,7 +174,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
             subtitle: i.customerName,
             category: 'Invoices',
             icon: DocumentTextIcon,
-            path: `/invoices/${i.id}`,
+            path: `/app/invoices/${i.id}`,
           }));
 
         const customerResults: SearchResultItem[] = (customersData.data || [])
@@ -184,7 +184,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
             title: c.name,
             category: 'Customers',
             icon: UsersIcon,
-            path: `/customers/${c.id}`,
+            path: `/app/customers/${c.id}`,
           }));
 
         const expenseResults: SearchResultItem[] = (expensesData.data || [])
@@ -195,7 +195,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
             subtitle: e.description,
             category: 'Expenses',
             icon: CurrencyDollarIcon,
-            path: `/expenses`,
+            path: `/app/expenses`,
           }));
 
         setSearchResults([...invoiceResults, ...customerResults, ...expenseResults]);
@@ -332,3 +332,5 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
 };
 
 export default CommandBar;
+
+

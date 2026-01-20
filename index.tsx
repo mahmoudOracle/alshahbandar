@@ -4,12 +4,21 @@ import ReactDOM from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { SettingsProvider } from './contexts/SettingsContext';
 import FatalErrorPage from './pages/FatalErrorPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import App from './App';
 import * as firestoreService from './services/firestoreService';
 import * as mockService from './services/mockService';
+import { setDataServiceImpl } from './services/dataService';
 import { initSentry } from './services/errorReporting';
+import {
+  clearSafeBootError,
+  initSafeBootPanel,
+  isSafeBootEnabled,
+  setSafeBootError,
+} from './src/safeBoot';
+import { EnvConfigError, getCompanyId } from './src/config/env';
 
 // Register Service Worker for PWA functionality
 if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
@@ -35,8 +44,13 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
+if (isSafeBootEnabled) {
+  clearSafeBootError();
+  initSafeBootPanel();
+}
 
 try {
+  getCompanyId();
   // Initialize Sentry (if DSN provided). Supports both process.env and Vite env.
   const SENTRY_DSN =
     (typeof process !== 'undefined'
@@ -75,9 +89,11 @@ try {
       <ErrorBoundary>
         <NotificationProvider>
           <AuthProvider>
-            <HashRouter>
-              <App />
-            </HashRouter>
+            <SettingsProvider>
+              <HashRouter>
+                <App />
+              </HashRouter>
+            </SettingsProvider>
           </AuthProvider>
         </NotificationProvider>
       </ErrorBoundary>
@@ -85,9 +101,24 @@ try {
   );
 } catch (error) {
   console.error('Failed to initialize the application:', error);
+  if (isSafeBootEnabled) {
+    setSafeBootError(error as Error, 'bootstrap', 'index.tsx');
+  }
+  const isEnvError = error instanceof EnvConfigError;
+  const instructions = `DEV hint: create .env.local, set VITE_COMPANY_ID=uv9acIebvvNgx9ftSnPh, and restart npm run dev.`;
+  const envMessage = isEnvError
+    ? `${error.message}\n\n${instructions}`
+    : error instanceof Error
+    ? error.message
+    : undefined;
   root.render(
     <React.StrictMode>
-      <FatalErrorPage error={error as Error} />
+      <FatalErrorPage
+        title={isEnvError ? 'Environment configuration error' : undefined}
+        message={envMessage}
+        error={error as Error}
+        showRetry={!isEnvError}
+      />
     </React.StrictMode>
   );
 }

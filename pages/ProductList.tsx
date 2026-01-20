@@ -16,7 +16,7 @@ import { mapFirestoreError } from '../services/firebaseErrors';
 import QuickAddProduct from '../components/QuickAddProduct';
 import { clearProductCache } from '../services/repositories/products';
 
-const PAGE_SIZE = 200;
+const PAGE_SIZE = 50;
 const SKELETON_ROWS = 8;
 
 const isLowStock = (product: Product) => {
@@ -101,7 +101,7 @@ const ProductCard: React.FC<{
           </Button>
         </div>
         <div className="flex gap-2 mt-3 border-t border-gray-200 dark:border-gray-700 pt-3">
-          <Link to={`/products/edit/${product.id}`} className="flex-1">
+          <Link to={`/app/products/edit/${product.id}`} className="flex-1">
             <Button variant="secondary" size="sm" className="w-full">
               <PencilIcon className="h-4 w-4 me-2" /> تعديل
             </Button>
@@ -125,6 +125,8 @@ const ProductList: React.FC = () => {
   const canWrite = useCanWrite('products');
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<unknown | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const location = useLocation();
   const [filter, setFilter] = useState<'all' | 'low'>('all');
@@ -147,13 +149,16 @@ const ProductList: React.FC = () => {
       const result = await getProducts(companyId, { limit: PAGE_SIZE });
       if (Array.isArray(result)) {
         setProducts(result);
+        setNextCursor(null);
       } else {
         const paginated = result as { data?: Product[]; nextCursor?: unknown };
         setProducts(paginated.data || []);
+        setNextCursor(paginated.nextCursor ?? null);
       }
     } catch (error: unknown) {
       addNotification(mapFirestoreError(error), 'error');
       setProducts([]);
+      setNextCursor(null);
     } finally {
       setLoading(false);
     }
@@ -162,6 +167,25 @@ const ProductList: React.FC = () => {
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
+
+  const loadMoreProducts = async () => {
+    if (!companyId || !nextCursor) return;
+    setLoadingMore(true);
+    try {
+      const result = await getProducts(companyId, { limit: PAGE_SIZE, startAfter: nextCursor });
+      if (Array.isArray(result)) {
+        setNextCursor(null);
+        return;
+      }
+      const paginated = result as { data?: Product[]; nextCursor?: unknown };
+      setProducts((prev) => [...prev, ...(paginated.data || [])]);
+      setNextCursor(paginated.nextCursor ?? null);
+    } catch (error: unknown) {
+      addNotification(mapFirestoreError(error), 'error');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const applyStockAdjustment = async (product: Product, delta: number) => {
     if (!companyId || !canWrite) return;
@@ -251,7 +275,7 @@ const ProductList: React.FC = () => {
             ? 'ابدأ بإضافة منتج جديد لإدارة المخزون.'
             : 'لا توجد منتجات متاحة للعرض.'
         }
-        action={canWrite ? { text: 'إضافة منتج', onClick: () => navigate('/products/new') } : undefined}
+        action={canWrite ? { text: 'إضافة منتج', onClick: () => navigate('/app/products/new') } : undefined}
       />
     );
   }
@@ -334,7 +358,7 @@ const ProductList: React.FC = () => {
           </select>
         </div>
         {canWrite && (
-          <Link to="/products/new" className="w-full md:w-auto">
+          <Link to="/app/products/new" className="w-full md:w-auto">
             <Button variant="primary" className="w-full">
               <PlusIcon className="h-5 w-5 me-2" />
               إضافة منتج
@@ -594,6 +618,14 @@ const ProductList: React.FC = () => {
         </div>
       )}
 
+      {nextCursor && filteredProducts.length > 0 && (
+        <div className="flex justify-center mt-6">
+          <Button variant="secondary" onClick={loadMoreProducts} loading={loadingMore}>
+            تحميل المزيد
+          </Button>
+        </div>
+      )}
+
       <Modal isOpen={!!productToDelete} onClose={() => setProductToDelete(null)} title="تأكيد الحذف">
         <p>
           هل أنت متأكد من حذف المنتج &quot;{productToDelete?.name}&quot;؟ يمكنك التراجع عن الحذف
@@ -613,3 +645,5 @@ const ProductList: React.FC = () => {
 };
 
 export default ProductList;
+
+
