@@ -8,7 +8,9 @@ service cloud.firestore {
     }
 
     function isPlatformAdmin() {
-      return isSignedIn() && request.auth.token.email == 'mahmoud.shineh3m@gmail.com';
+      return isSignedIn() &&
+        (request.auth.token.platformAdmin == true ||
+         exists(/databases/$(database)/documents/platformAdmins/$(request.auth.uid)));
     }
 
     function normalizeRole(value) {
@@ -23,7 +25,7 @@ service cloud.firestore {
     }
 
     function roleAllowed(role) {
-      return role is string && ['owner', 'manager', 'staff'].hasAny([role.lower()]);
+      return role is string && ['owner', 'manager', 'staff', 'employee', 'company_owner'].hasAny([role.lower()]);
     }
 
     function companyDoc(companyId) {
@@ -32,7 +34,7 @@ service cloud.firestore {
 
     function companyIsActive(companyId) {
       const doc = companyDoc(companyId);
-      if (!doc.exists()) return true;
+      if (!doc.exists()) return false;
       const isActiveValue = doc.data.isActive;
       return isActiveValue == null || isActiveValue != false;
     }
@@ -135,7 +137,11 @@ service cloud.firestore {
     // Companies
     match /companies/{companyId} {
       // Allow platform admins to fully manage companies
-      allow create, delete: if isPlatformAdmin();
+      allow create: if isPlatformAdmin() || (
+        isSignedIn() &&
+        request.resource.data.ownerUid == request.auth.uid
+      );
+      allow delete: if isPlatformAdmin();
 
       function isCompanyProfileUpdate() {
         return (
@@ -212,11 +218,10 @@ service cloud.firestore {
         // Reads allowed for members only (platform admins do not read tenant data)
         allow read: if companyMemberOrAdmin(companyId);
 
-        // Writes denied by default for wildcard. Must use specific collection matches.
-        allow create, update, delete: if false;
-
-        // Prevent client-side hard deletes; require server-side callable to mark `isDeleted`.
-        allow delete: if false;
+        // Allow company members to write for free-mode deployments.
+        allow create, update, delete: if isSignedIn() &&
+          hasCompanyRole(companyId, ['owner', 'manager', 'staff', 'company_owner']) &&
+          isCompanyActive(companyId);
       }
 
       // Invoices: prevent client-side edits/deletes when a document is posted or its period is locked
@@ -274,16 +279,17 @@ service cloud.firestore {
             // Ensure arithmetic consistency: qtyAfter == qtyBefore + change
             request.resource.data.qtyAfter == request.resource.data.qtyBefore + request.resource.data.change &&
             (request.resource.data.unitCost is number || request.resource.data.unitCost == null) &&
-            request.resource.data.sourceType in ['SALE', 'PURCHASE', 'ADJUSTMENT', 'RETURN'] &&
+            request.resource.data.sourceType in ['SALE', 'PURCHASE', 'ADJUSTMENT', 'RETURN', 'INVOICE_ADJUSTMENT'] &&
             request.resource.data.referenceId is string &&
             // timestamp must be provided and cannot be in the future
             request.resource.data.timestamp is timestamp && request.resource.data.timestamp <= request.time
           );
         }
 
-        // Allow creation only by platform admins or callers with `admin` custom claim.
-        // Cloud Functions using the Admin SDK will bypass these rules; client writes are blocked unless caller has admin claim.
-        allow create: if isSignedIn() && (request.auth.token.admin == true) && validLedgerEntry();
+        // Allow creation by company roles when entry is valid.
+        allow create: if isSignedIn() &&
+          hasCompanyRole(companyId, ['owner', 'manager', 'staff', 'company_owner']) &&
+          validLedgerEntry();
         allow update, delete: if false;
       }
 
@@ -299,17 +305,14 @@ service cloud.firestore {
           );
         }
 
-        // If the corresponding product document exists, enforce that inventory.quantity equals product.stock
-        function matchesProductStock() {
-          return exists(/databases/$(database)/documents/companies/$(companyId)/products/$(request.resource.data.productId)) ?
-            (get(/databases/$(database)/documents/companies/$(companyId)/products/$(request.resource.data.productId)).data.stock is number &&
-              get(/databases/$(database)/documents/companies/$(companyId)/products/$(request.resource.data.productId)).data.stock == request.resource.data.quantity)
-            : true;
-        }
-
-        allow create: if isSignedIn() && (request.auth.token.admin == true) && validInventorySnapshot() && matchesProductStock();
-        allow update: if isSignedIn() && (request.auth.token.admin == true) && validInventorySnapshot() && matchesProductStock();
-        allow delete: if isSignedIn() && (request.auth.token.admin == true);
+        allow create: if isSignedIn() &&
+          hasCompanyRole(companyId, ['owner', 'manager', 'staff', 'company_owner']) &&
+          validInventorySnapshot();
+        allow update: if isSignedIn() &&
+          hasCompanyRole(companyId, ['owner', 'manager', 'staff', 'company_owner']) &&
+          validInventorySnapshot();
+        allow delete: if isSignedIn() &&
+          hasCompanyRole(companyId, ['owner', 'manager', 'staff', 'company_owner']);
       }
     }
 
@@ -317,9 +320,14 @@ service cloud.firestore {
     match /companies/{companyId}/members/{userId} {
       allow read: if companyMemberOrAdmin(companyId);
       allow create: if isSignedIn() && (
-        request.auth.uid == userId && isCompanyActive(companyId) &&
-        // Prevent creating self as owner unless already verified as company owner
-        (request.resource.data.role != 'owner' || isCompanyOwner(companyId))
+        request.auth.uid == userId && (
+          // Allow initial owner creation when the company doc does not exist yet.
+          (!exists(/databases/$(database)/documents/companies/$(companyId)) &&
+            request.resource.data.role == 'owner') ||
+          // Otherwise require active company + role constraints.
+          (isCompanyActive(companyId) &&
+            (request.resource.data.role != 'owner' || isCompanyOwner(companyId)))
+        )
       );
       allow update: if isSignedIn() && isCompanyActive(companyId) && (
         // Managers can update members, OR users can update themselves IF they don't change their role

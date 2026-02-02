@@ -1,6 +1,5 @@
-// This file intentionally exports an undefined firebase config to make the
-// repo simpler for local development. The app reads runtime Firebase
-// configuration from the browser (localStorage) or from `services/firebase.ts`.
+// This file intentionally exports an undefined firebase config.
+// The app reads runtime Firebase configuration from browser localStorage.
 export const firebaseConfig = undefined;
 
 export default firebaseConfig;

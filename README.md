@@ -1,6 +1,6 @@
 # Alshabandar Business Suite - Frontend Setup
 
-This application uses your browser's local storage to securely manage Firebase configuration. This allows you to connect the application to your own private Firebase backend without modifying the source code.
+This application uses your browser's local storage to manage Firebase configuration. This lets each customer connect the app to their own Firebase project (no backend costs on the reseller).
 
 ## Running Locally
 
@@ -8,27 +8,29 @@ This application uses your browser's local storage to securely manage Firebase c
     Start the application using your local development server command (e.g., `npm run dev` or `npm start`).
 
 2.  **Provide Firebase Configuration:**
-    On first launch, the application will prompt you to enter your Firebase project configuration. You can find this in your Firebase project settings. Paste the entire JSON object into the provided text area and save. The app will reload and connect to your backend.
+    On first launch, the application will show a setup screen. Paste the Firebase config JSON from the customer's Firebase project settings and save. The app will reload and connect to that backend.
 
 ## Environment configuration
 
 - Copy `.env.local.example` to `.env.local`.
-- Add `VITE_COMPANY_ID=uv9acIebvvNgx9ftSnPh` to the file.
+- Add `VITE_COMPANY_ID=uv9acIebvvNgx9ftSnPh` to the file (optional; you can also set the Company ID in the setup screen).
+- Optional: set `VITE_FREE_MODE=true` (default) to avoid Cloud Functions.
 - Restart `npm run dev` or any running dev server after updating `.env.local`; Vite only re-reads env at startup.
 - Verify the value is loaded by opening `/dev/db` in the browser (DEV only) and checking the Env panel or watching for the new fatal error message if the var is missing.
 
 ## Backend Setup
 
-For the new invitation and multi-company features to work, you must deploy the provided Firestore rules and Cloud Functions to your Firebase project.
+For no-cost (Spark plan) usage, deploy the provided Firestore rules and use free-mode client transactions. Cloud Functions are optional and only needed for advanced features like invitation emails or server-side admin dashboards.
 
 1.  **Deploy Firestore Rules:**
     - Go to your Firebase Console -> Firestore -> Rules.
     - Copy the contents of `firestore.rules` from this project.
     - Paste them into the editor and click **Publish**.
 
-2.  **Deploy Cloud Functions:**
+2.  **Deploy Cloud Functions (Optional):**
     - You will need to set up a `functions` directory with `index.js` and `package.json` as specified in the technical report.
     - Follow the official Firebase documentation to deploy your functions using the Firebase CLI (`firebase deploy --only functions`).
+    - If you want to stay fully free-tier, skip this step and keep `VITE_FREE_MODE=true` (default).
 
 ## Development
 
@@ -89,7 +91,7 @@ Usage (PowerShell):
 
 What the script does:
 
-- Reads `projectId` from `public/config/firebase.json` or `FIREBASE_PROJECT` env var.
+- Reads `projectId` from `FIREBASE_PROJECT` env var (or a local `public/config/firebase.json` if you create one).
 - Ensures you are logged in to the Firebase CLI.
 - Deploys the `isPlatformAdmin` function (falls back to all functions).
 - Lists deployed functions and looks for `isPlatformAdmin`.

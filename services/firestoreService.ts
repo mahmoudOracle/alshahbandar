@@ -70,7 +70,7 @@ import { DEBUG_MODE } from '../config';
 import { isPosted, isPeriodLocked } from './accountingSafety';
 import * as normalize from '../src/utils/normalize';
 
-const IS_FREE_MODE = import.meta.env.VITE_FREE_MODE === 'true';
+const IS_FREE_MODE = (import.meta.env.VITE_FREE_MODE ?? 'true') === 'true';
 
 // --- Retry & Network Helpers ---
 const isOfflineError = (err: unknown): boolean => {
@@ -913,14 +913,14 @@ export const createCompanyWithOwner = async (
     batch.set(membershipRef, {
       uid,
       email,
-      role: 'company_owner',
+      role: 'owner',
       joinedAt: serverTimestamp(),
     });
     batch.set(userProfileRef, {
       uid,
       name: data.ownerName.trim(),
       email,
-      role: 'company_owner',
+      role: 'owner',
       companyId: companyId,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -2208,6 +2208,73 @@ export const saveGoodsReceipt = async (
     ? doc(db, 'companies', companyId, 'goodsReceiptKeys', receipt.idempotencyKey)
     : null;
 
+  if (IS_FREE_MODE) {
+    const result = await runTransaction(db, async (tx) => {
+      const now = serverTimestamp();
+      const receiptRef = doc(collection(db, 'companies', companyId, 'goodsReceipts'));
+      const createdBy = auth.currentUser?.uid || 'anonymous';
+      const ledgerEntries: StockLedgerEntry[] = [];
+
+      for (const item of receipt.items) {
+        const quantity = Number(item.quantity || 0);
+        if (!item.productId || quantity <= 0) {
+          throw new Error('Invalid goods receipt item');
+        }
+        const prodRef = doc(db, 'companies', companyId, 'products', item.productId);
+        const prodSnap = await tx.get(prodRef);
+        if (!prodSnap.exists()) throw new Error(`Product not found: ${item.productId}`);
+        const productData = prodSnap.data() as Product;
+        const currentStock = Number(productData.stock) || 0;
+        const newStock = currentStock + quantity;
+
+        tx.update(prodRef, { stock: newStock, updatedAt: now });
+
+        const ledgerRef = doc(collection(db, 'companies', companyId, 'stockLedger'));
+        const ledgerEntry: StockLedgerEntry = {
+          id: ledgerRef.id,
+          productId: item.productId,
+          change: quantity,
+          qtyBefore: currentStock,
+          qtyAfter: newStock,
+          unitCost: Number(productData.averageCost) || Number(productData.defaultCost) || 0,
+          sourceType: 'PURCHASE',
+          sourceId: receiptRef.id,
+          userId: createdBy,
+          timestamp: now,
+        };
+        tx.set(ledgerRef, {
+          ...ledgerEntry,
+          referenceCollection: 'goodsReceipts',
+          referenceId: receiptRef.id,
+          createdBy,
+        });
+        ledgerEntries.push(ledgerEntry);
+
+        const inventoryRef = doc(db, 'companies', companyId, 'inventory', item.productId);
+        tx.set(
+          inventoryRef,
+          {
+            productId: item.productId,
+            quantity: newStock,
+            averageCost: Number(productData.averageCost) || Number(productData.defaultCost) || 0,
+            lastUpdated: now,
+          },
+          { merge: true }
+        );
+      }
+
+      tx.set(receiptRef, {
+        supplierId: receipt.supplierId,
+        items: receipt.items,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      return { id: receiptRef.id, ledgerEntries };
+    });
+    return result;
+  }
+
   // Prefer server-side callable for atomic goods receipt processing
   try {
     const payload = await createGoodsReceiptAtomic(
@@ -2277,6 +2344,118 @@ export const createPurchase = async (
 ): Promise<{ id: string }> => {
   ensureWriteAllowed('expenses');
   if (!purchase || !purchase.supplierId) throw new Error('Purchase requires supplierId');
+  if (IS_FREE_MODE) {
+    const result = await runTransaction(db, async (tx) => {
+      const now = serverTimestamp();
+      const purchaseRef = doc(collection(db, 'companies', companyId, 'purchases'));
+      const supplierRef = doc(db, 'companies', companyId, 'suppliers', purchase.supplierId);
+      const supplierSnap = await tx.get(supplierRef);
+      if (!supplierSnap.exists()) {
+        throw new Error('Supplier not found');
+      }
+      const supplierData = supplierSnap.data() as Record<string, unknown>;
+      const currentBalance = Number(supplierData.balance || 0);
+      const totalAmount = Number(purchase.totalAmount || 0);
+      const createdBy = auth.currentUser?.uid || 'anonymous';
+
+      tx.update(supplierRef, {
+        balance: currentBalance + totalAmount,
+        updatedAt: now,
+      });
+
+      const items = purchase.items.map((item) => {
+        const qty = Number(item.quantity || 0);
+        const unitCost = Number(item.unitPrice || 0);
+        return {
+          productId: item.productId,
+          productName: item.productName || '',
+          quantity: qty,
+          unitCost,
+          lineTotal: Math.round(qty * unitCost * 100) / 100,
+        };
+      });
+
+      for (const item of items) {
+        if (!item.productId || item.quantity <= 0) {
+          throw new Error('Invalid purchase item');
+        }
+        const prodRef = doc(db, 'companies', companyId, 'products', item.productId);
+        const prodSnap = await tx.get(prodRef);
+        if (!prodSnap.exists()) throw new Error(`Product not found: ${item.productId}`);
+        const productData = prodSnap.data() as Product;
+        const currentStock = Number(productData.stock) || 0;
+        const currentAvgCost =
+          Number(productData.averageCost) || Number(productData.defaultCost) || 0;
+        const newStock = currentStock + item.quantity;
+        const newAvgCost =
+          newStock > 0
+            ? (currentStock * currentAvgCost + item.quantity * item.unitCost) / newStock
+            : currentAvgCost;
+
+        tx.update(prodRef, {
+          stock: newStock,
+          averageCost: Math.round(newAvgCost * 100) / 100,
+          updatedAt: now,
+        });
+
+        const ledgerRef = doc(collection(db, 'companies', companyId, 'stockLedger'));
+        tx.set(ledgerRef, {
+          productId: item.productId,
+          productName: item.productName || productData.name || 'Unknown Product',
+          change: item.quantity,
+          qtyBefore: currentStock,
+          qtyAfter: newStock,
+          unitCost: item.unitCost,
+          sourceType: 'PURCHASE',
+          referenceCollection: 'purchases',
+          referenceId: purchaseRef.id,
+          timestamp: now,
+          createdBy,
+        });
+
+        const inventoryRef = doc(db, 'companies', companyId, 'inventory', item.productId);
+        tx.set(
+          inventoryRef,
+          {
+            productId: item.productId,
+            quantity: newStock,
+            averageCost: Math.round(newAvgCost * 100) / 100,
+            lastUpdated: now,
+          },
+          { merge: true }
+        );
+      }
+
+      tx.set(purchaseRef, {
+        supplierId: purchase.supplierId,
+        supplierName: purchase.supplierName || supplierData.supplierName || '',
+        invoiceNumber: purchase.invoiceNumber || null,
+        items,
+        subtotal: totalAmount,
+        total: totalAmount,
+        status: 'RECEIVED',
+        createdAt: now,
+        updatedAt: now,
+        userId: createdBy,
+      });
+
+      const journalRef = doc(getCollectionRef(companyId, 'journalEntries'));
+      tx.set(journalRef, {
+        date: now,
+        lines: [
+          { accountId: 'Inventory', debit: totalAmount, credit: 0 },
+          { accountId: 'Payables', debit: 0, credit: totalAmount },
+        ],
+        referenceType: 'purchase',
+        referenceId: purchaseRef.id,
+        createdAt: now,
+      });
+
+      return { id: purchaseRef.id };
+    });
+    return result;
+  }
+
   // Prefer server-side callable for atomic purchase creation to ensure ledger/inventory writes
   try {
     const resp = await createPurchaseAtomic(

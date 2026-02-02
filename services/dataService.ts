@@ -38,6 +38,8 @@ const CACHE_INVALIDATION_MAP: Record<string, string[]> = {
   'saveExpense': ['getExpenses', 'getReports'],
   'saveQuote': ['getQuotes'],
   'createReturnAtomic': ['getReturns', 'getProducts', 'getInvoices', 'getReports'],
+  'createPurchase': ['getPurchases', 'getProducts', 'getInventory', 'getStockLedger'],
+  'saveGoodsReceipt': ['getProducts', 'getInventory', 'getStockLedger'],
 };
 
 const cacheKey = (fn: string | symbol, args: unknown[]) => {

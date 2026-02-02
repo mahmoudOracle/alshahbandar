@@ -10,7 +10,13 @@ import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import { ENV, EnvConfigError } from '../src/config/env';
 
-const AUTHORIZED_MEMBERSHIP_ROLES = new Set(['owner', 'manager', 'staff']);
+const AUTHORIZED_MEMBERSHIP_ROLES = new Set([
+  'owner',
+  'manager',
+  'staff',
+  'employee',
+  'company_owner',
+]);
 
 const getRoleFromDocData = (data?: Record<string, unknown>): string | null => {
   if (!data) return null;
@@ -41,7 +47,7 @@ export type AuthStatus =
   | 'error'; // An error occurred during the process
 
 // ============ CONTEXT TYPE ============
-export type AuthRole = 'owner' | 'manager' | 'staff' | null;
+export type AuthRole = 'owner' | 'manager' | 'staff' | 'employee' | 'company_owner' | null;
 
 export interface AuthContextType {
   user: User | null;

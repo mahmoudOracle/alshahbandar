@@ -8,6 +8,7 @@ import {
   connectStorageEmulator,
   FirebaseStorage,
 } from 'firebase/storage';
+import { getStoredFirebaseConfig } from './firebaseConfig';
 // --- IMPORTANT DEVELOPMENT CONTEXT ---
 // This project uses Firebase Emulators for local development to avoid hitting
 // production Firebase services and to enable full local testing without Blaze billing.
@@ -21,20 +22,7 @@ import {
 // or client-side transactions (when VITE_FREE_MODE=true, for free production mode).
 // For local development, VITE_FREE_MODE should be 'false' to test Cloud Functions.
 
-/**
- * Firebase configuration object.
- * By embedding this here, we ensure it's always available at build time and eliminate
- * potential module resolution issues with external config files.
- */
-const firebaseConfig: FirebaseOptions = {
-  apiKey: 'AIzaSyBVkrMWNJ1nKCYkmbSJEfnXjy1_i7SX8Co',
-  authDomain: 'al-shabandar.firebaseapp.com',
-  projectId: 'al-shabandar',
-  storageBucket: 'al-shabandar.firebasestorage.app',
-  messagingSenderId: '145557395180',
-  appId: '1:145557395180:web:401b8f099bfb6d899e37c9',
-  measurementId: 'G-FGH0FLMVWB',
-};
+const firebaseConfig = getStoredFirebaseConfig() as FirebaseOptions | null;
 
 // --- Firebase Service Initialization ---
 // This pattern ensures that Firebase is initialized only once and that the initialized
@@ -47,8 +35,15 @@ let functions: Functions;
 let storage: FirebaseStorage;
 
 try {
+  if (!firebaseConfig) {
+    throw new Error(
+      'Firebase configuration is missing. Open the setup screen and paste your project config.'
+    );
+  }
   if (!firebaseConfig.apiKey) {
-    console.warn('⚠️ [FIREBASE] Firebase configuration is missing API key. Connecting to remote Firebase might fail.');
+    console.warn(
+      '⚠️ [FIREBASE] Firebase configuration is missing API key. Connecting to remote Firebase might fail.'
+    );
   }
   // Initialize Firebase immediately when this module is imported.
   // This is idempotent and safe to be in the top-level scope.

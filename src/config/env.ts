@@ -11,6 +11,14 @@ const readRawCompanyId = (): string | undefined => {
   if (typeof process !== 'undefined' && process.env.VITE_COMPANY_ID) {
     return process.env.VITE_COMPANY_ID;
   }
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = window.localStorage.getItem('app:companyId');
+      if (stored && stored.trim()) return stored.trim();
+    } catch {
+      // ignore localStorage access issues
+    }
+  }
   return undefined;
 };
 
