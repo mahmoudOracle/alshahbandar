@@ -60,7 +60,7 @@ import {
   JournalEntry,
   Purchase,
 } from '../types';
-import { db, auth } from './firebase';
+import { getFirebaseAuth, getFirestoreDb } from './firebase';
 import { mapFirestoreError } from './firebaseErrors';
 import { enqueueOperation } from './syncService';
 import * as productsRepo from './repositories/products';
@@ -71,6 +71,8 @@ import * as normalize from '../src/utils/normalize';
 
 const IS_FREE_MODE = (import.meta.env.VITE_FREE_MODE ?? 'true') === 'true';
 const FUNCTIONS_DISABLED = true;
+const db = getFirestoreDb();
+const auth = getFirebaseAuth();
 
 const warnFunctionsDisabled = (name: string) => {
   if (DEBUG_MODE) {

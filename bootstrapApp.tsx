@@ -17,7 +17,7 @@ import {
   isSafeBootEnabled,
   setSafeBootError,
 } from './src/safeBoot';
-import { EnvConfigError, getCompanyId } from './src/config/env';
+import { CompanyIdMissingError, getCompanyId } from './src/config/runtimeSetup';
 
 export const bootstrapApp = (root: ReactDOM.Root) => {
   // Register Service Worker for PWA functionality
@@ -98,9 +98,9 @@ export const bootstrapApp = (root: ReactDOM.Root) => {
     if (isSafeBootEnabled) {
       setSafeBootError(error as Error, 'bootstrap', 'bootstrapApp.tsx');
     }
-    const isEnvError = error instanceof EnvConfigError;
+    const isEnvError = error instanceof CompanyIdMissingError;
     const instructions =
-      'DEV hint: create .env.local, set VITE_COMPANY_ID=uv9acIebvvNgx9ftSnPh, and restart npm run dev.';
+      'Create .env.local with VITE_COMPANY_ID or open /setup/firebase to set it.';
     const envMessage = isEnvError
       ? `${error.message}\n\n${instructions}`
       : error instanceof Error

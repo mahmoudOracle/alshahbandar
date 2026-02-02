@@ -5,13 +5,14 @@ import {
   createUserWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
-import { auth } from './firebase';
+import { getFirebaseAuth } from './firebase';
 import { DEBUG_MODE } from '../config';
 import { getErrorMessage } from '../src/utils/errorMessage';
 
 export const subscribeToAuthChanges = (
   callback: (user: FirebaseUser | null) => void
 ): (() => void) => {
+  const auth = getFirebaseAuth();
   return onAuthStateChanged(auth, (user) => {
     if (DEBUG_MODE) {
       if (user) {
@@ -29,6 +30,7 @@ export const subscribeToAuthChanges = (
 
 export const signInWithEmail = async (email: string, password: string): Promise<FirebaseUser> => {
   try {
+    const auth = getFirebaseAuth();
     const result = await signInWithEmailAndPassword(auth, email, password);
     if (DEBUG_MODE)
       console.log('🟢 [AUTH] Login success:', { uid: result.user.uid, email: result.user.email });
@@ -42,6 +44,7 @@ export const signInWithEmail = async (email: string, password: string): Promise<
 
 export const registerWithEmail = async (email: string, password: string): Promise<FirebaseUser> => {
   try {
+    const auth = getFirebaseAuth();
     const result = await createUserWithEmailAndPassword(auth, email, password);
     if (DEBUG_MODE)
       console.log('🟢 [AUTH] Register success:', {
@@ -57,5 +60,6 @@ export const registerWithEmail = async (email: string, password: string): Promis
 };
 
 export const signOutUser = async (): Promise<void> => {
+  const auth = getFirebaseAuth();
   await signOut(auth);
 };

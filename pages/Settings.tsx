@@ -3,7 +3,7 @@ import { Settings, Tax, UserRole } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { storage } from '../services/firebase';
+import { getFirebaseStorage } from '../services/firebase';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import NotAuthorizedPage from './NotAuthorizedPage';
@@ -45,6 +45,7 @@ const SettingsPage: React.FC = () => {
     (async () => {
       try {
         const path = `companies/${companyId}/assets/logo_${Date.now()}_${file.name}`;
+        const storage = getFirebaseStorage();
         const sref = storageRef(storage, path);
         const snap = await uploadBytes(sref, file);
         const url = await getDownloadURL(snap.ref);

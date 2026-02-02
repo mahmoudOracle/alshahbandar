@@ -10,7 +10,7 @@ import {
   serverTimestamp,
   setDoc,
 } from 'firebase/firestore';
-import { db } from '../../services/firebase';
+import { getFirestoreDb } from '../../services/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   FirestoreOperationLog,
@@ -19,6 +19,7 @@ import {
 } from '../../services/devOperationLogger';
 import { getTenantConfigDiagnostics } from '../../services/config/tenantConfig';
 import { ENV, EnvConfigError } from '../../src/config/env';
+import { clearSetup } from '../../src/config/runtimeSetup';
 
 const MEMBER_ROLES = new Set(['owner', 'manager', 'staff']);
 const DEFAULT_COLLECTION_LIMIT = 100;
@@ -69,6 +70,7 @@ const DevDbInspector: React.FC = () => {
 
   const { user, status } = useAuth();
   const uid = user?.uid ?? null;
+  const db = getFirestoreDb();
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [envError, setEnvError] = useState<string | null>(null);
   const [inspectorError, setInspectorError] = useState<string | null>(null);
@@ -602,6 +604,24 @@ const DevDbInspector: React.FC = () => {
             >
               Load more ({tenantLimit} per collection)
             </button>
+          {ENV.isDev && (
+            <button
+              type="button"
+              onClick={() => {
+                clearSetup();
+                window.location.assign('/setup/firebase');
+              }}
+              style={{
+                padding: '10px 14px',
+                borderRadius: 6,
+                border: '1px solid rgba(15,23,42,0.2)',
+                background: '#fff',
+                cursor: 'pointer',
+              }}
+            >
+              Reset setup (DEV)
+            </button>
+          )}
         </div>
         {copySuccess && <div style={{ color: '#047857', marginTop: 4 }}>Report copied!</div>}
         {tenantError && <div style={{ color: '#dc2626', marginTop: 4 }}>{tenantError}</div>}

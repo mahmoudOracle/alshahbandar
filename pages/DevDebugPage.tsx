@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { getFirestoreDb } from '../services/firebase';
 import { getInvoices, getCustomers, getExpenses, getProducts } from '../services/dataService';
 
 export default function DevDebugPage() {
   const { user, companyId } = useAuth();
+  const db = getFirestoreDb();
   const [userDoc, setUserDoc] = useState<unknown | null>(null);
   const [companyDoc, setCompanyDoc] = useState<unknown | null>(null);
   const [membershipDoc, setMembershipDoc] = useState<unknown | null>(null);

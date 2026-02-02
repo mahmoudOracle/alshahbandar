@@ -7,7 +7,7 @@ import {
   limit as firestoreLimit,
   QueryConstraint,
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { getFirestoreDb } from '../firebase';
 import { Product } from '../../types';
 import * as normalize from '../../src/utils/normalize';
 
@@ -47,6 +47,7 @@ export const getProducts = async (
   if (orderByField) constraints.push(orderBy(orderByField, orderDirection));
   if (limit) constraints.push(firestoreLimit(limit));
 
+  const db = getFirestoreDb();
   const q = query(collection(db, 'companies', tenantId, 'products'), ...constraints);
   const snap = await getDocs(q);
   const data = snap.docs.map((d) => {

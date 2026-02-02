@@ -1,8 +1,9 @@
 import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { getFirestoreDb } from '../firebase';
 import { Company } from '../../types';
 
 export const getCompany = async (tenantId: string): Promise<Company | null> => {
+  const db = getFirestoreDb();
   const ref = doc(db, 'companies', tenantId);
   const snap = await getDoc(ref);
   return snap.exists()
@@ -11,6 +12,7 @@ export const getCompany = async (tenantId: string): Promise<Company | null> => {
 };
 
 export const createCompany = async (tenantId: string, data: Partial<Company>) => {
+  const db = getFirestoreDb();
   const ref = doc(db, 'companies', tenantId);
   await setDoc(ref, { ...data, createdAt: Timestamp.now() }, { merge: true });
   return tenantId;

@@ -5,6 +5,7 @@ import AppShell from './components/AppShell';
 import LoginPage from './pages/LoginPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import DevDbInspector from './pages/dev/DevDbInspector';
+import FirebaseSetupRequiredPage from './pages/FirebaseSetupRequiredPage';
 import Dashboard from './pages/Dashboard';
 import InvoiceList from './pages/InvoiceList';
 import InvoiceForm from './pages/InvoiceForm';
@@ -28,6 +29,7 @@ function App() {
   return (
     <Routes>
       {/* Public Routes */}
+      <Route path="/setup/firebase" element={<FirebaseSetupRequiredPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
 

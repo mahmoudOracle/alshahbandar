@@ -3,20 +3,23 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import {
-  storeCompanyId,
-  storeFirebaseConfig,
+  saveFirebaseConfig,
+  saveCompanyId,
+  saveCompanyName,
+  saveAutoCreateCompany,
   isFirebaseConfigComplete,
-} from '../services/firebaseConfig';
+  getCompanyIdOptional,
+} from '../src/config/runtimeSetup';
 
 const FirebaseSetupRequiredPage: React.FC = () => {
   const [rawConfig, setRawConfig] = useState('');
   const [companyId, setCompanyId] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [autoCreate, setAutoCreate] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const envCompanyId =
-    typeof import.meta !== 'undefined' &&
-    (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_COMPANY_ID;
+  const envCompanyId = getCompanyIdOptional();
 
   const parsedConfig = useMemo(() => {
     if (!rawConfig.trim()) return null;
@@ -31,7 +34,7 @@ const FirebaseSetupRequiredPage: React.FC = () => {
     setError(null);
     if (!parsedConfig || !isFirebaseConfigComplete(parsedConfig)) {
       setError(
-        'Paste a valid Firebase config JSON object that includes apiKey, authDomain, and projectId.'
+        'Paste a valid Firebase config JSON object that includes apiKey, authDomain, projectId, and appId.'
       );
       return;
     }
@@ -39,12 +42,23 @@ const FirebaseSetupRequiredPage: React.FC = () => {
       setError('Enter a Company ID or set VITE_COMPANY_ID before saving.');
       return;
     }
-    storeFirebaseConfig(parsedConfig);
-    if (companyId.trim()) {
-      storeCompanyId(companyId.trim());
+    if (autoCreate && !companyName.trim()) {
+      setError('Enter a Company Name to auto-create the company.');
+      return;
     }
-    setSaved(true);
-    window.location.reload();
+
+    try {
+      saveFirebaseConfig(rawConfig);
+      if (companyId.trim()) {
+        saveCompanyId(companyId.trim());
+      }
+      saveCompanyName(companyName.trim());
+      saveAutoCreateCompany(autoCreate);
+      setSaved(true);
+      window.location.reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Invalid Firebase config.');
+    }
   };
 
   return (
@@ -66,7 +80,7 @@ const FirebaseSetupRequiredPage: React.FC = () => {
         <textarea
           id="fb-config"
           className="w-full min-h-[160px] rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3 text-sm font-mono"
-          placeholder='{"apiKey":"...","authDomain":"...","projectId":"..."}'
+          placeholder='{"apiKey":"...","authDomain":"...","projectId":"...","appId":"..."}'
           value={rawConfig}
           onChange={(e) => setRawConfig(e.target.value)}
         />
@@ -78,6 +92,23 @@ const FirebaseSetupRequiredPage: React.FC = () => {
           onChange={(e) => setCompanyId(e.target.value)}
           placeholder="Leave empty if you already set VITE_COMPANY_ID"
         />
+
+        <Input
+          id="companyName"
+          label="Company Name"
+          value={companyName}
+          onChange={(e) => setCompanyName(e.target.value)}
+          placeholder="Required for auto-create"
+        />
+
+        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+          <input
+            type="checkbox"
+            checked={autoCreate}
+            onChange={(e) => setAutoCreate(e.target.checked)}
+          />
+          Auto-create company in Firestore
+        </label>
 
         {error && <div className="text-sm text-red-600">{error}</div>}
         {saved && <div className="text-sm text-green-600">Saved. Reloading...</div>}

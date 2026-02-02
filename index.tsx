@@ -2,7 +2,12 @@ import React from 'react';
 import './index.css';
 import ReactDOM from 'react-dom/client';
 import FirebaseSetupRequiredPage from './pages/FirebaseSetupRequiredPage';
-import { getStoredFirebaseConfig } from './services/firebaseConfig';
+import {
+  getStoredFirebaseConfig,
+  getCompanyIdOptional,
+  FirebaseSetupMissingError,
+  CompanyIdMissingError,
+} from './src/config/runtimeSetup';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -12,7 +17,8 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 
 const config = getStoredFirebaseConfig();
-if (!config) {
+const companyId = getCompanyIdOptional();
+if (!config || !companyId) {
   root.render(
     <React.StrictMode>
       <FirebaseSetupRequiredPage />
@@ -23,6 +29,14 @@ if (!config) {
     .then(({ bootstrapApp }) => bootstrapApp(root))
     .catch((err) => {
       console.error('Failed to load app bootstrap:', err);
+      if (err instanceof FirebaseSetupMissingError || err instanceof CompanyIdMissingError) {
+        root.render(
+          <React.StrictMode>
+            <FirebaseSetupRequiredPage />
+          </React.StrictMode>
+        );
+        return;
+      }
       root.render(
         <React.StrictMode>
           <FirebaseSetupRequiredPage />

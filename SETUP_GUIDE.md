@@ -23,13 +23,11 @@ First, we will create the backend infrastructure for your application.
 
 ---
 
-Note: If you are running in single-company mode, set `VITE_COMPANY_ID` in `.env.local` or enter the Company ID in the setup screen when you paste the Firebase config.
+Note: You can set `VITE_COMPANY_ID` in `.env.local`, or enter Company ID and Company Name directly in the setup screen on first run.
 
-### Step 2: Plan Choice (Spark or Blaze)
+### Step 2: Free-First Plan (Spark)
 
-This app can run fully on the free **Spark** plan when `VITE_FREE_MODE=true` (default). In free mode, the app uses client-side transactions and does not require Cloud Functions.
-
-If you want advanced features like invitation emails or server-side admin dashboards, you can upgrade to **Blaze** and deploy Cloud Functions. This is optional.
+This app is designed to run fully on the free **Spark** plan. Cloud Functions are not required.
 
 ---
 
@@ -54,6 +52,14 @@ This is the most important step to secure your data and enable multi-user roles.
 4.  **Publish:** Click the **"Publish"** button. Your database is now secure and ready for multi-user access.
 
 ---
+Minimal rules idea (reference only):
+```text
+match /companies/{companyId}/{document=**} {
+  allow read, write: if request.auth != null
+    && exists(/databases/$(database)/documents/companies/$(companyId)/members/$(request.auth.uid));
+}
+```
+
 ### Step 5: Enable Email/Password Sign-In
 
 This allows you and your team to log in to the application using an email and password.
@@ -77,39 +83,12 @@ This is a security step to tell Firebase which websites are allowed to access yo
 
 ---
 
-### Step 7: Deploy Cloud Functions (Optional)
+### Step 7: First-Run Setup Screen
 
-The invitation email flow and some admin features rely on Cloud Functions. Deploy these only if you need them.
-
-1.  **Set up a `functions` directory** in your project.
-2.  Add the `index.js` and `package.json` files as provided in your technical report.
-3.  Follow the [official Firebase guide](https://firebase.google.com/docs/functions/get-started) to deploy your functions using the Firebase CLI. The command will be `firebase deploy --only functions`.
-
----
-
-### Step 8: Configure Automated Emails (Optional)
-
-If you enable invitation emails, connect to an email service like SendGrid.
-
-1.  **Create a SendGrid Account:** Go to [SendGrid](https://sendgrid.com/) and create a free account.
-2.  **Create an API Key:**
-    - Inside SendGrid, navigate to **Settings -> API Keys**.
-    - Click **"Create API Key"**. Give it a name (e.g., "Firebase Invoicing App") and choose **"Full Access"**.
-    - **Copy the API key immediately.** You will not be able to see it again.
-3.  **Set the API Key in Firebase:**
-    - Open your terminal in your project's root directory.
-    - Run the following command, replacing `your_sendgrid_api_key_here` with the key you just copied:
-      ```bash
-      firebase functions:secrets:set SENDGRID_API_KEY
-      ```
-    - When prompted, paste your API key and press Enter.
-4.  **Verify a Sender Identity:**
-    - In SendGrid, go to **Sender Authentication**. You must verify a "Single Sender" (your email address) or an entire domain to be able to send emails. Follow their instructions.
-    - **IMPORTANT:** Open the `functions/index.js` file and replace the placeholder `from: 'support@yourdomain.com'` with your own verified sender email address.
-5.  **Redeploy Functions:** After setting the secret and updating the sender email, you must redeploy your functions for the changes to take effect:
-    ```bash
-    firebase deploy --only functions
-    ```
+When you open the app for the first time, you will see **Firebase Setup Required**:
+1. Paste the Firebase web config JSON (must include `apiKey`, `authDomain`, `projectId`, `appId`).
+2. Enter **Company ID** and **Company Name**.
+3. Leave **Auto-create company** enabled to create `companies/{companyId}` and membership on first login.
 
 You are all set! Your application is now fully configured.
 

@@ -7,114 +7,92 @@ import {
   connectStorageEmulator,
   FirebaseStorage,
 } from 'firebase/storage';
-import { getStoredFirebaseConfig } from './firebaseConfig';
-// --- IMPORTANT DEVELOPMENT CONTEXT ---
-// This project uses Firebase Emulators for local development to avoid hitting
-// production Firebase services and to enable full local testing without Blaze billing.
-//
-// The VITE_USE_EMULATORS environment variable (set in .env.local)
-// controls whether the app connects to these local emulators.
-//
-// The VITE_FREE_MODE environment variable (also in .env.local)
-// controls certain business logic (e.g., invoice saving) to either use
-// Cloud Functions (when VITE_FREE_MODE=false, typically with emulators in dev)
-// or client-side transactions (when VITE_FREE_MODE=true, for free production mode).
-// For local development, VITE_FREE_MODE should be 'false' to test Cloud Functions.
+import {
+  getStoredFirebaseConfig,
+  FirebaseSetupMissingError,
+} from '../src/config/runtimeSetup';
 
-const firebaseConfig = getStoredFirebaseConfig() as FirebaseOptions | null;
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let db: Firestore | null = null;
+let storage: FirebaseStorage | null = null;
+let firestoreEmulatorConnected = false;
+let authEmulatorConnected = false;
+let storageEmulatorConnected = false;
 
-// --- Firebase Service Initialization ---
-// This pattern ensures that Firebase is initialized only once and that the initialized
-// instances are available immediately to any module that imports them, preventing race conditions.
-
-let app: FirebaseApp;
-let auth: Auth;
-let db: Firestore;
-let storage: FirebaseStorage;
-
-try {
-  if (!firebaseConfig) {
-    throw new Error(
-      'Firebase configuration is missing. Open the setup screen and paste your project config.'
+const getRuntimeConfig = (): FirebaseOptions => {
+  const config = getStoredFirebaseConfig();
+  if (!config) {
+    throw new FirebaseSetupMissingError(
+      'Firebase setup missing. Go to /setup/firebase and paste the web config.'
     );
   }
-  if (!firebaseConfig.apiKey) {
-    console.warn(
-      '⚠️ [FIREBASE] Firebase configuration is missing API key. Connecting to remote Firebase might fail.'
-    );
-  }
-  // Initialize Firebase immediately when this module is imported.
-  // This is idempotent and safe to be in the top-level scope.
-  app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
-  storage = getStorage(app);
+  return config;
+};
+
+export const getFirebaseApp = (): FirebaseApp => {
+  if (app) return app;
+  const config = getRuntimeConfig();
+  app = getApps().length ? getApp() : initializeApp(config);
+  return app;
+};
+
+const connectEmulatorsIfNeeded = (svc: {
+  auth?: Auth;
+  db?: Firestore;
+  storage?: FirebaseStorage;
+}) => {
   const metaEnv = (import.meta as unknown as { env?: Record<string, string> }).env;
-  // One-time log for environment verification
-  console.log('[ENV]', {
-    DEV: import.meta.env.DEV,
-    VITE_USE_EMULATORS: import.meta.env.VITE_USE_EMULATORS,
-    VITE_FREE_MODE: import.meta.env.VITE_FREE_MODE
-  });
-  // Connect to local emulators only when explicitly enabled in DEV.
-  try {
-    const useEmulators = import.meta.env.DEV && metaEnv?.VITE_USE_EMULATORS === 'true';
-    if (useEmulators) {
-      console.log('🟢 [FIREBASE] Connecting to Firebase Emulators...');
-      const firestoreHost =
-        metaEnv?.VITE_FIRESTORE_EMULATOR_HOST ||
-        metaEnv?.VITE_FIREBASE_EMULATOR_HOST ||
-        '127.0.0.1';
-      const authHost =
-        metaEnv?.VITE_AUTH_EMULATOR_HOST || metaEnv?.VITE_FIREBASE_EMULATOR_HOST || '127.0.0.1';
+  const useEmulators = import.meta.env.DEV && metaEnv?.VITE_USE_EMULATORS === 'true';
+  if (!useEmulators) return;
 
-      const firestorePort = Number(metaEnv?.VITE_FIRESTORE_EMULATOR_PORT || 8080);
-      const authPort = Number(metaEnv?.VITE_AUTH_EMULATOR_PORT || 9099);
-      const storagePort = Number(metaEnv?.VITE_STORAGE_EMULATOR_PORT || 9199);
+  const firestoreHost =
+    metaEnv?.VITE_FIRESTORE_EMULATOR_HOST ||
+    metaEnv?.VITE_FIREBASE_EMULATOR_HOST ||
+    '127.0.0.1';
+  const authHost =
+    metaEnv?.VITE_AUTH_EMULATOR_HOST || metaEnv?.VITE_FIREBASE_EMULATOR_HOST || '127.0.0.1';
+  const firestorePort = Number(metaEnv?.VITE_FIRESTORE_EMULATOR_PORT || 8080);
+  const authPort = Number(metaEnv?.VITE_AUTH_EMULATOR_PORT || 9099);
+  const storagePort = Number(metaEnv?.VITE_STORAGE_EMULATOR_PORT || 9199);
 
-      connectFirestoreEmulator(db, firestoreHost, firestorePort);
-      connectAuthEmulator(auth, `http://${authHost}:${authPort}`, { disableWarnings: true });
-      try {
-        connectStorageEmulator(storage, firestoreHost, storagePort);
-      } catch (e) {
-        // connectStorageEmulator may not be available in some SDK combos; ignore if fails
-        console.warn('[FIREBASE] Failed to connect storage emulator', e);
-      }
-      console.info('✅ [FIREBASE] Successfully connected to emulators', {
-        firestoreHost,
-        firestorePort,
-        // functions emulator disabled (no Cloud Functions)
-        authHost,
-        authPort,
-      });
-    } else {
-        console.log('🌐 [FIREBASE] Connecting to remote Firebase project...');
+  if (svc.db && !firestoreEmulatorConnected) {
+    connectFirestoreEmulator(svc.db, firestoreHost, firestorePort);
+    firestoreEmulatorConnected = true;
+  }
+  if (svc.auth && !authEmulatorConnected) {
+    connectAuthEmulator(svc.auth, `http://${authHost}:${authPort}`, { disableWarnings: true });
+    authEmulatorConnected = true;
+  }
+  if (svc.storage && !storageEmulatorConnected) {
+    try {
+      connectStorageEmulator(svc.storage, firestoreHost, storagePort);
+      storageEmulatorConnected = true;
+    } catch (e) {
+      console.warn('[FIREBASE] Failed to connect storage emulator', e);
     }
-  } catch (e) {
-    console.error('🔴 [FIREBASE] Failed to connect to emulators', e);
   }
-} catch (error) {
-  console.error('CRITICAL: Firebase initialization failed.', error);
-  // We throw an error here to make it clear that the app cannot function
-  // without a valid Firebase connection. This will be caught by the top-level
-  // error boundary in index.tsx.
-  throw new Error(`Firebase initialization failed: ${(error as Error).message}`);
-}
+};
 
-// Diagnostic: log initialization info when debug enabled
-import { DEBUG_MODE, APP_ENV } from '../config';
-if (DEBUG_MODE) {
-  try {
-    console.log(
-      `🔍 [FIREBASE] Initialized project: ${(firebaseConfig && firebaseConfig.projectId) || 'unknown'}`
-    );
-    console.log(`🔍 [FIREBASE] Environment: ${APP_ENV}`);
-  } catch (e) {
-    console.warn('⚠️ [FIREBASE] Failed to log initialization info', e);
-  }
-}
+export const getFirebaseAuth = (): Auth => {
+  if (auth) return auth;
+  auth = getAuth(getFirebaseApp());
+  connectEmulatorsIfNeeded({ auth });
+  return auth;
+};
 
-// The module now only exports the initialized services.
-// The `initializeFirebase` function is no longer needed as initialization
-// happens automatically on module import.
-export { app, auth, db, storage, storageRef };
+export const getFirestoreDb = (): Firestore => {
+  if (db) return db;
+  db = getFirestore(getFirebaseApp());
+  connectEmulatorsIfNeeded({ db });
+  return db;
+};
+
+export const getFirebaseStorage = (): FirebaseStorage => {
+  if (storage) return storage;
+  storage = getStorage(getFirebaseApp());
+  connectEmulatorsIfNeeded({ storage });
+  return storage;
+};
+
+export { storageRef };

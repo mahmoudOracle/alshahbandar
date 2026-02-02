@@ -3,7 +3,7 @@ import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import * as dataService from '../../../services/dataService';
 import { useNotification } from '../../../contexts/NotificationContext';
-import { auth } from '../../../services/firebase';
+import { getFirebaseAuth } from '../../../services/firebase';
 
 interface Props {
   isOpen: boolean;
@@ -31,7 +31,7 @@ const ApproveCompanyModal: React.FC<Props> = ({
     try {
       await dataService.updateCompanyStatus(companyId, approve);
       await dataService.logAdminAction({
-        adminUid: auth.currentUser ? auth.currentUser.uid : 'unknown',
+        adminUid: getFirebaseAuth().currentUser ? getFirebaseAuth().currentUser.uid : 'unknown',
         companyId,
         action: approve ? 'approve_company' : 'reject_company',
         note: note || (approve ? 'Approved via admin UI' : 'Rejected via admin UI'),

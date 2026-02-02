@@ -6,9 +6,15 @@ import React, {
   useEffect,
 } from 'react';
 import { User, onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../services/firebase';
-import { ENV, EnvConfigError } from '../src/config/env';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { getFirebaseAuth, getFirestoreDb } from '../services/firebase';
+import {
+  getCompanyId,
+  getCompanyName,
+  getAutoCreateCompany,
+  CompanyIdMissingError,
+} from '../src/config/runtimeSetup';
+import { serverTimestamp } from 'firebase/firestore';
 
 const AUTHORIZED_MEMBERSHIP_ROLES = new Set([
   'owner',
@@ -77,9 +83,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   useEffect(() => {
     let companyId: string;
     try {
-      companyId = ENV.companyId;
+      companyId = getCompanyId();
     } catch (err) {
-      console.error(err instanceof EnvConfigError ? err.message : err);
+      console.error(err instanceof CompanyIdMissingError ? err.message : err);
       setStatus('error');
       setError(
         err instanceof Error
@@ -89,6 +95,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       return;
     }
 
+    const auth = getFirebaseAuth();
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       // Reset previous error state on auth change
       setError(null);
@@ -104,6 +111,41 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setStatus('resolvingMembership');
 
       try {
+        const db = getFirestoreDb();
+
+        if (getAutoCreateCompany()) {
+          const companyName = getCompanyName();
+          if (companyName) {
+            const companyRef = doc(db, 'companies', companyId);
+            const companySnap = await getDoc(companyRef);
+            if (!companySnap.exists()) {
+              await setDoc(companyRef, {
+                name: companyName,
+                isActive: true,
+                createdAt: serverTimestamp(),
+                createdByUid: firebaseUser.uid,
+                email: firebaseUser.email || null,
+              });
+            }
+
+            const memberRef = doc(db, 'companies', companyId, 'members', firebaseUser.uid);
+            const memberSnap = await getDoc(memberRef);
+            if (!memberSnap.exists()) {
+              await setDoc(
+                memberRef,
+                {
+                  role: 'owner',
+                  email: firebaseUser.email || '',
+                  createdAt: serverTimestamp(),
+                  source: 'setup-wizard',
+                  status: 'active',
+                },
+                { merge: true }
+              );
+            }
+          }
+        }
+
         const memberDocRef = doc(db, 'companies', companyId, 'members', firebaseUser.uid);
         const memberDocSnap = await getDoc(memberDocRef);
         const memberRole = getRoleFromDocData(memberDocSnap.data());
@@ -172,6 +214,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
   const logout = async () => {
     try {
+      const auth = getFirebaseAuth();
       await signOut(auth);
       setUser(null);
       setRole(null);
@@ -196,7 +239,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     role,
     companyId: (() => {
       try {
-        return ENV.companyId;
+        return getCompanyId();
       } catch {
         return '';
       }

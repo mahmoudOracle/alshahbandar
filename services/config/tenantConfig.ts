@@ -1,5 +1,5 @@
 import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase';
+import { getFirebaseAuth, getFirestoreDb } from '../firebase';
 
 export interface TenantConfig {
   businessName?: string;
@@ -19,20 +19,23 @@ type TenantConfigAttempt = {
 
 let lastTenantConfigAttempt: { path: string; error?: string } | null = null;
 
-const buildAttempts = (tenantId: string): TenantConfigAttempt[] => [
-  {
-    path: `companies/${tenantId}/settings/tenantConfig`,
-    ref: doc(db, 'companies', tenantId, 'settings', 'tenantConfig'),
-  },
-  {
-    path: `companies/${tenantId}/settings/app`,
-    ref: doc(db, 'companies', tenantId, 'settings', 'app'),
-  },
-  {
-    path: `tenantConfig/${tenantId}`,
-    ref: doc(db, 'tenantConfig', tenantId),
-  },
-];
+const buildAttempts = (tenantId: string): TenantConfigAttempt[] => {
+  const db = getFirestoreDb();
+  return [
+    {
+      path: `companies/${tenantId}/settings/tenantConfig`,
+      ref: doc(db, 'companies', tenantId, 'settings', 'tenantConfig'),
+    },
+    {
+      path: `companies/${tenantId}/settings/app`,
+      ref: doc(db, 'companies', tenantId, 'settings', 'app'),
+    },
+    {
+      path: `tenantConfig/${tenantId}`,
+      ref: doc(db, 'tenantConfig', tenantId),
+    },
+  ];
+};
 
 export const getTenantConfig = async (tenantId: string): Promise<TenantConfig | null> => {
   if (!tenantId) return null;
@@ -67,6 +70,7 @@ export const getTenantConfig = async (tenantId: string): Promise<TenantConfig | 
       path: lastAttemptPath,
       error: errorMessage,
     };
+    const auth = getFirebaseAuth();
     const user = auth.currentUser;
     console.error('[TENANT_CONFIG] failed to load', {
       path: lastTenantConfigAttempt.path,
