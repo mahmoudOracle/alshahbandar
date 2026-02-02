@@ -14,6 +14,10 @@ const FirebaseSetupRequiredPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
+  const envCompanyId =
+    typeof import.meta !== 'undefined' &&
+    (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_COMPANY_ID;
+
   const parsedConfig = useMemo(() => {
     if (!rawConfig.trim()) return null;
     try {
@@ -29,6 +33,10 @@ const FirebaseSetupRequiredPage: React.FC = () => {
       setError(
         'Paste a valid Firebase config JSON object that includes apiKey, authDomain, and projectId.'
       );
+      return;
+    }
+    if (!companyId.trim() && !envCompanyId) {
+      setError('Enter a Company ID or set VITE_COMPANY_ID before saving.');
       return;
     }
     storeFirebaseConfig(parsedConfig);
