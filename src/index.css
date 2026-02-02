@@ -1,9 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   --transition-fast: 160ms;
 }
 
 body {
-  font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+  font-family: 'Cairo', sans-serif;
 }
 
 /* Page transition used by App.tsx */

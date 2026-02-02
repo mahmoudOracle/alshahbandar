@@ -3,7 +3,6 @@ import './index.css';
 import ReactDOM from 'react-dom/client';
 import FirebaseSetupRequiredPage from './pages/FirebaseSetupRequiredPage';
 import { getStoredFirebaseConfig } from './services/firebaseConfig';
-import { bootstrapApp } from './bootstrapApp';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -20,5 +19,14 @@ if (!config) {
     </React.StrictMode>
   );
 } else {
-  bootstrapApp(root);
+  import('./bootstrapApp')
+    .then(({ bootstrapApp }) => bootstrapApp(root))
+    .catch((err) => {
+      console.error('Failed to load app bootstrap:', err);
+      root.render(
+        <React.StrictMode>
+          <FirebaseSetupRequiredPage />
+        </React.StrictMode>
+      );
+    });
 }
