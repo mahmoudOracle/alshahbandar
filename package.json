@@ -17,16 +17,14 @@
     "test:integration": "vitest --run src/__tests__/integration --environment=node",
     "test:coverage": "vitest --coverage",
     "test:e2e": "playwright test",
-    "emu": "firebase emulators:start --only auth,firestore,functions --import=./firestore.rules --export-on-exit=./firestore.rules.bak.2025-11-19",
+    "emu": "firebase emulators:start --only auth,firestore --import=./firestore.rules --export-on-exit=./firestore.rules.bak.2025-11-19",
     "dev:emu": "concurrently --kill-others-on-fail -c \"bgBlue.bold,bgGreen.bold\" -n \"EMULATORS,VITE\" \"npm run emu\" \"npm run dev\"",
     "dev:prod": "vite --mode production",
     "seed:emu": "ts-node scripts/seedEmulators.ts"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
-    "firebase": "^12.6.0",
-    "firebase-admin": "^13.6.0",
-    "html2canvas": "^1.4.1",
+    "firebase": "^12.6.0",    "html2canvas": "^1.4.1",
     "jspdf": "^4.0.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
@@ -67,3 +65,5 @@
     "vitest": "^4.0.16"
   }
 }
+
+

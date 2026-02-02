@@ -18,7 +18,6 @@ import {
   Timestamp,
   updateDoc,
 } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
 import { User } from 'firebase/auth';
 import * as SanityGate from '../src/utils/sanityGate';
 import {
@@ -61,7 +60,7 @@ import {
   JournalEntry,
   Purchase,
 } from '../types';
-import { db, functions, auth } from './firebase';
+import { db, auth } from './firebase';
 import { mapFirestoreError } from './firebaseErrors';
 import { enqueueOperation } from './syncService';
 import * as productsRepo from './repositories/products';
@@ -71,6 +70,13 @@ import { isPosted, isPeriodLocked } from './accountingSafety';
 import * as normalize from '../src/utils/normalize';
 
 const IS_FREE_MODE = (import.meta.env.VITE_FREE_MODE ?? 'true') === 'true';
+const FUNCTIONS_DISABLED = true;
+
+const warnFunctionsDisabled = (name: string) => {
+  if (DEBUG_MODE) {
+    console.warn(`[FUNCTIONS_DISABLED] ${name} is disabled in free mode`);
+  }
+};
 
 // --- Retry & Network Helpers ---
 const isOfflineError = (err: unknown): boolean => {
@@ -142,67 +148,23 @@ interface PlatformQueryOptions {
 }
 
 export const getCompanies = async (
-  options: PlatformQueryOptions = {}
+  _options: PlatformQueryOptions = {}
 ): Promise<PaginatedData<Company>> => {
-  // Use callable cloud function for platform admin operations to avoid exposing privileged queries client-side.
-  const { limit: queryLimit = 50, status } = options;
-  const fn = httpsCallable(functions, 'getAdminCompanies');
-  try {
-    console.log('[DEBUG][AUTHZ] Calling getAdminCompanies with', { limit: queryLimit, status });
-    const res = await fn({ limit: queryLimit, status });
-    const payload = res.data as unknown;
-    if (!payload || !(payload as Record<string, unknown>)['data'])
-      return { data: [], nextCursor: undefined };
-    const list = (payload as Record<string, unknown>)['data'] as unknown[];
-    const data: Company[] = list.map(
-      (d) =>
-        ({
-          id: (d as Record<string, unknown>)['id'] as string,
-          ...(d as Record<string, unknown>),
-        }) as Company
-    );
-    return { data, nextCursor: undefined };
-  } catch (err) {
-    console.error('[DEBUG][AUTHZ] getAdminCompanies failed', err);
-    throw err;
-  }
+  warnFunctionsDisabled('getCompanies');
+  return { data: [], nextCursor: undefined };
 };
 
 export const createCompany = async (
-  companyData: Omit<
+  _companyData: Omit<
     Company,
     'id' | 'ownerUid' | 'isActive' | 'plan' | 'createdAt' | 'updatedAt' | 'ownerEmailLower'
   > & { id: string }
 ): Promise<Company> => {
-  const createCompanyFunction = httpsCallable(functions, 'createCompanyAsAdmin');
-  try {
-    console.log('[DEBUG][CreateCompany] Calling cloud function with payload:', companyData);
-    await createCompanyFunction(companyData);
-
-    // For consistency, we can return the company object as the client expects.
-    // This is optimistic, but the function throws on failure.
-    const ownerEmailLower = (companyData as unknown as Record<string, unknown>)['ownerEmail']
-      ? String((companyData as unknown as Record<string, unknown>)['ownerEmail']).toLowerCase()
-      : undefined;
-    const createdCompany: Record<string, unknown> = {
-      ...(companyData as unknown as Record<string, unknown>),
-      ownerEmailLower,
-      ownerUid: null,
-      isActive: true,
-      plan: 'free',
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
-    };
-    console.log('[DEBUG][CreateCompany] Cloud function executed successfully.');
-    return createdCompany as unknown as Company;
-  } catch (error) {
-    console.error('[DEBUG][CreateCompany] Cloud function failed:', error);
-    // Re-throw the error to be caught and mapped by the UI
-    throw error;
-  }
+  warnFunctionsDisabled('createCompany');
+  throw new Error('createCompany is disabled in free mode');
 };
 
-export const createPlatformCompanyWithManager = async (payload: {
+export const createPlatformCompanyWithManager = async (_payload: {
   companyName: string;
   managerFullName: string;
   managerEmail: string;
@@ -216,24 +178,8 @@ export const createPlatformCompanyWithManager = async (payload: {
   managerEmail?: string;
   tempPassword?: string;
 }> => {
-  const fn = httpsCallable(functions, 'createPlatformCompanyWithManager');
-  try {
-    const res = await fn(payload);
-    const data =
-      res && (res as unknown as Record<string, unknown>)['data']
-        ? (res as unknown as Record<string, unknown>)['data']
-        : res;
-    return (data || {}) as {
-      success: boolean;
-      companyId?: string;
-      managerUid?: string;
-      managerEmail?: string;
-      tempPassword?: string;
-    };
-  } catch (error) {
-    console.error('[DEBUG][CreateCompany] createPlatformCompanyWithManager failed:', error);
-    throw error;
-  }
+  warnFunctionsDisabled('createPlatformCompanyWithManager');
+  return { success: false };
 };
 
 export const getPlatformSummary = async (): Promise<{
@@ -242,63 +188,24 @@ export const getPlatformSummary = async (): Promise<{
   invoicesCount: number;
   latestCompanies: Array<{ id: string; name: string | null; createdAt: unknown; isActive: boolean }>;
 }> => {
-  const fn = httpsCallable(functions, 'getPlatformSummary');
-  try {
-    const res = await fn({});
-    const data =
-      res && (res as unknown as Record<string, unknown>)['data']
-        ? (res as unknown as Record<string, unknown>)['data']
-        : res;
-    return (data || {
-      companiesCount: 0,
-      usersCount: 0,
-      invoicesCount: 0,
-      latestCompanies: [],
-    }) as {
-      companiesCount: number;
-      usersCount: number;
-      invoicesCount: number;
-      latestCompanies: Array<{
-        id: string;
-        name: string | null;
-        createdAt: unknown;
-        isActive: boolean;
-      }>;
-    };
-  } catch (error) {
-    console.error('[DEBUG][Platform] getPlatformSummary failed:', error);
-    throw error;
-  }
+  warnFunctionsDisabled('getPlatformSummary');
+  return { companiesCount: 0, usersCount: 0, invoicesCount: 0, latestCompanies: [] };
 };
 
-export const setCompanyActive = async (companyId: string, isActive: boolean): Promise<void> => {
-  const fn = httpsCallable(functions, 'setCompanyActive');
-  try {
-    await fn({ companyId, isActive });
-  } catch (error) {
-    console.error('[DEBUG][Platform] setCompanyActive failed:', error);
-    throw error;
-  }
+export const setCompanyActive = async (_companyId: string, _isActive: boolean): Promise<void> => {
+  warnFunctionsDisabled('setCompanyActive');
+  throw new Error('setCompanyActive is disabled in free mode');
 };
 
-export const logAuditEvent = async (payload: {
+export const logAuditEvent = async (_payload: {
   action: string;
   companyId?: string | null;
   meta?: Record<string, unknown>;
 }): Promise<void> => {
-  const fn = httpsCallable(functions, 'logAuditEvent');
-  try {
-    await fn({
-      action: payload.action,
-      companyId: payload.companyId || null,
-      meta: payload.meta || null,
-    });
-  } catch (error) {
-    console.warn('[DEBUG][Platform] logAuditEvent failed:', error);
-  }
+  warnFunctionsDisabled('logAuditEvent');
 };
 
-export const platformCreateCompany = async (payload: {
+export const platformCreateCompany = async (_payload: {
   name: string;
   ownerUid: string;
   contactEmail: string;
@@ -313,21 +220,11 @@ export const platformCreateCompany = async (payload: {
   taxId?: string;
   commercialReg?: string;
 }): Promise<{ companyId: string }> => {
-  const fn = httpsCallable(functions, 'platformCreateCompany');
-  try {
-    const res = await fn(payload);
-    const data =
-      res && (res as unknown as Record<string, unknown>)['data']
-        ? (res as unknown as Record<string, unknown>)['data']
-        : res;
-    return (data || {}) as { companyId: string };
-  } catch (error) {
-    console.error('[DEBUG][Platform] platformCreateCompany failed:', error);
-    throw error;
-  }
+  warnFunctionsDisabled('platformCreateCompany');
+  throw new Error('platformCreateCompany is disabled in free mode');
 };
 
-export const platformListCompanies = async (limit = 50): Promise<{
+export const platformListCompanies = async (_limit = 50): Promise<{
   companies: Array<{
     id: string;
     name: string | null;
@@ -343,33 +240,8 @@ export const platformListCompanies = async (limit = 50): Promise<{
     contactPersonTitle: string | null;
   }>;
 }> => {
-  const fn = httpsCallable(functions, 'platformListCompanies');
-  try {
-    const res = await fn({ limit });
-    const data =
-      res && (res as unknown as Record<string, unknown>)['data']
-        ? (res as unknown as Record<string, unknown>)['data']
-        : res;
-    return (data || { companies: [] }) as {
-      companies: Array<{
-        id: string;
-        name: string | null;
-        isActive: boolean;
-        plan: string;
-        createdAt: unknown;
-        contactEmail: string | null;
-        phone: string | null;
-        address: string | null;
-        city: string | null;
-        country: string | null;
-        contactPersonName: string | null;
-        contactPersonTitle: string | null;
-      }>;
-    };
-  } catch (error) {
-    console.error('[DEBUG][Platform] platformListCompanies failed:', error);
-    throw error;
-  }
+  warnFunctionsDisabled('platformListCompanies');
+  return { companies: [] };
 };
 
 export const updateCompanyStatus = async (companyId: string, isActive: boolean): Promise<void> => {
@@ -396,20 +268,9 @@ export const getCompanyStatsSummary = async (companyId: string): Promise<Record<
   }
 };
 
-export const getCompanyCounts = async (companyId: string): Promise<Record<string, number>> => {
-  const fn = httpsCallable(functions, 'getCompanyCounts');
-  try {
-    console.log('[DEBUG][AUTHZ] Calling getCompanyCounts for', companyId);
-    const res = await fn({ companyId });
-    const payload = res.data as unknown;
-    const counts = (payload as Record<string, unknown>)['counts'] as
-      | Record<string, number>
-      | undefined;
-    return counts || { userCount: 0, invoiceCount: 0 };
-  } catch (err) {
-    console.error('[DEBUG][AUTHZ] getCompanyCounts failed', err);
-    throw err;
-  }
+export const getCompanyCounts = async (_companyId: string): Promise<Record<string, number>> => {
+  warnFunctionsDisabled('getCompanyCounts');
+  return { userCount: 0, invoiceCount: 0 };
 };
 
 // --- Audit logs ---
@@ -430,57 +291,27 @@ export const getAuditLogs = async (
 };
 
 export const createInvoiceAtomic = async (
-  companyId: string,
-  invoice: Partial<Invoice>
+  _companyId: string,
+  _invoice: Partial<Invoice>
 ): Promise<any> => {
-  try {
-    const fn = httpsCallable(functions, 'createInvoiceAtomic');
-    const res = await fn({ companyId, invoice });
-    const payload =
-      res && (res as unknown as Record<string, unknown>)['data']
-        ? (res as unknown as Record<string, unknown>)['data']
-        : res;
-    return payload;
-  } catch (err) {
-    console.error('[FIRESTORE] createInvoiceAtomic failed', err);
-    throw err;
-  }
+  warnFunctionsDisabled('createInvoiceAtomic');
+  throw new Error('createInvoiceAtomic is disabled in free mode');
 };
 
 export const createPurchaseAtomic = async (
-  companyId: string,
-  purchase: Record<string, unknown>
+  _companyId: string,
+  _purchase: Record<string, unknown>
 ): Promise<any> => {
-  try {
-    const fn = httpsCallable(functions, 'createPurchaseAtomic');
-    const res = await fn({ companyId, purchase });
-    const payload =
-      res && (res as unknown as Record<string, unknown>)['data']
-        ? (res as unknown as Record<string, unknown>)['data']
-        : res;
-    return payload;
-  } catch (err) {
-    console.error('[FIRESTORE] createPurchaseAtomic failed', err);
-    throw err;
-  }
+  warnFunctionsDisabled('createPurchaseAtomic');
+  throw new Error('createPurchaseAtomic is disabled in free mode');
 };
 
 export const createGoodsReceiptAtomic = async (
-  companyId: string,
-  receipt: Record<string, unknown>
+  _companyId: string,
+  _receipt: Record<string, unknown>
 ): Promise<any> => {
-  try {
-    const fn = httpsCallable(functions, 'createGoodsReceiptAtomic');
-    const res = await fn({ companyId, receipt });
-    const payload =
-      res && (res as unknown as Record<string, unknown>)['data']
-        ? (res as unknown as Record<string, unknown>)['data']
-        : res;
-    return payload;
-  } catch (err) {
-    console.error('[FIRESTORE] createGoodsReceiptAtomic failed', err);
-    throw err;
-  }
+  warnFunctionsDisabled('createGoodsReceiptAtomic');
+  throw new Error('createGoodsReceiptAtomic is disabled in free mode');
 };
 
 // --- RBAC REPOSITORY GUARDS ---
@@ -792,41 +623,20 @@ const deleteData = async (
   section: WriteableSection
 ): Promise<boolean> => {
   ensureWriteAllowed(section);
-  // Prefer server-side callable for safe (soft) deletes with audit and business logic.
-  try {
-    // UI-level safety: check if the document is posted or in a locked period before attempting delete
-    try {
-      const docRef = doc(db, 'companies', companyId, collectionName, id);
-      const snap = await getDoc(docRef);
-      const data = snap.exists() ? snap.data() : null;
-      const company = await getCompany(companyId);
-      if (data && isPosted(data)) {
-        throw new Error('Cannot delete a posted (finalized) document.');
-      }
-      const dateToCheck = data && (data as any).date ? (data as any).date : new Date();
-      if (company && isPeriodLocked(company, dateToCheck)) {
-        throw new Error('Accounting period locked. Deletes are not permitted for this document.');
-      }
-    } catch (safetyErr) {
-      // Bubble up safety errors
-      if (safetyErr && (safetyErr as Error).message) throw safetyErr;
-    }
-    const fn = httpsCallable(functions, 'safeDeleteDocument');
-    const res = await fn({ companyId, collectionName, id, reason: 'deleted_via_ui' });
-    // Callable returns { success: true }
-    const callPayload =
-      res && (res as unknown as Record<string, unknown>)['data']
-        ? (res as unknown as Record<string, unknown>)['data']
-        : null;
-    if (callPayload && (callPayload as Record<string, unknown>)['success']) return true;
-  } catch (err) {
-    console.warn(
-      '[FIRESTORE] safeDeleteDocument callable failed, falling back to client delete',
-      err?.message || err
-    );
+  // UI-level safety: check if the document is posted or in a locked period before attempting delete
+  const docRef = doc(db, 'companies', companyId, collectionName, id);
+  const snap = await getDoc(docRef);
+  const data = snap.exists() ? snap.data() : null;
+  const company = await getCompany(companyId);
+  if (data && isPosted(data)) {
+    throw new Error('Cannot delete a posted (finalized) document.');
+  }
+  const dateToCheck = data && (data as any).date ? (data as any).date : new Date();
+  if (company && isPeriodLocked(company, dateToCheck)) {
+    throw new Error('Accounting period locked. Deletes are not permitted for this document.');
   }
 
-  // Fallback to client-side hard delete (should be rare). Note: this path will be blocked by rules if enforced.
+  // Client-side hard delete (rules must allow).
   await deleteDoc(doc(db, 'companies', companyId, collectionName, id));
   return true;
 };
@@ -836,26 +646,8 @@ const deleteData = async (
 export const listCompaniesForPlatformAdmin = async (): Promise<
   Array<{ id: string; companyName: string; status?: string }>
 > => {
-  const fn = httpsCallable(functions, 'getAdminCompanies');
-  try {
-    const res = await fn({ limit: 200 });
-    const payload =
-      res && (res as unknown as Record<string, unknown>)['data']
-        ? (res as unknown as Record<string, unknown>)['data']
-        : res;
-    const data = (payload as Record<string, unknown>)?.data;
-    if (!Array.isArray(data)) return [];
-    return data.map((item) => {
-      const raw = (item || {}) as Record<string, unknown>;
-      return {
-        id: String(raw.id || ''),
-        companyName: String(raw.companyName || raw.name || ''),
-        status: typeof raw.status === 'string' ? raw.status : undefined,
-      };
-    });
-  } catch (err) {
-    throw new Error(mapFirestoreError(err));
-  }
+  warnFunctionsDisabled('getAdminCompanies');
+  return [];
 };
 
 
@@ -1128,21 +920,8 @@ export const getAdminActions = async (limit: number = 50): Promise<any[]> => {
 export const resolveFirstLogin = async (
   _user: User
 ): Promise<{ success: boolean; message?: string }> => {
-  try {
-    const fn = httpsCallable(functions, 'resolveFirstLogin');
-    console.log('[DEBUG][OwnerLink] Calling server callable resolveFirstLogin');
-    const res = await fn({});
-    const payload = (res as any)?.data ?? {};
-    const payloadAny = payload as any;
-    if (payloadAny.success) return { success: true };
-    return { success: false, message: payloadAny.message || 'no-invitations' };
-  } catch (err) {
-    console.error('[DEBUG][OwnerLink] resolveFirstLogin callable failed', err);
-    return {
-      success: false,
-      message: String((err as unknown as { message?: unknown })?.message ?? 'callable-failed'),
-    };
-  }
+  warnFunctionsDisabled('resolveFirstLogin');
+  return { success: false, message: 'functions-disabled' };
 };
 
 // --- USER MANAGEMENT (MULTI-TENANT) ---
@@ -1225,19 +1004,9 @@ export const createOwnerMembershipIfMissing = async (
 };
 
 export const getPendingInvitations = async (companyId: string): Promise<CompanyInvitation[]> => {
-  // Invitations are server-managed; use callable to fetch pending invitations for a company
-  const fn = httpsCallable(functions, 'getCompanyInvitations');
-  try {
-    // Use retry wrapper for transient network issues
-    const res = await withRetry(() => fn({ companyId }));
-    const payload = (res as any)?.data ?? {};
-    return ((payload as any).invites || []) as CompanyInvitation[];
-  } catch (err) {
-    console.error('[DEBUG][Invite] getCompanyInvitations failed', err);
-    if (DEBUG_MODE)
-      console.warn('[DEBUG][Invite] Falling back to empty invitations list', err?.message || err);
-    return [];
-  }
+  warnFunctionsDisabled('getCompanyInvitations');
+  // Keep UI stable: return empty list in free mode.
+  return [];
 };
 
 export const inviteUser = async (
@@ -1246,43 +1015,16 @@ export const inviteUser = async (
   role: UserRole,
   invitedBy: { uid: string; email: string }
 ): Promise<{ success?: boolean; inviteId?: string }> => {
-  const fn = httpsCallable(functions, 'createCompanyInvitation');
-  try {
-    const res = await fn({
-      companyId,
-      email,
-      role,
-      notes: `invitedBy:${invitedBy.uid}:${invitedBy.email}`,
-    });
-    const payload =
-      res && (res as unknown as Record<string, unknown>)['data']
-        ? (res as unknown as Record<string, unknown>)['data']
-        : res;
-    return (payload as { success?: boolean; inviteId?: string }) || {};
-  } catch (err) {
-    console.error('[DEBUG][Invite] createCompanyInvitation failed', err);
-    throw err;
-  }
+  warnFunctionsDisabled('createCompanyInvitation');
+  throw new Error('Invitations are disabled in free mode');
 };
 
 export const deleteInvitation = async (
   companyId: string,
   invitationId: string
 ): Promise<boolean> => {
-  // Use server-side callable to delete invitation securely
-  const fn = httpsCallable(functions, 'deleteCompanyInvitation');
-  try {
-    console.log('[DEBUG][Invite] Calling deleteCompanyInvitation', { companyId, invitationId });
-    const res = await fn({ inviteId: invitationId });
-    const payload =
-      res && (res as unknown as Record<string, unknown>)['data']
-        ? (res as unknown as Record<string, unknown>)['data']
-        : {};
-    return (payload && (payload as Record<string, unknown>)['success'] === true) || false;
-  } catch (err) {
-    console.error('[DEBUG][Invite] deleteCompanyInvitation failed', err);
-    throw err;
-  }
+  warnFunctionsDisabled('deleteCompanyInvitation');
+  throw new Error('Invitations are disabled in free mode');
 };
 
 export const updateUserRole = async (
@@ -1291,42 +1033,10 @@ export const updateUserRole = async (
   role: UserRole
 ): Promise<{ enqueued?: boolean }> => {
   ensureWriteAllowed('users');
-  // Prefer server-side callable to ensure this write is authorized and audited.
-  try {
-    const fn = httpsCallable(functions, 'assignCompanyRole');
-    const res = await fn({ companyId, uid: userId, role });
-    const payload =
-      res && (res as unknown as Record<string, unknown>)['data']
-        ? (res as unknown as Record<string, unknown>)['data']
-        : res;
-    if (payload && (payload as Record<string, unknown>)['success'] !== false) return;
-  } catch (err) {
-    // If the client is offline or callable cannot be reached, enqueue the operation for background sync.
-    const msg = String((err as unknown as { message?: unknown })?.message ?? '');
-    const isOffline =
-      (typeof navigator !== 'undefined' && !navigator.onLine) ||
-      msg.toLowerCase().includes('offline') ||
-      (err as any)?.code === 'client-offline';
-    if (isOffline) {
-      try {
-        enqueueOperation('assignRole', { companyId, uid: userId, role });
-        // Resolve gracefully; UI will reflect change after sync or reload.
-        return { enqueued: true };
-      } catch (e) {
-        console.warn('[FIRESTORE] Failed to enqueue assignRole operation', e);
-        throw err;
-      }
-    }
-    // As a robust fallback, attempt a direct client write (may be blocked by rules in prod).
-    try {
-      const userRef = doc(db, 'companies', companyId, 'members', userId);
-      await setDoc(userRef, { role, updatedAt: Timestamp.now() }, { merge: true });
-      return { enqueued: false };
-    } catch (fwErr) {
-      console.error('[FIRESTORE] updateUserRole fallback write failed', fwErr);
-      throw err;
-    }
-  }
+  warnFunctionsDisabled('assignCompanyRole');
+  const userRef = doc(db, 'companies', companyId, 'members', userId);
+  await setDoc(userRef, { role, updatedAt: Timestamp.now() }, { merge: true });
+  return { enqueued: false };
 };
 
 export const removeUserFromCompany = async (
@@ -1345,18 +1055,8 @@ export const createOwnerCompanyCallable = async (data: {
   companyAddress: string;
   ownerMobile?: string;
 }) => {
-  const fn = httpsCallable(functions, 'createOwnerCompany');
-  try {
-    const res = await fn(data);
-    const payload =
-      res && (res as unknown as Record<string, unknown>)['data']
-        ? (res as unknown as Record<string, unknown>)['data']
-        : {};
-    return payload;
-  } catch (err) {
-    console.error('[DEBUG][createOwnerCompanyCallable] failed', err);
-    throw err;
-  }
+  warnFunctionsDisabled('createOwnerCompanyCallable');
+  throw new Error('createOwnerCompanyCallable is disabled in free mode');
 };
 
 // --- SETTINGS ---
@@ -1778,24 +1478,8 @@ export const duplicateInvoice = async (companyId: string, invoiceId: string): Pr
 };
 
 export const deleteInvoice = async (companyId: string, id: string): Promise<boolean> => {
-  // Use server-side callable to perform a safe soft-delete with audit logging and stock adjustments.
-  try {
-    const fn = httpsCallable(functions, 'safeDeleteDocument');
-    const res = await fn({ companyId, collectionName: 'invoices', id, reason: 'deleted_via_ui' });
-    const payload =
-      res && (res as unknown as Record<string, unknown>)['data']
-        ? (res as unknown as Record<string, unknown>)['data']
-        : {};
-    return Boolean(payload && (payload as Record<string, unknown>)['success']) || false;
-  } catch (err) {
-    console.error(
-      '[FIRESTORE] safeDeleteDocument failed; server-side callable required to perform safe invoice delete',
-      err
-    );
-    throw new Error(
-      'safeDeleteDocument callable required: cannot perform invoice delete client-side'
-    );
-  }
+  warnFunctionsDisabled('safeDeleteDocument');
+  return deleteData(companyId, 'invoices', id, 'invoices');
 };
 
 export const getPayments = (companyId: string, options: QueryOptions = {}) =>
@@ -1834,29 +1518,8 @@ export const createReturnAtomic = async (
     mode?: 'refund_cash' | 'credit_note';
   }
 ): Promise<{ id: string }> => {
-  let sanitizedPayload: any;
-  try {
-    // For atomic return operation, sanitize the return draft first
-    sanitizedPayload = sanitizeReturnDraft(payload);
-  } catch (error) {
-    console.error('[SANITIZE] Return validation failed:', error instanceof Error ? error.message : error);
-    throw error;
-  }
-  
-  try {
-    const fn = httpsCallable(functions, 'createReturnAtomic');
-    const res = await fn({ companyId, returnDoc: sanitizedPayload });
-    const data =
-      res && (res as unknown as Record<string, unknown>)['data']
-        ? (res as unknown as Record<string, unknown>)['data']
-        : res;
-    const id = data && (data as Record<string, unknown>)['id'];
-    if (typeof id === 'string') return { id };
-    throw new Error('Invalid return response');
-  } catch (err) {
-    console.error('[FIRESTORE] createReturnAtomic failed', err);
-    throw err;
-  }
+  warnFunctionsDisabled('createReturnAtomic');
+  throw new Error('createReturnAtomic is disabled in free mode');
 };
 
 export const savePayment = async (
@@ -1932,7 +1595,7 @@ export const getExpenses = (companyId: string, options: QueryOptions = {}) =>
 export const getExpenseById = (companyId: string, id: string) =>
   getById<Expense>(companyId, 'expenses', id);
 export const saveExpense = (companyId: string, expense: Omit<Expense, 'id'> | Expense) => {
-  // ✅ PHASE 1: Sanitize input (write-side validation)
+  // ? PHASE 1: Sanitize input (write-side validation)
   let sanitizedExpense: any;
   try {
     sanitizedExpense = sanitizeExpenseDraft(expense);
@@ -1941,12 +1604,13 @@ export const saveExpense = (companyId: string, expense: Omit<Expense, 'id'> | Ex
     throw error;
   }
 
-  // Preserve ID if this is an update
-  if ('id' in expense && (expense as any).id) {
-    sanitizedExpense.id = (expense as any).id;
-  }
+  const now = serverTimestamp();
+  const payload =
+    'id' in expense && (expense as any).id
+      ? { ...sanitizedExpense, id: (expense as any).id, updatedAt: now }
+      : { ...sanitizedExpense, createdAt: now, updatedAt: now };
 
-  return saveData<Expense>(companyId, 'expenses', sanitizedExpense, 'expenses');
+  return saveData<Expense>(companyId, 'expenses', payload, 'expenses');
 };
 export const deleteExpense = (companyId: string, id: string) =>
   deleteData(companyId, 'expenses', id, 'expenses');
@@ -2030,27 +1694,8 @@ export const deleteSupplier = (companyId: string, id: string) =>
 export const getSalesSummary = async (
   companyId: string
 ): Promise<{ totalSales: number; invoiceCount: number } | null> => {
-  // Prefer server-side callable for performance and cost control.
   try {
-    try {
-      const fn = httpsCallable(functions, 'getSalesSummary');
-      const res = await fn({ companyId });
-      const payload =
-        res && (res as unknown as Record<string, unknown>)['data']
-          ? (res as unknown as Record<string, unknown>)['data']
-          : res;
-      const payloadAny = payload as any;
-      if (payloadAny && typeof payloadAny.totalSales !== 'undefined') return payloadAny;
-    } catch (callErr) {
-      // Callable may not be deployed in some environments; fall back to client-side aggregation
-      if (typeof callErr?.message === 'string')
-        console.warn(
-          '[REPORTS] callable getSalesSummary not available, falling back:',
-          callErr.message
-        );
-    }
-
-    // Fallback: compute a basic summary by fetching recent invoices (limited to 500 for cost control).
+    warnFunctionsDisabled('getSalesSummary');
     const res = (await getInvoices(companyId, {
       limit: 500,
       orderBy: 'date',
@@ -2070,25 +1715,12 @@ export const getSalesSummary = async (
 };
 
 export const exportSalesCsv = async (
-  companyId: string,
-  from?: string,
-  to?: string
+  _companyId: string,
+  _from?: string,
+  _to?: string
 ): Promise<{ success: boolean; url?: string; path?: string } | null> => {
-  try {
-    // Prefer server callable
-    try {
-      const fn = httpsCallable(functions, 'exportSalesCsv');
-      const res = await fn({ companyId, from, to });
-      const payload = res && (res as any).data ? (res as any).data : res;
-      return payload;
-    } catch (callErr) {
-      console.warn('[REPORTS] exportSalesCsv callable not available', callErr?.message || callErr);
-      return null;
-    }
-  } catch (err) {
-    console.warn('[REPORTS] exportSalesCsv failed', err);
-    return null;
-  }
+  warnFunctionsDisabled('exportSalesCsv');
+  return null;
 };
 
 // --- Incoming Receipts (Supplier receiving) ---
@@ -2750,16 +2382,14 @@ export const createCustomerInvitation = async (
   companyName: string,
   notes: string
 ): Promise<any> => {
-  const createInvitationFunction = httpsCallable(functions, 'createInvitation');
-  const result = await createInvitationFunction({ email, companyName, notes });
-  return result.data;
+  warnFunctionsDisabled('createInvitation');
+  throw new Error('Customer invitations are disabled in free mode');
 };
 
 // Wrapper to accept a top-level invitation using the server-side callable.
 export const acceptInvitation = async (inviteId: string, token: string): Promise<any> => {
-  const acceptInvitationFunction = httpsCallable(functions, 'acceptInvitation');
-  const result = await acceptInvitationFunction({ inviteId, token });
-  return result.data;
+  warnFunctionsDisabled('acceptInvitation');
+  throw new Error('Invitations are disabled in free mode');
 };
 
 export const undeleteDocument = async (
@@ -2767,22 +2397,17 @@ export const undeleteDocument = async (
   collectionName: string,
   id: string
 ): Promise<boolean> => {
-  try {
-    const fn = httpsCallable(functions, 'safeUndeleteDocument');
-    const res = await fn({ companyId, collectionName, id });
-    return Boolean(
-      res &&
-      (res as unknown as Record<string, unknown>)['data'] &&
-      ((res as unknown as Record<string, unknown>)['data'] as Record<string, unknown>)['success']
-    );
-  } catch (err) {
-    console.warn('[FIRESTORE] safeUndeleteDocument failed', err?.message || err);
-    return false;
-  }
+  warnFunctionsDisabled('safeUndeleteDocument');
+  return false;
 };
 
 // This function is not applicable in Firestore mode, it's for mocks.
 export const populateDummyData = (_companyId: string): Promise<boolean> => Promise.resolve(false);
+
+
+
+
+
 
 
 

@@ -144,6 +144,12 @@ const Dashboard: React.FC = () => {
       setRecentExpenses(recentExpensesRes.data || []);
     } catch (err) {
       setError(getErrorMessage(err, 'تعذر تحميل ملخص اليوم. حاول مرة أخرى.'));
+      setTodaySales(0);
+      setTodayExpenses(0);
+      setYesterdaySales(0);
+      setYesterdayExpenses(0);
+      setRecentInvoices([]);
+      setRecentExpenses([]);
     } finally {
       setLoading(false);
     }
@@ -231,17 +237,14 @@ const Dashboard: React.FC = () => {
           title="صافي الربح اليوم"
           value={formatMoney(profitToday)}
           icon={<ChartBarIcon className="h-6 w-6 text-primary-600" />}
-          trend={
-            deltaPercent !== null ? `${Math.abs(deltaPercent).toFixed(1)}%` : undefined
-          }
+          trend={deltaPercent !== null ? `${Math.abs(deltaPercent).toFixed(1)}%` : undefined}
           trendDirection={deltaPercent !== null && deltaPercent >= 0 ? 'up' : 'down'}
         />
       </div>
 
       {deltaPercent !== null && (
         <p className="text-sm text-gray-600 dark:text-gray-300">
-          اليوم {deltaPercent >= 0 ? 'أفضل' : 'أسوأ'} من أمس بنسبة{' '}
-          {Math.abs(deltaPercent).toFixed(1)}%
+          اليوم {deltaPercent >= 0 ? 'أفضل' : 'أسوأ'} من أمس بنسبة {Math.abs(deltaPercent).toFixed(1)}%
         </p>
       )}
 

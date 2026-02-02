@@ -24,7 +24,6 @@ const LoginPage: React.FC = () => {
     setLoading(true);
     try {
       await signInWithEmail(email, password);
-      // AuthProvider will handle state updates and routing.
     } catch (error: unknown) {
       const message = 'تعذر تسجيل الدخول. تحقق من البريد وكلمة المرور.';
       addNotification(message, 'error');
@@ -41,7 +40,11 @@ const LoginPage: React.FC = () => {
     return <Navigate to="/app" replace />;
   }
 
-  if (status === 'authLoading' || status === 'resolvingMembership') {
+  if (status === 'authLoading') {
+    return <LoadingScreen message="جاري تسجيل الدخول..." />;
+  }
+
+  if (status === 'resolvingMembership') {
     return <LoadingScreen message="جاري التحقق من صلاحيات الحساب..." />;
   }
 

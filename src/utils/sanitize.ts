@@ -464,24 +464,30 @@ export function sanitizeExpenseDraft(input: unknown): Omit<Expense, 'id'> {
 
   const obj = input as Record<string, unknown>;
 
-  const categoryId = sanitizeText(obj.categoryId, { trim: true });
-  assertRequired(categoryId, 'categoryId');
+  const category =
+    sanitizeText(obj.category ?? obj.categoryId, { trim: true }) ||
+    sanitizeText(obj.categoryName, { trim: true });
+  assertRequired(category, 'category');
 
   const amount = sanitizeNumber(obj.amount, { min: 0.01, decimals: 2 });
   assertValid(amount > 0, 'Expense amount must be > 0');
 
   const date = sanitizeDateISO(obj.date, { defaultToToday: true });
-  const description = sanitizeText(obj.description, { trim: true, maxLen: 500 });
-  const vendorId = sanitizeText(obj.vendorId, { trim: true, maxLen: 100 });
-  const notes = sanitizeText(obj.notes, { trim: true, maxLen: 500 });
+  const description = sanitizeText(
+    obj.description ?? obj.note ?? obj.notes,
+    { trim: true, maxLen: 500 }
+  );
+  const vendor = sanitizeText(
+    obj.vendor ?? obj.vendorName ?? obj.vendorId,
+    { trim: true, maxLen: 100 }
+  );
 
   return {
-    categoryId,
+    category,
     amount,
     date,
     description: description || '',
-    vendorId: vendorId || undefined,
-    notes: notes || undefined,
+    vendor: vendor || '',
   };
 }
 

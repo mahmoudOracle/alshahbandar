@@ -4,6 +4,7 @@ import { getSettings, saveSettings as saveSettingsService } from '../services/da
 import { useAuth } from './AuthContext';
 import { useNotification } from './NotificationContext';
 import { getErrorMessage } from '../src/utils/errorMessage';
+import { LoadingScreen } from '../LoadingScreen';
 
 interface SettingsContextType {
   settings: Settings | null;
@@ -27,14 +28,14 @@ const hardcodedDefaultSettings: Settings = {
 };
 
 export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { companyId } = useAuth();
+  const { companyId, authorized } = useAuth();
   const { addNotification } = useNotification();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchSettings = async () => {
-      if (!companyId) {
+      if (!companyId || !authorized) {
         setLoading(false);
         setSettings(null);
         return;
@@ -46,15 +47,11 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
         if (firestoreSettings) {
           setSettings({ ...firestoreSettings, source: 'firestore' });
         } else {
-          console.log(
-            'No settings in source. Seeding default settings for company:',
-            companyId
-          );
           await saveSettingsService(companyId, hardcodedDefaultSettings);
           setSettings({ ...hardcodedDefaultSettings, source: 'firestore' });
         }
       } catch (err: unknown) {
-        const msg = getErrorMessage(err, 'تعذّر تحميل الإعدادات من قاعدة البيانات.');
+        const msg = getErrorMessage(err, 'تعذر تحميل الإعدادات من قاعدة البيانات.');
         console.warn('Could not load settings from Firestore. Error:', msg);
         addNotification(msg, 'error');
         setSettings(hardcodedDefaultSettings);
@@ -64,7 +61,7 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
     };
 
     fetchSettings();
-  }, [companyId, addNotification]);
+  }, [companyId, authorized, addNotification]);
 
   const updateSettings = async (newSettings: Omit<Settings, 'source'>) => {
     if (!companyId) throw new Error('No active company to save settings.');
@@ -73,13 +70,10 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
     setSettings({ ...newSettings, source: 'firestore' });
   };
 
-  // If still loading, show full-screen loader to avoid flashing UI
   if (loading) {
-    return <div className="flex items-center justify-center h-screen">جاري تحميل الإعدادات...</div>;
+    return <LoadingScreen message="جاري تحميل الإعدادات..." />;
   }
 
-  // If there is no active company (e.g., before user selects/joins a company),
-  // provide a safe local default so the app can render without blocking.
   if (!companyId || !settings) {
     const safeUpdate = async (_: Omit<Settings, 'source'>) => {
       throw new Error('Cannot save settings: no active company');

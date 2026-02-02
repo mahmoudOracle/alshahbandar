@@ -53,22 +53,8 @@ export async function processQueue(): Promise<void> {
   const remaining: QueuedOp[] = [];
   for (const op of q) {
     try {
-      // Example handler mapping - applications should extend this
-      if (op.type === 'assignRole') {
-        // dynamic import to avoid circular deps
-        const { httpsCallable } = await import('firebase/functions');
-        const { functions } = await import('./firebase');
-        const fn = httpsCallable(functions, 'assignCompanyRole');
-        await fn(op.payload);
-      } else if (op.type === 'logAudit') {
-        const { httpsCallable } = await import('firebase/functions');
-        const { functions } = await import('./firebase');
-        const fn = httpsCallable(functions, 'logAudit');
-        await fn(op.payload);
-      } else {
-        // unknown op - keep for manual inspection
-        remaining.push(op);
-      }
+      // Cloud Functions are disabled; drop queued ops safely.
+      console.warn('[syncService] dropping op (functions disabled)', op.type, op.id);
     } catch (err) {
       const attempts = (op.attempts || 0) + 1;
       if (attempts < 5) {

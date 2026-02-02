@@ -1,6 +1,5 @@
 import { initializeApp, FirebaseApp, getApp, getApps, FirebaseOptions } from 'firebase/app';
 import { getFirestore, Firestore, connectFirestoreEmulator } from 'firebase/firestore';
-import { getFunctions, Functions, connectFunctionsEmulator } from 'firebase/functions';
 import { getAuth, Auth, connectAuthEmulator } from 'firebase/auth';
 import {
   getStorage,
@@ -31,7 +30,6 @@ const firebaseConfig = getStoredFirebaseConfig() as FirebaseOptions | null;
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
-let functions: Functions;
 let storage: FirebaseStorage;
 
 try {
@@ -50,7 +48,6 @@ try {
   app = getApps().length ? getApp() : initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
-  functions = getFunctions(app);
   storage = getStorage(app);
   const metaEnv = (import.meta as unknown as { env?: Record<string, string> }).env;
   // One-time log for environment verification
@@ -68,20 +65,14 @@ try {
         metaEnv?.VITE_FIRESTORE_EMULATOR_HOST ||
         metaEnv?.VITE_FIREBASE_EMULATOR_HOST ||
         '127.0.0.1';
-      const functionsHost =
-        metaEnv?.VITE_FUNCTIONS_EMULATOR_HOST ||
-        metaEnv?.VITE_FIREBASE_EMULATOR_HOST ||
-        '127.0.0.1';
       const authHost =
         metaEnv?.VITE_AUTH_EMULATOR_HOST || metaEnv?.VITE_FIREBASE_EMULATOR_HOST || '127.0.0.1';
 
       const firestorePort = Number(metaEnv?.VITE_FIRESTORE_EMULATOR_PORT || 8080);
-      const functionsPort = Number(metaEnv?.VITE_FUNCTIONS_EMULATOR_PORT || 5001);
       const authPort = Number(metaEnv?.VITE_AUTH_EMULATOR_PORT || 9099);
       const storagePort = Number(metaEnv?.VITE_STORAGE_EMULATOR_PORT || 9199);
 
       connectFirestoreEmulator(db, firestoreHost, firestorePort);
-      connectFunctionsEmulator(functions, functionsHost, functionsPort);
       connectAuthEmulator(auth, `http://${authHost}:${authPort}`, { disableWarnings: true });
       try {
         connectStorageEmulator(storage, firestoreHost, storagePort);
@@ -92,8 +83,7 @@ try {
       console.info('✅ [FIREBASE] Successfully connected to emulators', {
         firestoreHost,
         firestorePort,
-        functionsHost,
-        functionsPort,
+        // functions emulator disabled (no Cloud Functions)
         authHost,
         authPort,
       });
@@ -127,4 +117,4 @@ if (DEBUG_MODE) {
 // The module now only exports the initialized services.
 // The `initializeFirebase` function is no longer needed as initialization
 // happens automatically on module import.
-export { app, auth, db, functions, storage, storageRef };
+export { app, auth, db, storage, storageRef };

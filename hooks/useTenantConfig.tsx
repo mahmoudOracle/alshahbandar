@@ -22,7 +22,7 @@ export default function useTenantConfig() {
         const c = await getTenantConfig(companyId);
         if (!mounted) return;
         setConfig(c as unknown);
-        if (c && c.businessName) document.title = `${c.businessName} | ?????????`;
+        if (c && c.businessName) document.title = `${c.businessName} | ???? ??????`;
       } catch (err) {
         console.error('[useTenantConfig] error', err instanceof Error ? err.message : err);
       } finally {
@@ -36,3 +36,4 @@ export default function useTenantConfig() {
 
   return { config, loading };
 }
+

@@ -8,8 +8,9 @@ export const AuthGuard = () => {
 
   switch (status) {
     case 'authLoading':
+      return <LoadingScreen message="جاري تسجيل الدخول..." />;
     case 'resolvingMembership':
-      return <LoadingScreen message="???? ?????? ?? ??????? ??????..." />;
+      return <LoadingScreen message="جاري التحقق من صلاحيات الحساب..." />;
 
     case 'loggedOut':
       return <Navigate to="/login" replace />;

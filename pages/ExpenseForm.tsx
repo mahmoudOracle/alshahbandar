@@ -1,14 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import {
-  getExpenseById,
-  saveExpense,
-  getExpenseCategories,
-  saveExpenseCategory,
-  getVendors,
-  saveVendor,
-} from '../services/dataService';
-import { Expense, StoredExpenseCategory, StoredVendor } from '../types';
+import { getExpenseById, saveExpense } from '../services/dataService';
+import { Expense } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import { Card } from '../components/ui/Card';
@@ -19,6 +12,16 @@ import { Select } from '../components/ui/Select';
 import { Textarea } from '../components/ui/Textarea';
 import { FormSkeleton } from '../components/ui/FormSkeleton';
 import { mapFirestoreError } from '../services/firebaseErrors';
+
+const CATEGORY_OPTIONS = [
+  { value: 'إيجار', label: 'إيجار' },
+  { value: 'مرافق', label: 'مرافق' },
+  { value: 'مواصلات', label: 'مواصلات' },
+  { value: 'مشتريات', label: 'مشتريات' },
+  { value: 'رواتب', label: 'رواتب' },
+  { value: 'تسويق', label: 'تسويق' },
+  { value: 'أخرى', label: 'أخرى' },
+];
 
 const ExpenseForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -35,12 +38,6 @@ const ExpenseForm: React.FC = () => {
     amount: 0,
   });
 
-  const [categories, setCategories] = useState<StoredExpenseCategory[]>([]);
-  const [vendors, setVendors] = useState<StoredVendor[]>([]);
-  const [isAddingCategory, setIsAddingCategory] = useState(false);
-  const [newCategory, setNewCategory] = useState('');
-  const [isAddingVendor, setIsAddingVendor] = useState(false);
-  const [newVendor, setNewVendor] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -54,22 +51,7 @@ const ExpenseForm: React.FC = () => {
     }
   }, [canWrite, id, navigate, addNotification]);
 
-  const fetchDropdownData = async () => {
-    if (!companyId) return;
-    try {
-      const [catsRes, vensRes] = await Promise.all([
-        getExpenseCategories(companyId),
-        getVendors(companyId),
-      ]);
-      setCategories(catsRes.data || []);
-      setVendors(vensRes.data || []);
-    } catch (error: unknown) {
-      addNotification(mapFirestoreError(error), 'error');
-    }
-  };
-
   useEffect(() => {
-    fetchDropdownData();
     if (id && companyId) {
       setLoading(true);
       getExpenseById(companyId, id)
@@ -97,47 +79,10 @@ const ExpenseForm: React.FC = () => {
     }));
   };
 
-  const handleAddNewCategory = async () => {
-    if (!companyId || !newCategory.trim()) return;
-    try {
-      const result = await saveExpenseCategory(companyId, { name: newCategory.trim() });
-      if (result) {
-        addNotification('تمت إضافة الفئة بنجاح.', 'success');
-        setNewCategory('');
-        setIsAddingCategory(false);
-        await fetchDropdownData();
-        setExpense((prev) => ({ ...prev, category: result.name }));
-      } else {
-        addNotification('حدث خطأ أثناء إضافة الفئة.', 'error');
-      }
-    } catch (error: unknown) {
-      addNotification(mapFirestoreError(error), 'error');
-    }
-  };
-
-  const handleAddNewVendor = async () => {
-    if (!companyId || !newVendor.trim()) return;
-    try {
-      const result = await saveVendor(companyId, { name: newVendor.trim() });
-      if (result) {
-        addNotification('تمت إضافة المورد بنجاح.', 'success');
-        setNewVendor('');
-        setIsAddingVendor(false);
-        await fetchDropdownData();
-        setExpense((prev) => ({ ...prev, vendor: result.name }));
-      } else {
-        addNotification('حدث خطأ أثناء إضافة المورد.', 'error');
-      }
-    } catch (error: unknown) {
-      addNotification(mapFirestoreError(error), 'error');
-    }
-  };
-
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
     if (!expense.date) newErrors.date = 'الرجاء إدخال التاريخ.';
     if (!expense.category) newErrors.category = 'الرجاء اختيار الفئة.';
-    if (!expense.vendor.trim()) newErrors.vendor = 'الرجاء إدخال المورد.';
     if (expense.amount <= 0) newErrors.amount = 'المبلغ يجب أن يكون أكبر من صفر.';
 
     setErrors(newErrors);
@@ -180,19 +125,6 @@ const ExpenseForm: React.FC = () => {
       </Card>
     );
 
-  const categoryOptions = [
-    ...new Set([
-      ...categories.map((c) => c.name),
-      'إيجار',
-      'مرافق',
-      'مواصلات',
-      'مشتريات',
-      'رواتب',
-      'تسويق',
-      'أخرى',
-    ]),
-  ].map((name) => ({ value: name, label: name }));
-
   return (
     <Card header={<h2 className="text-xl font-bold">{id ? 'تعديل مصروف' : 'مصروف جديد'}</h2>}>
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -225,88 +157,20 @@ const ExpenseForm: React.FC = () => {
               onChange={handleInputChange}
               required
               error={errors.category}
-              options={categoryOptions}
+              options={CATEGORY_OPTIONS}
               placeholder="اختر فئة"
             />
-            {canWrite && !isAddingCategory ? (
-              <button
-                type="button"
-                onClick={() => setIsAddingCategory(true)}
-                className="text-sm text-primary-600 hover:underline mt-2"
-              >
-                إضافة فئة جديدة
-              </button>
-            ) : (
-              canWrite && (
-                <div className="flex gap-2 mt-2">
-                  <Input
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
-                    placeholder="اسم الفئة الجديدة"
-                  />
-                  <Button type="button" onClick={handleAddNewCategory} size="sm">
-                    حفظ
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() => setIsAddingCategory(false)}
-                    variant="secondary"
-                    size="sm"
-                  >
-                    إلغاء
-                  </Button>
-                </div>
-              )
-            )}
           </div>
           <div>
             <Input
-              label="المورد / الجهة"
+              label="الجهة / المورد (اختياري)"
               name="vendor"
-              list="vendors"
               value={expense.vendor}
               onChange={handleInputChange}
-              required
-              error={errors.vendor}
             />
-            <datalist id="vendors">
-              {vendors.map((ven) => (
-                <option key={ven.id} value={ven.name} />
-              ))}
-            </datalist>
-            {canWrite && !isAddingVendor ? (
-              <button
-                type="button"
-                onClick={() => setIsAddingVendor(true)}
-                className="text-sm text-primary-600 hover:underline mt-2"
-              >
-                إضافة مورد جديد
-              </button>
-            ) : (
-              canWrite && (
-                <div className="flex gap-2 mt-2">
-                  <Input
-                    value={newVendor}
-                    onChange={(e) => setNewVendor(e.target.value)}
-                    placeholder="اسم المورد الجديد"
-                  />
-                  <Button type="button" onClick={handleAddNewVendor} size="sm">
-                    حفظ
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() => setIsAddingVendor(false)}
-                    variant="secondary"
-                    size="sm"
-                  >
-                    إلغاء
-                  </Button>
-                </div>
-              )
-            )}
           </div>
           <Textarea
-            label="ملاحظات"
+            label="ملاحظة (اختياري)"
             name="description"
             value={expense.description}
             onChange={handleInputChange}
