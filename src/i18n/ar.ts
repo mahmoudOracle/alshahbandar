@@ -834,6 +834,21 @@
   dailyCollectionViewDetails: 'عرض التفاصيل',
   dailyCollectionDeleteConfirm: 'هل تريد حقاً حذف هذه التحصيلة؟',
   dailyCollectionEmptyState: 'لا توجد تحصيلات حتى الآن. أضف واحدة للبدء.',
+
+  // Export Settings
+  exportSettingsTitle: 'إعدادات التصدير',
+  exportSettingsQuality: 'جودة التصدير',
+  exportSettingsScale: 'مستوى التكبير',
+  exportSettingsFormat: 'صيغة الملف',
+  exportFormatPdf: 'ملف PDF',
+  exportFormatPng: 'صورة PNG',
+  exportFormatJpg: 'صورة JPG',
+  exportQualityLow: 'منخفضة (أسرع)',
+  exportQualityMedium: 'متوسطة (موصى بها)',
+  exportQualityHigh: 'عالية (أبطأ)',
+  exportPreview: 'معاينة',
+  exportDownload: 'تحميل',
+  exportCancel: 'إلغاء',
 };
 
 export type ArKey = keyof typeof ar;

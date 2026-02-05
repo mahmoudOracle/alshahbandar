@@ -1,7 +1,8 @@
 export const exportElementAs = async (
   element: HTMLElement,
   filenameBase: string,
-  format: 'pdf' | 'png'
+  format: 'pdf' | 'png',
+  scale: number = 2
 ) => {
   const [html2canvasMod, jspdfMod] = (await Promise.all([
     import('html2canvas'),
@@ -29,7 +30,7 @@ export const exportElementAs = async (
   let canvas: HTMLCanvasElement;
   try {
     canvas = await (html2canvas as any)(wrapper, {
-      scale: 4,
+      scale: scale,
       backgroundColor: '#ffffff',
       width: EXPORT_WIDTH,
       windowWidth: EXPORT_WIDTH,
