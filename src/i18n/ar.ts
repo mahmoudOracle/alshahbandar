@@ -880,6 +880,25 @@
   settingsAddTax: 'إضافة ضريبة',
   settingsTaxName: 'اسم الضريبة',
   settingsTaxRate: 'النسبة المئوية',
+
+  // Reports Filters & KPIs
+  reportsPeriodToday: 'اليوم',
+  reportsPeriodWeek: 'هذا الأسبوع',
+  reportsPeriodMonth: 'هذا الشهر',
+  reportsPeriod3Months: 'آخر 3 أشهر',
+  reportsPeriodYearly: 'هذه السنة',
+  reportsPeriodCustom: 'فترة مخصصة',
+  reportsKpiTotalRevenue: 'إجمالي الإيرادات',
+  reportsKpiTotalReceived: 'إجمالي المستلم',
+  reportsKpiOutstanding: 'المتأخر',
+  reportsKpiTotalExpenses: 'إجمالي المصروفات',
+  reportsKpiNetProfit: 'الربح الصافي',
+  reportsKpiCustomers: 'عدد العملاء',
+  reportsDrillDown: 'عرض التفاصيل',
+  reportsChartDaily: 'الحركة اليومية',
+  reportsCashFlow: 'حركة السيولة',
+  reportsTopCustomers: 'أفضل العملاء',
+  reportsExpensesByCategory: 'المصروفات حسب الفئة',
 };
 
 export type ArKey = keyof typeof ar;
