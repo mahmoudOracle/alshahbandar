@@ -862,6 +862,24 @@
   stockUnitBox: 'صندوق',
   stockWarning: 'تنبيه: الكمية المطلوبة تتجاوز المخزون المتوفر',
   stockReorderLevel: 'حد إعادة الطلب',
+
+  // Settings Page Sections
+  settingsSectionCompany: 'إعدادات الشركة',
+  settingsSectionUsers: 'المستخدمون والصلاحيات',
+  settingsSectionExpense: 'فئات المصروفات',
+  settingsSectionInvoice: 'إعدادات الفواتير',
+  settingsSectionExport: 'إعدادات التصدير',
+  settingsSectionIntegration: 'التكاملات والمزيد',
+  settingsBusinessName: 'اسم الشركة',
+  settingsLogo: 'شعار الشركة',
+  settingsAddress: 'العنوان',
+  settingsContactInfo: 'معلومات التواصل',
+  settingsCurrency: 'العملة',
+  settingsSlogan: 'الشعار / الجملة',
+  settingsTaxes: 'الضرائب والرسوم',
+  settingsAddTax: 'إضافة ضريبة',
+  settingsTaxName: 'اسم الضريبة',
+  settingsTaxRate: 'النسبة المئوية',
 };
 
 export type ArKey = keyof typeof ar;
