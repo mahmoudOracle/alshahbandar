@@ -122,7 +122,7 @@ export const SearchableSelect: React.FC<Props> = ({
         <ul
           ref={listRef}
           role="listbox"
-          className="absolute z-40 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md max-h-48 overflow-auto shadow-lg"
+          className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md max-h-48 overflow-auto shadow-lg"
         >
           {filtered.map((opt, idx) => (
             <li

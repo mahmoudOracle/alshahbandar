@@ -849,6 +849,19 @@
   exportPreview: 'معاينة',
   exportDownload: 'تحميل',
   exportCancel: 'إلغاء',
+
+  // Stock Management
+  stockInStock: 'متوفر',
+  stockLowStock: 'مخزون منخفض',
+  stockOutOfStock: 'غير متوفر',
+  stockAvailable: 'متوفر',
+  stockInsufficientQuantity: 'الكمية المطلوبة أكثر من المتوفر',
+  stockWillBeLow: 'سيصبح المخزون منخفض بعد هذا الطلب',
+  stockRemaining: 'متبقي',
+  stockUnitPiece: 'قطعة',
+  stockUnitBox: 'صندوق',
+  stockWarning: 'تنبيه: الكمية المطلوبة تتجاوز المخزون المتوفر',
+  stockReorderLevel: 'حد إعادة الطلب',
 };
 
 export type ArKey = keyof typeof ar;
