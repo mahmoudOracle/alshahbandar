@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { EllipsisVerticalIcon } from '@heroicons/react/24/outline';
+import { t } from '../i18n/t';
 
 interface ActionItem {
   id: string;
@@ -53,7 +54,7 @@ export const ActionMenu: React.FC<ActionMenuProps> = ({ items, className = '' })
         onClick={() => setIsOpen(!isOpen)}
         onKeyDown={handleKeyDown}
         className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-        aria-label="خيارات"
+        aria-label={t('commonActionsMenu')}
         aria-expanded={isOpen}
       >
         <EllipsisVerticalIcon className="h-5 w-5" />

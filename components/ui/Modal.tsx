@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import { t } from '../../src/i18n/t';
 
 interface ModalProps {
   isOpen: boolean;
@@ -99,7 +100,7 @@ export const Modal: React.FC<ModalProps> = ({
                   focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800
                   transition-colors duration-200
                 "
-                aria-label="إغلاق"
+                aria-label={t('commonClose')}
                 type="button"
               >
                 <XMarkIcon className="h-5 w-5" />

@@ -29,7 +29,7 @@ export const exportElementAs = async (
   let canvas: HTMLCanvasElement;
   try {
     canvas = await (html2canvas as any)(wrapper, {
-      scale: 3,
+      scale: 4,
       backgroundColor: '#ffffff',
       width: EXPORT_WIDTH,
       windowWidth: EXPORT_WIDTH,
