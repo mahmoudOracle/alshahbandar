@@ -1,26 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { CompanyUser, UserRole, CompanyInvitation } from '../types';
+import React, { useEffect, useState } from 'react';
+import { EnvelopeIcon, PaperAirplaneIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { CompanyInvitation, CompanyUser, UserRole } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  getCompanyUsers,
-  inviteUser,
-  updateUserRole,
-  removeUserFromCompany,
-  getPendingInvitations,
   deleteInvitation,
+  getCompanyUsers,
+  getPendingInvitations,
+  inviteUser,
+  removeUserFromCompany,
+  updateUserRole,
 } from '../services/dataService';
 import { useNotification } from '../contexts/NotificationContext';
-import { TrashIcon, PaperAirplaneIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
-// settings not currently used here
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
+import { t } from '../src/i18n/t';
 
 const roleMap: Record<UserRole, string> = {
-  [UserRole.Owner]: 'مالك',
-  [UserRole.Manager]: 'مدير',
-  [UserRole.Employee]: 'موظف',
-  [UserRole.Viewer]: 'مشاهد',
+  [UserRole.Owner]: t('roleOwner'),
+  [UserRole.Manager]: t('roleManager'),
+  [UserRole.Employee]: t('roleStaff'),
+  [UserRole.Viewer]: t('roleViewer'),
 };
 
 const UserManagement: React.FC = () => {
@@ -38,8 +38,6 @@ const UserManagement: React.FC = () => {
     if (!companyId) return;
     setLoading(true);
     try {
-      // Load users first; invitations are fetched separately because the invitations
-      // callable may fail if Cloud Functions are not deployed or misconfigured.
       const usersData = await getCompanyUsers(companyId);
       setUsers(usersData || []);
 
@@ -48,7 +46,6 @@ const UserManagement: React.FC = () => {
         const invitationsData = await getPendingInvitations(companyId);
         setPendingInvitations(invitationsData || []);
       } catch (invErr) {
-        // Don't fail the whole users panel if invitations callable fails.
         console.warn(
           '[UserManagement] Failed to load invitations, continuing with users only',
           invErr
@@ -56,10 +53,10 @@ const UserManagement: React.FC = () => {
         const msg = invErr instanceof Error ? invErr.message : String(invErr);
         setInvitationsError(msg);
         setPendingInvitations([]);
-        addNotification('تعذر تحميل الدعوات المعلقة. تواصل مع الدعم إذا لزم الأمر.', 'warning');
+        addNotification(t('userMgmtLoadInvitesFailed'), 'warning');
       }
     } catch (error) {
-      addNotification('فشل تحميل بيانات المستخدمين.', 'error');
+      addNotification(t('userMgmtLoadUsersFailed'), 'error');
     } finally {
       setLoading(false);
     }
@@ -80,7 +77,7 @@ const UserManagement: React.FC = () => {
       console.warn('[UserManagement] retryLoadInvitations failed', err);
       const msg = err instanceof Error ? err.message : String(err || '');
       setInvitationsError(msg);
-      addNotification('تعذر تحميل الدعوات المعلقة. تواصل مع الدعم إذا لزم الأمر.', 'warning');
+      addNotification(t('userMgmtLoadInvitesFailed'), 'warning');
     } finally {
       setInvitationsLoading(false);
     }
@@ -93,13 +90,13 @@ const UserManagement: React.FC = () => {
     try {
       const invitedBy = { uid: user.uid, email: user.email };
       await inviteUser(companyId, newUserEmail, newUserRole, invitedBy);
-      addNotification(`تم إنشاء دعوة لـ ${newUserEmail}.`, 'success');
+      addNotification(t('userMgmtInviteCreated', { email: newUserEmail }), 'success');
 
       setNewUserEmail('');
       setNewUserRole(UserRole.Employee);
       fetchData();
     } catch (error) {
-      addNotification('فشل إرسال الدعوة. يرجى المحاولة مرة أخرى.', 'error');
+      addNotification(t('userMgmtInviteFailed'), 'error');
     }
   };
 
@@ -110,55 +107,50 @@ const UserManagement: React.FC = () => {
         enqueued?: boolean;
       };
       if (res && res.enqueued) {
-        addNotification('التغيير سينفذ عند استعادة الاتصال بالإنترنت.', 'info');
+        addNotification(t('userMgmtRoleUpdateQueued'), 'info');
       } else {
-        addNotification('تم تحديث دور المستخدم بنجاح.', 'success');
+        addNotification(t('userMgmtRoleUpdateSuccess'), 'success');
       }
       fetchData();
     } catch (e) {
-      addNotification('فشل تحديث الدور.', 'error');
+      addNotification(t('userMgmtRoleUpdateFailed'), 'error');
     }
   };
 
   const handleRemoveUser = async (userId: string, userEmail: string) => {
-    if (
-      !companyId ||
-      !window.confirm(`هل أنت متأكد من إزالة المستخدم ${userEmail}؟ سيتم إلغاء وصوله فوراً.`)
-    )
-      return;
+    if (!companyId || !window.confirm(t('userMgmtRemoveConfirm', { email: userEmail }))) return;
     try {
       await removeUserFromCompany(companyId, userId);
-      addNotification('تمت إزالة المستخدم بنجاح.', 'success');
+      addNotification(t('userMgmtRemoveSuccess'), 'success');
       fetchData();
     } catch (e) {
-      addNotification('فشلت إزالة المستخدم.', 'error');
+      addNotification(t('userMgmtRemoveFailed'), 'error');
     }
   };
 
   const handleCancelInvitation = async (invitationId: string, email: string) => {
-    if (!companyId || !window.confirm(`هل أنت متأكد من إلغاء الدعوة المرسلة إلى ${email}؟`))
-      return;
+    if (!companyId || !window.confirm(t('userMgmtCancelInviteConfirm', { email }))) return;
     try {
       await deleteInvitation(companyId, invitationId);
-      addNotification('تم إلغاء الدعوة بنجاح.', 'success');
+      addNotification(t('userMgmtCancelInviteSuccess'), 'success');
       fetchData();
     } catch (error) {
-      addNotification('فشل إلغاء الدعوة.', 'error');
+      addNotification(t('userMgmtCancelInviteFailed'), 'error');
     }
   };
 
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mt-6">
       <h3 className="text-xl font-bold mb-6 border-b dark:border-gray-700 pb-4">
-        إدارة المستخدمين
+        {t('userMgmtTitle')}
       </h3>
 
       <form onSubmit={handleInvite} className="mb-8 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-        <h4 className="text-lg font-semibold mb-3">دعوة مستخدم جديد</h4>
+        <h4 className="text-lg font-semibold mb-3">{t('userMgmtInviteTitle')}</h4>
         <div className="flex flex-col sm:flex-row gap-4">
           <Input
             type="email"
-            placeholder="بريد إلكتروني"
+            placeholder={t('userMgmtInviteEmailPlaceholder')}
             value={newUserEmail}
             onChange={(e) => setNewUserEmail(e.target.value)}
             required
@@ -175,14 +167,14 @@ const UserManagement: React.FC = () => {
           />
           <Button type="submit">
             <PaperAirplaneIcon className="h-5 w-5 me-2" />
-            إنشاء دعوة
+            {t('userMgmtInviteButton')}
           </Button>
         </div>
       </form>
 
       <div className="space-y-8">
         <div>
-          <h4 className="text-lg font-semibold mb-3">المستخدمون الحاليون</h4>
+          <h4 className="text-lg font-semibold mb-3">{t('userMgmtCurrentUsers')}</h4>
           <div className="space-y-3">
             {users.map((u) => (
               <div
@@ -190,7 +182,7 @@ const UserManagement: React.FC = () => {
                 className="flex flex-col sm:flex-row items-center justify-between p-3 bg-gray-100 dark:bg-gray-700/50 rounded-md"
               >
                 <span className="font-medium">
-                  {u.email} {u.uid === user?.uid && '(أنت)'}
+                  {u.email} {u.uid === user?.uid && t('userMgmtYou')}
                 </span>
                 <div className="flex items-center gap-4 mt-2 sm:mt-0">
                   {u.role === UserRole.Owner ? (
@@ -212,7 +204,7 @@ const UserManagement: React.FC = () => {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleRemoveUser(u.uid, u.email)}
-                        aria-label="Remove user"
+                        aria-label={t('commonRemove')}
                       >
                         <TrashIcon className="h-5 w-5 text-danger-600" />
                       </Button>
@@ -225,16 +217,14 @@ const UserManagement: React.FC = () => {
         </div>
 
         <div>
-          <h4 className="text-lg font-semibold mb-3">الدعوات المعلقة</h4>
+          <h4 className="text-lg font-semibold mb-3">{t('userMgmtPendingInvites')}</h4>
           {loading || invitationsLoading ? (
-            <p>جاري التحميل...</p>
+            <p>{t('commonLoading')}</p>
           ) : invitationsError ? (
             <div className="text-center py-4">
-              <p className="text-sm text-red-600 mb-2">
-                تعذر تحميل الدعوات المعلقة. حاول مرة أخرى أو تواصل مع الدعم.
-              </p>
+              <p className="text-sm text-red-600 mb-2">{t('userMgmtInvitesLoadError')}</p>
               <div className="flex justify-center">
-                <Button onClick={retryLoadInvitations}>إعادة المحاولة</Button>
+                <Button onClick={retryLoadInvitations}>{t('userMgmtRetry')}</Button>
               </div>
             </div>
           ) : pendingInvitations.length > 0 ? (
@@ -258,7 +248,7 @@ const UserManagement: React.FC = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleCancelInvitation(inv.id, inv.email)}
-                      title="إلغاء الدعوة"
+                      title={t('userMgmtCancelInvite')}
                     >
                       <TrashIcon className="h-5 w-5 text-danger-600" />
                     </Button>
@@ -267,7 +257,7 @@ const UserManagement: React.FC = () => {
               ))}
             </div>
           ) : (
-            <p className="text-center text-gray-500 py-4">لا توجد دعوات معلقة حالياً.</p>
+            <p className="text-center text-gray-500 py-4">{t('userMgmtNoPending')}</p>
           )}
         </div>
       </div>

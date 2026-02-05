@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCustomers, getInvoices, getProducts } from '../services/dataService';
-import { Customer, Invoice, Product } from '../types';
 import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { getCustomers, getInvoices, getProducts } from '../services/dataService';
 import { useAuth } from '../contexts/AuthContext';
+import { Customer, Invoice, Product } from '../types';
+import { t } from '../src/i18n/t';
 
 interface SearchResult {
   customers: Customer[];
@@ -13,7 +14,6 @@ interface SearchResult {
 
 const decodeUnicode = (str: string | undefined | null): string => {
   if (!str) return '';
-  // Handle double-escaped sequences, e.g., \\uXXXX -> \uXXXX
   const normalizedStr = str.replace(/\\u/g, '\\u');
   const decoded = normalizedStr.replace(/\\u([\dA-F]{4})/gi, (_, grp) =>
     String.fromCharCode(parseInt(grp, 16))
@@ -75,7 +75,7 @@ const GlobalSearch: React.FC = () => {
   useEffect(() => {
     const handler = setTimeout(() => {
       performSearch(searchTerm);
-    }, 300); // Debounce
+    }, 300);
     return () => clearTimeout(handler);
   }, [searchTerm, performSearch]);
 
@@ -111,7 +111,7 @@ const GlobalSearch: React.FC = () => {
         <MagnifyingGlassIcon className="absolute start-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
         <input
           type="text"
-          placeholder="بحث شامل..."
+          placeholder={t('globalSearchPlaceholder')}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           onFocus={() => searchTerm && performSearch(searchTerm)}
@@ -129,16 +129,16 @@ const GlobalSearch: React.FC = () => {
 
       {isOpen && (
         <div className="absolute top-full mt-2 w-full bg-white dark:bg-gray-800 rounded-md shadow-lg border dark:border-gray-700 z-50 max-h-96 overflow-y-auto">
-          {loading && <div className="p-4 text-center text-gray-500">جاري البحث...</div>}
+          {loading && <div className="p-4 text-center text-gray-500">{t('globalSearchLoading')}</div>}
           {!loading && !hasResults && searchTerm.length > 1 && (
-            <div className="p-4 text-center text-gray-500">لا توجد نتائج.</div>
+            <div className="p-4 text-center text-gray-500">{t('globalSearchNoResults')}</div>
           )}
           {!loading && hasResults && (
             <div>
               {results.invoices.length > 0 && (
                 <div>
                   <h3 className="text-xs font-semibold uppercase text-gray-400 p-3 border-b dark:border-gray-700">
-                    الفواتير
+                    {t('globalSearchInvoices')}
                   </h3>
                   <ul>
                     {results.invoices.map((i) => (
@@ -157,7 +157,7 @@ const GlobalSearch: React.FC = () => {
               {results.customers.length > 0 && (
                 <div>
                   <h3 className="text-xs font-semibold uppercase text-gray-400 p-3 border-b dark:border-gray-700">
-                    العملاء
+                    {t('globalSearchCustomers')}
                   </h3>
                   <ul>
                     {results.customers.map((c) => (
@@ -175,7 +175,7 @@ const GlobalSearch: React.FC = () => {
               {results.products.length > 0 && (
                 <div>
                   <h3 className="text-xs font-semibold uppercase text-gray-400 p-3 border-b dark:border-gray-700">
-                    المنتجات
+                    {t('globalSearchProducts')}
                   </h3>
                   <ul>
                     {results.products.map((p) => (
@@ -199,4 +199,3 @@ const GlobalSearch: React.FC = () => {
 };
 
 export default GlobalSearch;
-

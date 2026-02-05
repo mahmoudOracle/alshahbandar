@@ -23,14 +23,28 @@ import PrintableReport from '../components/PrintableReport';
 import { exportElementAs } from '../services/exportUtils';
 import { Timestamp } from 'firebase/firestore';
 import { useSettings } from '../contexts/SettingsContext';
+import { t } from '../src/i18n/t';
 
 const PAYMENT_METHODS = [
-  'ÙƒØ§Ø´',
-  'Ù…Ø­ÙØ¸Ø©',
-  'Ø¥Ù†Ø³ØªØ§Ø¨Ø§ÙŠ',
-  'ØªØ­ÙˆÙŠÙ„ Ø¨Ù†ÙƒÙŠ',
-  'Ø£Ø®Ø±Ù‰',
+  'cash',
+  'wallet',
+  'instapay',
+  'bank_transfer',
+  'other',
 ] as const;
+
+const getSupplierPaymentMethodLabel = (method: typeof PAYMENT_METHODS[number] | ''): string => {
+  if (!method) return '';
+  const methodMap: Record<typeof PAYMENT_METHODS[number], string> = {
+    'cash': t('suppliersPaymentCash'),
+    'wallet': t('suppliersPaymentWallet'),
+    'instapay': t('suppliersPaymentInstapay'),
+    'bank_transfer': t('suppliersPaymentBank'),
+    'other': t('suppliersPaymentOther'),
+  };
+  return methodMap[method] || '';
+};
+
 const STATEMENT_PAGE_SIZE = 50;
 const SUPPLIERS_PAGE_SIZE = 50;
 
@@ -127,7 +141,7 @@ const SuppliersPage: React.FC = () => {
     setSaving(true);
     try {
       await saveSupplier(companyId, editing as Record<string, unknown>);
-      addNotification('ØªÙ… Ø­ÙØ¸ Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù…ÙˆØ±Ø¯.', 'success');
+      addNotification(t('suppliersSaveSuccess'), 'success');
       setFormOpen(false);
       setEditing(null);
       await fetchSuppliers();
@@ -142,7 +156,7 @@ const SuppliersPage: React.FC = () => {
     if (!companyId) return;
     try {
       await deleteSupplier(companyId, id);
-      addNotification('ØªÙ… Ø­Ø°Ù Ø§Ù„Ù…ÙˆØ±Ø¯.', 'success');
+      addNotification(t('suppliersDeleteSuccess'), 'success');
       await fetchSuppliers();
     } catch (err: unknown) {
       addNotification(mapFirestoreError(err), 'error');
@@ -247,13 +261,13 @@ const SuppliersPage: React.FC = () => {
     const rows = [
       ...purchaseRows.map((p) => ({
         date: toDateValue(p.createdAt) || new Date(),
-        description: `Ù…Ø´ØªØ±ÙŠØ§Øª${p.invoiceNumber ? ` #${p.invoiceNumber}` : ''}`,
+        description: t('suppliersPurchaseDesc', { invoice: p.invoiceNumber ? ` #${p.invoiceNumber}` : '' }),
         debit: Number(p.totalAmount || p.total || 0),
         credit: 0,
       })),
       ...paymentRows.map((p) => ({
         date: toDateValue(p.date) || new Date(),
-        description: `Ø¯ÙØ¹Ø© (${p.method || 'Ø£Ø®Ø±Ù‰'})${p.notes ? ` - ${p.notes}` : ''}`,
+        description: t('suppliersPaymentDesc', { method: p.method || t('suppliersPaymentOther'), notes: p.notes ? ` - ${p.notes}` : '' }),
         debit: 0,
         credit: Number(p.amount || 0),
       })),
@@ -291,16 +305,16 @@ const SuppliersPage: React.FC = () => {
   const saveSupplierPay = async () => {
     if (!companyId || !selectedSupplier) return;
     if (!paymentMethod) {
-      addNotification('Ø§Ø®ØªØ± Ø·Ø±ÙŠÙ‚Ø© Ø§Ù„Ø¯ÙØ¹.', 'error');
+      addNotification(t('suppliersPaymentSelectMethod'), 'error');
       return;
     }
     if (paymentAmount <= 0) {
-      addNotification('Ø£Ø¯Ø®Ù„ Ù…Ø¨Ù„ØºÙ‹Ø§ ØµØ­ÙŠØ­Ù‹Ø§.', 'error');
+      addNotification(t('suppliersPaymentEnterAmount'), 'error');
       return;
     }
     const parsed = new Date(paymentDate);
     if (Number.isNaN(parsed.getTime())) {
-      addNotification('ØªØ§Ø±ÙŠØ® Ø§Ù„Ø¯ÙØ¹ ØºÙŠØ± ØµØ­ÙŠØ­.', 'error');
+      addNotification(t('suppliersPaymentInvalidDate'), 'error');
       return;
     }
     setPaymentSaving(true);
@@ -324,7 +338,7 @@ const SuppliersPage: React.FC = () => {
       });
       setSupplierPayments(paymentRes.data || []);
       setPaymentCursor(paymentRes.nextCursor ?? null);
-      addNotification('ØªÙ… ØªØ³Ø¬ÙŠÙ„ Ø¯ÙØ¹Ø© Ø§Ù„Ù…ÙˆØ±Ø¯.', 'success');
+      addNotification(t('suppliersPaymentSaved'), 'success');
     } catch (err: unknown) {
       addNotification(mapFirestoreError(err), 'error');
     } finally {
@@ -337,9 +351,9 @@ const SuppliersPage: React.FC = () => {
   return (
     <Card>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold">Ø§Ù„Ù…ÙˆØ±Ø¯ÙˆÙ†</h2>
+        <h2 className="text-xl font-bold">{t('suppliersTitle')}</h2>
         <div className="flex gap-2">
-          <Input placeholder="Ø§Ø¨Ø­Ø«..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input placeholder={t('suppliersSearch')} value={search} onChange={(e) => setSearch(e.target.value)} />
           {canWriteSuppliers && (
             <Button
               onClick={() => {
@@ -347,7 +361,7 @@ const SuppliersPage: React.FC = () => {
                 setFormOpen(true);
               }}
             >
-              Ø¥Ø¶Ø§ÙØ© Ù…ÙˆØ±Ø¯
+              {t('suppliersAdd')}
             </Button>
           )}
         </div>
@@ -355,12 +369,12 @@ const SuppliersPage: React.FC = () => {
 
       {filtered.length === 0 && (
         <EmptyState
-          title="Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ù…ÙˆØ±Ø¯ÙˆÙ† Ø¨Ø¹Ø¯"
-          message="Ø§Ø¨Ø¯Ø£ Ø¨Ø¥Ø¶Ø§ÙØ© Ù…ÙˆØ±Ø¯ Ù„Ø¥Ø¯Ø§Ø±Ø© Ø§Ù„Ù…Ø´ØªØ±ÙŠØ§Øª ÙˆØ§Ù„Ù…Ø¯ÙÙˆØ¹Ø§Øª."
+          title={t('suppliersEmptyTitle')}
+          message={t('suppliersEmptyMessage')}
           action={
             canWriteSuppliers
               ? {
-                  text: 'Ø¥Ø¶Ø§ÙØ© Ù…ÙˆØ±Ø¯',
+                  text: t('suppliersAdd'),
                   onClick: () => {
                     setEditing({});
                     setFormOpen(true);
@@ -376,11 +390,11 @@ const SuppliersPage: React.FC = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-2 text-right">Ø§Ù„Ø§Ø³Ù…</th>
-                <th className="px-4 py-2 text-right">Ø§Ù„Ø´Ø±ÙƒØ©</th>
-                <th className="px-4 py-2 text-right">Ø§Ù„Ù‡Ø§ØªÙ</th>
-                <th className="px-4 py-2 text-right">Ø§Ù„Ø¨Ø±ÙŠØ¯</th>
-                <th className="px-4 py-2 text-right">Ø¥Ø¬Ø±Ø§Ø¡Ø§Øª</th>
+                <th className="px-4 py-2 text-right">{t('customerFormName')}</th>
+                <th className="px-4 py-2 text-right">{t('suppliersCompanyLabel')}</th>
+                <th className="px-4 py-2 text-right">{t('suppliersPhoneLabel')}</th>
+                <th className="px-4 py-2 text-right">{t('suppliersEmailLabel')}</th>
+                <th className="px-4 py-2 text-right">{t('suppliersActionsLabel')}</th>
               </tr>
             </thead>
             <tbody>
@@ -393,7 +407,7 @@ const SuppliersPage: React.FC = () => {
                   <td className="px-4 py-2">
                     <div className="flex gap-2">
                       <Button variant="secondary" onClick={() => openStatement(s)}>
-                        ÙƒØ´Ù Ø­Ø³Ø§Ø¨
+                        {t('suppliersAccountStatement')}
                       </Button>
                       {canWriteSuppliers && (
                         <Button
@@ -403,12 +417,12 @@ const SuppliersPage: React.FC = () => {
                             setFormOpen(true);
                           }}
                         >
-                          ØªØ¹Ø¯ÙŠÙ„
+                          {t('suppliersEdit')}
                         </Button>
                       )}
                       {canWriteSuppliers && (
                         <Button variant="danger" onClick={() => handleDelete(String(s.id))}>
-                          Ø­Ø°Ù
+                          {t('suppliersDelete')}
                         </Button>
                       )}
                     </div>
@@ -422,41 +436,41 @@ const SuppliersPage: React.FC = () => {
       {nextCursor && filtered.length > 0 && (
         <div className="flex justify-center mt-4">
           <Button variant="secondary" onClick={loadMoreSuppliers} loading={loadingMore}>
-            تحميل المزيد
+            {t('suppliersLoadMore')}
           </Button>
         </div>
       )}
       {formOpen && (
         <form onSubmit={handleSave} className="mt-4 space-y-3">
           <Input
-            placeholder="Ø§Ø³Ù… Ø§Ù„Ù…ÙˆØ±Ø¯"
+            placeholder={t('suppliersNamePlaceholder')}
             value={editing?.supplierName || ''}
             onChange={(e) => setEditing({ ...editing, supplierName: e.target.value })}
             required
           />
           <Input
-            placeholder="Ø§Ø³Ù… Ø§Ù„Ø´Ø±ÙƒØ©"
+            placeholder={t('suppliersCompanyPlaceholder')}
             value={editing?.companyName || ''}
             onChange={(e) => setEditing({ ...editing, companyName: e.target.value })}
           />
           <Input
-            placeholder="Ø±Ù‚Ù… Ø§Ù„Ù‡Ø§ØªÙ"
+            placeholder={t('suppliersPhonePlaceholder')}
             value={editing?.phone || ''}
             onChange={(e) => setEditing({ ...editing, phone: e.target.value })}
           />
           <Input
-            placeholder="Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ"
+            placeholder={t('suppliersEmailPlaceholder')}
             value={editing?.email || ''}
             onChange={(e) => setEditing({ ...editing, email: e.target.value })}
           />
           <Input
-            placeholder="Ø§Ù„Ø¹Ù†ÙˆØ§Ù†"
+            placeholder={t('suppliersAddressPlaceholder')}
             value={editing?.address || ''}
             onChange={(e) => setEditing({ ...editing, address: e.target.value })}
           />
           <div className="flex gap-2">
             <Button type="submit" disabled={saving}>
-              {saving ? 'Ø¬Ø§Ø±ÙŠ Ø§Ù„Ø­ÙØ¸...' : 'Ø­ÙØ¸'}
+              {saving ? t('suppliersSaving') : t('commonSave')}
             </Button>
             <Button
               variant="secondary"
@@ -465,7 +479,7 @@ const SuppliersPage: React.FC = () => {
                 setEditing(null);
               }}
             >
-              Ø¥Ù„ØºØ§Ø¡
+              {t('commonCancel')}
             </Button>
           </div>
         </form>
@@ -474,34 +488,34 @@ const SuppliersPage: React.FC = () => {
       <Modal
         isOpen={statementOpen}
         onClose={() => setStatementOpen(false)}
-        title={`ÙƒØ´Ù Ø­Ø³Ø§Ø¨ Ø§Ù„Ù…ÙˆØ±Ø¯ - ${selectedSupplier?.supplierName || ''}`}
+        title={t('suppliersStatementTitle', { name: selectedSupplier?.supplierName || '' })}
       >
         {selectedSupplier && (
           <div className="space-y-4">
             {statementLoading && (
               <div className="text-center text-sm text-gray-500">
-                Ø¬Ø§Ø±ÙŠ ØªØ­Ù…ÙŠÙ„ ÙƒØ´Ù Ø§Ù„Ù…ÙˆØ±Ø¯...
+                {t('suppliersStatementLoading')}
               </div>
             )}
             <div className="flex flex-col md:flex-row gap-3">
               <DateInput
-                label="Ù…Ù†"
+                label={t('suppliersStatementFrom')}
                 name="supplierStart"
                 value={dateRange.start}
                 onChange={(e) => setDateRange((prev) => ({ ...prev, start: e.target.value }))}
               />
               <DateInput
-                label="Ø¥Ù„Ù‰"
+                label={t('suppliersStatementTo')}
                 name="supplierEnd"
                 value={dateRange.end}
                 onChange={(e) => setDateRange((prev) => ({ ...prev, end: e.target.value }))}
               />
               <div className="flex gap-2 items-end">
                 <Button variant="secondary" onClick={() => exportStatement('pdf')}>
-                  ØªØµØ¯ÙŠØ± PDF
+                  {t('suppliersStatementPdf')}
                 </Button>
                 <Button variant="secondary" onClick={() => exportStatement('png')}>
-                  ØªØµØ¯ÙŠØ± PNG
+                  {t('suppliersStatementPng')}
                 </Button>
               </div>
             </div>
@@ -514,7 +528,7 @@ const SuppliersPage: React.FC = () => {
                   checked={!includeOpeningBalance}
                   onChange={() => setIncludeOpeningBalance(false)}
                 />
-                Ø­Ø±ÙƒØ§Øª Ø§Ù„ÙØªØ±Ø© ÙÙ‚Ø·
+                {t('suppliersStatementOnlyPeriod')}
               </label>
               <label className="flex items-center gap-2">
                 <input
@@ -523,51 +537,51 @@ const SuppliersPage: React.FC = () => {
                   checked={includeOpeningBalance}
                   onChange={() => setIncludeOpeningBalance(true)}
                 />
-                Ù…Ø¹ Ø±ØµÙŠØ¯ Ø§ÙØªØªØ§Ø­ÙŠ
+                {t('suppliersStatementWithOpening')}
               </label>
               {includeOpeningBalance && (
                 <span className="text-gray-600">
-                  Ø§Ù„Ø±ØµÙŠØ¯ Ø§Ù„Ø§ÙØªØªØ§Ø­ÙŠ: {openingBalance.toFixed(2)} {settings?.currency || ''}
+                  {t('suppliersOpeningBalance')}: {openingBalance.toFixed(2)} {settings?.currency || ''}
                 </span>
               )}
             </div>
 
             {canManagePayments && (
               <div className="border border-gray-200 rounded p-3">
-                <h4 className="font-semibold mb-2">ØªØ³Ø¬ÙŠÙ„ Ø¯ÙØ¹Ø© Ù„Ù„Ù…ÙˆØ±Ø¯</h4>
+                <h4 className="font-semibold mb-2">{t('suppliersPaymentTitle')}</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Input
-                    label="Ø§Ù„Ù…Ø¨Ù„Øº"
+                    label={t('suppliersPaymentAmount')}
                     type="number"
                     value={paymentAmount}
                     onChange={(e) => setPaymentAmount(Number(e.target.value))}
                   />
                   <DateInput
-                    label="ØªØ§Ø±ÙŠØ® Ø§Ù„Ø¯ÙØ¹"
+                    label={t('suppliersPaymentDate')}
                     name="supplierPayDate"
                     value={paymentDate}
                     onChange={(e) => setPaymentDate(e.target.value)}
                   />
                   <Select
-                    label="Ø·Ø±ÙŠÙ‚Ø© Ø§Ù„Ø¯ÙØ¹"
+                    label={t('suppliersPaymentMethod')}
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value as (typeof PAYMENT_METHODS)[number])}
-                    options={PAYMENT_METHODS.map((m) => ({ value: m, label: m }))}
+                    options={PAYMENT_METHODS.map((m) => ({ value: m, label: getSupplierPaymentMethodLabel(m) }))}
                   />
                   <Input
-                    label="Ù…Ø±Ø¬Ø¹ Ø§Ù„ØªØ­ÙˆÙŠÙ„ (Ø§Ø®ØªÙŠØ§Ø±ÙŠ)"
+                    label={t('suppliersPaymentRef')}
                     value={paymentReference}
                     onChange={(e) => setPaymentReference(e.target.value)}
                   />
                   <Input
-                    label="Ù…Ù„Ø§Ø­Ø¸Ø§Øª (Ø§Ø®ØªÙŠØ§Ø±ÙŠ)"
+                    label={t('suppliersPaymentNotes')}
                     value={paymentNotes}
                     onChange={(e) => setPaymentNotes(e.target.value)}
                   />
                 </div>
                 <div className="flex justify-end mt-3">
                   <Button onClick={saveSupplierPay} loading={paymentSaving}>
-                    Ø­ÙØ¸ Ø§Ù„Ø¯ÙØ¹Ø©
+                    {t('suppliersPaymentSave')}
                   </Button>
                 </div>
               </div>
@@ -575,25 +589,25 @@ const SuppliersPage: React.FC = () => {
 
             {!canManagePayments && (
               <div className="text-sm text-warning-700 bg-warning-50 border border-warning-200 rounded p-3">
-                Ù„Ø§ ØªÙ…Ù„Ùƒ ØµÙ„Ø§Ø­ÙŠØ© ØªØ³Ø¬ÙŠÙ„ Ø¯ÙØ¹Ø§Øª Ø§Ù„Ù…ÙˆØ±Ø¯ÙŠÙ†.
+                {t('suppliersNoPermissionPayments')}
               </div>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-center">
               <div className="border border-gray-200 rounded-lg p-3">
-                <div className="text-xs text-gray-500">Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…Ø´ØªØ±ÙŠØ§Øª</div>
+                <div className="text-xs text-gray-500">{t('suppliersTotalPurchases')}</div>
                 <div className="text-lg font-semibold">
                   {statement.totalPurchases.toFixed(2)} {settings?.currency || ''}
                 </div>
               </div>
               <div className="border border-gray-200 rounded-lg p-3">
-                <div className="text-xs text-gray-500">Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…Ø¯ÙÙˆØ¹</div>
+                <div className="text-xs text-gray-500">{t('suppliersTotalPaid')}</div>
                 <div className="text-lg font-semibold">
                   {statement.totalPaid.toFixed(2)} {settings?.currency || ''}
                 </div>
               </div>
               <div className="border border-gray-200 rounded-lg p-3">
-                <div className="text-xs text-gray-500">Ø§Ù„Ù…ØªØ¨Ù‚ÙŠ</div>
+                <div className="text-xs text-gray-500">{t('suppliersRemaining')}</div>
                 <div className="text-lg font-semibold">
                   {statement.remaining.toFixed(2)} {settings?.currency || ''}
                 </div>
@@ -602,34 +616,34 @@ const SuppliersPage: React.FC = () => {
 
             <div ref={printableRef}>
               <PrintableReport
-                reportTitle="ÙƒØ´Ù Ø­Ø³Ø§Ø¨ Ù…ÙˆØ±Ø¯"
-                companyName={settings?.businessName || 'Ø§Ù„Ø´Ø±ÙƒØ©'}
+                reportTitle={t('suppliersAccountStatement')}
+                companyName={settings?.businessName || t('appName')}
                 logoUrl={settings?.logo}
                 address={settings?.address}
                 phone={settings?.contactInfo}
-                dateRangeLabel={`Ø§Ù„ÙØªØ±Ø© Ù…Ù† ${dateRange.start} Ø¥Ù„Ù‰ ${dateRange.end}`}
+                dateRangeLabel={`${t('reportsFrom')} ${dateRange.start} ${t('reportsTo')} ${dateRange.end}`}
                 summaryItems={[
                   {
-                    label: 'Ø§Ù„Ø±ØµÙŠØ¯ Ø§Ù„Ø§ÙØªØªØ§Ø­ÙŠ',
+                    label: t('suppliersOpeningBalance'),
                     value: `${openingBalance.toFixed(2)} ${settings?.currency || ''}`,
                   },
                   {
-                    label: 'Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…Ø´ØªØ±ÙŠØ§Øª',
+                    label: t('suppliersTotalPurchases'),
                     value: `${statement.totalPurchases.toFixed(2)} ${settings?.currency || ''}`,
                   },
                   {
-                    label: 'Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ù…Ø¯ÙÙˆØ¹',
+                    label: t('suppliersTotalPaid'),
                     value: `${statement.totalPaid.toFixed(2)} ${settings?.currency || ''}`,
                   },
                   {
-                    label: 'Ø§Ù„Ù…ØªØ¨Ù‚ÙŠ',
+                    label: t('suppliersRemaining'),
                     value: `${statement.remaining.toFixed(2)} ${settings?.currency || ''}`,
                   },
                 ]}
               >
                 {statement.rows.length === 0 ? (
                   <p className="text-gray-600 text-center py-6">
-                    Ù„Ø§ ØªÙˆØ¬Ø¯ Ø­Ø±ÙƒØ§Øª Ø®Ù„Ø§Ù„ Ù‡Ø°Ù‡ Ø§Ù„ÙØªØ±Ø©.
+                    {t('suppliersNoActivity')}
                   </p>
                 ) : (
                   <div className="overflow-x-auto">
@@ -637,19 +651,19 @@ const SuppliersPage: React.FC = () => {
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-4 py-2 text-right text-sm font-semibold text-gray-600">
-                            Ø§Ù„ØªØ§Ø±ÙŠØ®
+                            {t('suppliersTableDate')}
                           </th>
                           <th className="px-4 py-2 text-right text-sm font-semibold text-gray-600">
-                            Ø§Ù„Ø¨ÙŠØ§Ù†
+                            {t('suppliersTableDesc')}
                           </th>
                           <th className="px-4 py-2 text-right text-sm font-semibold text-gray-600">
-                            Ù…Ø¯ÙŠÙ†
+                            {t('suppliersTableDebit')}
                           </th>
                           <th className="px-4 py-2 text-right text-sm font-semibold text-gray-600">
-                            Ø¯Ø§Ø¦Ù†
+                            {t('suppliersTableCredit')}
                           </th>
                           <th className="px-4 py-2 text-right text-sm font-semibold text-gray-600">
-                            Ø§Ù„Ø±ØµÙŠØ¯
+                            {t('suppliersTableBalance')}
                           </th>
                         </tr>
                       </thead>
@@ -681,7 +695,7 @@ const SuppliersPage: React.FC = () => {
                     onClick={loadMoreStatement}
                     loading={statementLoadingMore}
                   >
-                    ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ù…Ø²ÙŠØ¯
+                    {t('suppliersLoadMore')}
                   </Button>
                 </div>
               )}

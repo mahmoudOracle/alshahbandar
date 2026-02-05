@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { t } from '../src/i18n/t';
 import { registerWithEmail } from '../services/authService';
 import { createCompanyWithOwner, createOwnerCompanyCallable } from '../services/firestoreService';
 import { FirebaseError } from 'firebase/app';
@@ -98,11 +99,11 @@ const RegisterPage: React.FC = () => {
           const callablePayload = callableResponse as unknown as { companyId?: string } | null;
           if (callablePayload && callablePayload.companyId) {
             console.log('🟢 [Register] Company created via callable', callablePayload.companyId);
-            addNotification('تم إنشاء الحساب والشركة بنجاح! بانتظار موافقة المسؤول.', 'success');
+            addNotification(t('accountCreatedSuccess'), 'success');
           } else {
             console.log('🟡 [Register] createOwnerCompanyCallable returned', callablePayload);
             addNotification(
-              'تم إنشاء الحساب لكن حدث تحذير أثناء إنشاء الشركة؛ تواصل مع الدعم.',
+              t('accountCreatedWarning'),
               'warning'
             );
           }
@@ -141,14 +142,14 @@ const RegisterPage: React.FC = () => {
                 '🟢 [Register] Company created successfully (client write)',
                 payload.companyId
               );
-              addNotification('تم إنشاء الحساب والشركة بنجاح! بانتظار موافقة المسؤول.', 'success');
+              addNotification(t('accountCreatedSuccess'), 'success');
             } else {
               console.warn(
                 '🟡 [Register] createCompanyWithOwner did not return companyId',
                 payload
               );
               addNotification(
-                'تم إنشاء الحساب لكن حدث تحذير أثناء إنشاء الشركة؛ تواصل مع الدعم.',
+                t('accountCreatedWarning'),
                 'warning'
               );
             }
@@ -161,18 +162,18 @@ const RegisterPage: React.FC = () => {
             // Provide actionable message for permission errors
             if ((createErr as { code?: string })?.code === 'permission-denied') {
               addNotification(
-                'لا يمكن إنشاء بيانات الشركة بسبب قيود قواعد الأمان. تأكد من إعداد قواعد Firestore أو قم بنشر الوظائف السحابية المطلوبة.',
+                t('companyCreationSecurityError'),
                 'error'
               );
             } else {
-              addNotification('فشل إنشاء بيانات الشركة. حاول مرة أخرى أو تواصل مع الدعم.', 'error');
+              addNotification(t('companyCreationFailed'), 'error');
             }
             // Do not throw to avoid leaving user in unknown state; user account exists regardless
           }
         }
       } catch (err: unknown) {
         console.error('🔴 [Register] Unexpected error during company creation flow', err);
-        addNotification('حدث خطأ غير متوقع أثناء إنشاء الشركة. تواصل مع الدعم.', 'error');
+        addNotification(t('companyCreationUnexpectedError'), 'error');
       }
     } catch (error: unknown) {
       let message = 'فشل إنشاء الحساب. حدث خطأ غير متوقع.';
@@ -198,7 +199,7 @@ const RegisterPage: React.FC = () => {
             message = 'صيغة البريد الإلكتروني غير صحيحة. برجاء التحقق من البريد.';
             break;
           case 'auth/operation-not-allowed':
-            message = 'تسجيل المستخدمين غير مُفعل في إعدادات Firebase Auth.';
+            message = t('registrationDisabled');
             break;
           case 'auth/network-request-failed':
             message = 'فشل الاتصال بالشبكة. برجاء التأكد من الاتصال وحاول مرة أخرى.';

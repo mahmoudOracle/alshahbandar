@@ -8,6 +8,7 @@ interface StatCardProps {
   trend?: string;
   trendDirection?: 'up' | 'down';
   className?: string;
+  highlighted?: boolean;
 }
 
 export const StatCard: React.FC<StatCardProps> = ({
@@ -17,28 +18,23 @@ export const StatCard: React.FC<StatCardProps> = ({
   trend,
   trendDirection,
   className = '',
+  highlighted = false,
 }) => {
   return (
-    <div
-      className={`bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md flex items-center gap-4 ${className}`}
-    >
-      <div className="bg-primary-100 dark:bg-primary-900/50 p-3 rounded-full flex-shrink-0">
-        {icon}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 truncate">{title}</p>
-        <div className="flex items-baseline gap-2">
-          <p className="text-2xl font-bold text-gray-900 dark:text-white truncate">{value}</p>
+    <div className={`stat-card ${highlighted ? 'is-highlighted' : ''} ${className}`}>
+      <div className="stat-card-icon">{icon}</div>
+      <div className="stat-card-body">
+        <p className="stat-card-title">{title}</p>
+        <div className="stat-card-value-row">
+          <p className="stat-card-value">{value}</p>
           {trend && (
             <span
-              className={`flex items-center text-xs font-semibold whitespace-nowrap ${
-                trendDirection === 'up' ? 'text-success-600' : 'text-danger-600'
-              }`}
+              className={`stat-card-trend ${trendDirection === 'up' ? 'is-up' : 'is-down'}`}
             >
               {trendDirection === 'up' ? (
-                <ArrowUpIcon className="h-3 w-3 me-0.5" />
+                <ArrowUpIcon className="h-3 w-3" />
               ) : (
-                <ArrowDownIcon className="h-3 w-3 me-0.5" />
+                <ArrowDownIcon className="h-3 w-3" />
               )}
               {trend}
             </span>

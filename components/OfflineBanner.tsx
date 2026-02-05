@@ -1,6 +1,7 @@
 import React from 'react';
-import { useOfflineStatus } from '../hooks/useOfflineStatus';
 import { WifiIcon } from '@heroicons/react/24/outline';
+import { useOfflineStatus } from '../hooks/useOfflineStatus';
+import { t } from '../src/i18n/t';
 
 const OfflineBanner: React.FC = () => {
   const isOffline = useOfflineStatus();
@@ -15,7 +16,7 @@ const OfflineBanner: React.FC = () => {
       role="alert"
     >
       <WifiIcon className="h-4 w-4" />
-      <span>أنت الآن غير متصل بالإنترنت، قد لا تظهر التحديثات الأخيرة.</span>
+      <span>{t('offlineBanner')}</span>
     </div>
   );
 };

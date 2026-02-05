@@ -1,14 +1,17 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getInvoices, getExpenses } from '../services/dataService';
 import { Expense, Invoice } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
-import { Card } from '../components/ui/Card';
-import { StatCard } from '../components/ui/StatCard';
+import { Card } from '../src/ui/Card';
+import { StatCard } from '../src/ui/StatCard';
 import { CardSkeleton } from '../components/ui/CardSkeleton';
+import { SectionHeader } from '../src/ui/SectionHeader';
+import { ListRow } from '../src/ui/ListRow';
 import { BanknotesIcon, CurrencyDollarIcon, ChartBarIcon } from '@heroicons/react/24/outline';
 import { getErrorMessage } from '../src/utils/errorMessage';
+import { t } from '../src/i18n/t';
 
 const DAILY_LIMIT = 500;
 
@@ -143,7 +146,7 @@ const Dashboard: React.FC = () => {
       setRecentInvoices(recentInvoicesRes.data || []);
       setRecentExpenses(recentExpensesRes.data || []);
     } catch (err) {
-      setError(getErrorMessage(err, 'تعذر تحميل ملخص اليوم. حاول مرة أخرى.'));
+      setError(getErrorMessage(err, t('dashboardLoadError')));
       setTodaySales(0);
       setTodayExpenses(0);
       setYesterdaySales(0);
@@ -168,16 +171,23 @@ const Dashboard: React.FC = () => {
       ? ((profitToday - profitYesterday) / Math.abs(profitYesterday)) * 100
       : null;
 
-  const formatMoney = useCallback(
-    (value: number) => `${value.toFixed(2)} ${currency}`.trim(),
+  const formatter = useMemo(
+    () =>
+      new Intl.NumberFormat('ar-EG', {
+        style: 'currency',
+        currency: currency || 'EGP',
+        maximumFractionDigits: 2,
+      }),
     [currency]
   );
+
+  const formatMoney = useCallback((value: number) => formatter.format(value), [formatter]);
 
   const recentInvoicesView = useMemo(
     () =>
       recentInvoices.map((inv) => ({
         id: inv.id,
-        title: inv.customerName || 'عميل',
+        title: inv.customerName || t('commonCustomer'),
         date: toDateObject(inv.date)?.toLocaleDateString('ar-EG') || '-',
         total: formatMoney(getInvoiceTotal(inv)),
       })),
@@ -188,7 +198,7 @@ const Dashboard: React.FC = () => {
     () =>
       recentExpenses.map((exp) => ({
         id: exp.id,
-        title: exp.category || 'مصروف',
+        title: exp.category || t('commonExpense'),
         date: toDateObject(exp.date)?.toLocaleDateString('ar-EG') || '-',
         total: formatMoney(exp.amount || 0),
       })),
@@ -197,127 +207,167 @@ const Dashboard: React.FC = () => {
 
   if (loading || settingsLoading) {
     return (
-      <div className="space-y-6">
-        <CardSkeleton />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="page-container">
+        <div className="space-y-6">
           <CardSkeleton />
-          <CardSkeleton />
-          <CardSkeleton />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <Card header={<h2 className="text-xl font-bold">ملخص اليوم</h2>}>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          الحساب بناءً على البيانات المسجلة داخل التطبيق
-        </p>
-      </Card>
+    <div className="page-container lg">
+      {/* Page Header */}
+      <div className="page-section">
+        <SectionHeader
+          title={t('dashboardTitle')}
+          subtitle={t('dashboardHelper')}
+          action={
+            <div className="flex gap-2 flex-wrap">
+              {canWriteInvoices && (
+                <Link to="/app/invoices/new" className="ui-button primary">
+                  {t('dashboardNewInvoice')}
+                </Link>
+              )}
+              {canWriteExpenses && (
+                <Link to="/app/expenses/new" className="ui-button secondary">
+                  {t('dashboardNewExpense')}
+                </Link>
+              )}
+            </div>
+          }
+        />
+      </div>
 
+      {/* Error State */}
       {error && (
-        <Card>
-          <p className="text-sm text-danger-600">{error}</p>
-        </Card>
+        <div className="page-section">
+          <Card>
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          </Card>
+        </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard
-          title="المبيعات اليوم"
-          value={formatMoney(todaySales)}
-          icon={<BanknotesIcon className="h-6 w-6 text-primary-600" />}
-        />
-        <StatCard
-          title="المصروفات اليوم"
-          value={formatMoney(todayExpenses)}
-          icon={<CurrencyDollarIcon className="h-6 w-6 text-primary-600" />}
-        />
-        <StatCard
-          title="صافي الربح اليوم"
-          value={formatMoney(profitToday)}
-          icon={<ChartBarIcon className="h-6 w-6 text-primary-600" />}
-          trend={deltaPercent !== null ? `${Math.abs(deltaPercent).toFixed(1)}%` : undefined}
-          trendDirection={deltaPercent !== null && deltaPercent >= 0 ? 'up' : 'down'}
-        />
+      {/* Summary Stats */}
+      <div className="page-section">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <StatCard
+            title={t('dashboardSalesToday')}
+            value={formatMoney(todaySales)}
+            icon={<BanknotesIcon className="h-6 w-6 text-blue-600" />}
+          />
+          <StatCard
+            title={t('dashboardExpensesToday')}
+            value={formatMoney(todayExpenses)}
+            icon={<CurrencyDollarIcon className="h-6 w-6 text-orange-600" />}
+          />
+          <StatCard
+            title={t('dashboardProfitToday')}
+            value={formatMoney(profitToday)}
+            icon={<ChartBarIcon className="h-6 w-6 text-green-600" />}
+            trend={deltaPercent !== null ? `${Math.abs(deltaPercent).toFixed(1)}%` : undefined}
+            trendDirection={deltaPercent !== null && deltaPercent >= 0 ? 'up' : 'down'}
+          />
+        </div>
       </div>
 
+      {/* Performance Text */}
       {deltaPercent !== null && (
-        <p className="text-sm text-gray-600 dark:text-gray-300">
-          اليوم {deltaPercent >= 0 ? 'أفضل' : 'أسوأ'} من أمس بنسبة {Math.abs(deltaPercent).toFixed(1)}%
-        </p>
+        <div className="page-section">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {deltaPercent >= 0
+              ? t('dashboardBetter', { percent: Math.abs(deltaPercent).toFixed(1) })
+              : t('dashboardWorse', { percent: Math.abs(deltaPercent).toFixed(1) })}
+          </p>
+        </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {canWriteInvoices && (
-          <Link
-            to="/app/invoices/new"
-            className="inline-flex items-center justify-center rounded-md bg-primary-600 text-white px-4 py-3 text-base font-semibold hover:bg-primary-700"
-          >
-            فاتورة جديدة
-          </Link>
-        )}
-        {canWriteExpenses && (
-          <Link
-            to="/app/expenses/new"
-            className="inline-flex items-center justify-center rounded-md bg-success-600 text-white px-4 py-3 text-base font-semibold hover:bg-success-700"
-          >
-            مصروف جديد
-          </Link>
-        )}
+      {/* Recent Invoices */}
+      <div className="page-section">
+        <Card>
+          <div className="card-header">
+            <div className="flex justify-between items-center">
+              <h3>{t('dashboardLatestInvoices')}</h3>
+              <Link to="/app/invoices" className="text-primary-600 hover:text-primary-700 text-sm font-semibold">
+                {t('commonViewAll')} →
+              </Link>
+            </div>
+          </div>
+
+          {recentInvoicesView.length === 0 ? (
+            <div className="card-body">
+              <p className="text-sm text-gray-600">{t('dashboardNoInvoices')}</p>
+              {canWriteInvoices && (
+                <div className="mt-4">
+                  <Link to="/app/invoices/new" className="ui-button primary">
+                    {t('dashboardAddInvoice')}
+                  </Link>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="list-container">
+              {recentInvoicesView.map((inv) => (
+                <Link key={inv.id} to={`/app/invoices/${inv.id}`} className="list-row">
+                  <div className="list-row-left">
+                    <div className="list-row-title">{inv.title}</div>
+                    <div className="list-row-subtitle">{inv.date}</div>
+                  </div>
+                  <div className="list-row-right">
+                    <div className="list-row-amount">{inv.total}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Card>
       </div>
 
-      <Card header={<h3 className="text-lg font-bold">آخر الفواتير</h3>}>
-        {recentInvoicesView.length === 0 ? (
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            لا توجد مبيعات مسجلة اليوم
-          </p>
-        ) : (
-          <div className="divide-y divide-gray-100 dark:divide-gray-700">
-            {recentInvoicesView.map((inv) => (
-              <Link
-                key={inv.id}
-                to={`/app/invoices/${inv.id}`}
-                className="flex items-center justify-between py-3"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-gray-900 dark:text-white truncate">{inv.title}</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{inv.date}</p>
-                </div>
-                <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                  {inv.total}
-                </div>
+      {/* Recent Expenses */}
+      <div className="page-section">
+        <Card>
+          <div className="card-header">
+            <div className="flex justify-between items-center">
+              <h3>{t('dashboardLatestExpenses')}</h3>
+              <Link to="/app/expenses" className="text-primary-600 hover:text-primary-700 text-sm font-semibold">
+                {t('commonViewAll')} →
               </Link>
-            ))}
+            </div>
           </div>
-        )}
-      </Card>
 
-      <Card header={<h3 className="text-lg font-bold">آخر المصروفات</h3>}>
-        {recentExpensesView.length === 0 ? (
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            لا توجد مصروفات مسجلة اليوم
-          </p>
-        ) : (
-          <div className="divide-y divide-gray-100 dark:divide-gray-700">
-            {recentExpensesView.map((exp) => (
-              <Link
-                key={exp.id}
-                to={`/app/expenses/edit/${exp.id}`}
-                className="flex items-center justify-between py-3"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-gray-900 dark:text-white truncate">{exp.title}</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{exp.date}</p>
+          {recentExpensesView.length === 0 ? (
+            <div className="card-body">
+              <p className="text-sm text-gray-600">{t('dashboardNoExpenses')}</p>
+              {canWriteExpenses && (
+                <div className="mt-4">
+                  <Link to="/app/expenses/new" className="ui-button secondary">
+                    {t('dashboardAddExpense')}
+                  </Link>
                 </div>
-                <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                  {exp.total}
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </Card>
+              )}
+            </div>
+          ) : (
+            <div className="list-container">
+              {recentExpensesView.map((exp) => (
+                <Link key={exp.id} to={`/app/expenses/edit/${exp.id}`} className="list-row">
+                  <div className="list-row-left">
+                    <div className="list-row-title">{exp.title}</div>
+                    <div className="list-row-subtitle">{exp.date}</div>
+                  </div>
+                  <div className="list-row-right">
+                    <div className="list-row-amount">{exp.total}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
     </div>
   );
 };

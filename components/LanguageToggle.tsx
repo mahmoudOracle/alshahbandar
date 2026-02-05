@@ -1,7 +1,7 @@
 import React from 'react';
 import { useSettings } from '../contexts/SettingsContext';
 import { Button } from './ui/Button';
-// i18n helper imported where needed; not required here
+import { t } from '../src/i18n/t';
 
 const LanguageToggle: React.FC = () => {
   const { settings, updateSettings } = useSettings();
@@ -24,9 +24,9 @@ const LanguageToggle: React.FC = () => {
         variant={lang === 'ar' ? 'primary' : 'ghost'}
         size="sm"
         onClick={() => setLang('ar')}
-        aria-label="???????"
+        aria-label={t('languageArabic')}
       >
-        ???????
+        {t('languageArabic')}
       </Button>
       <Button
         variant={lang === 'en' ? 'primary' : 'ghost'}

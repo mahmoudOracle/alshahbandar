@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+﻿import React, { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { getProductById, saveProduct } from '../services/dataService';
 import { Product } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -10,33 +10,7 @@ import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
 import { FormSkeleton } from '../components/ui/FormSkeleton';
 import { mapFirestoreError } from '../services/firebaseErrors';
-
-const ViewMode: React.FC<{ product: Omit<Product, 'id'> }> = ({ product }) => (
-  <div className="space-y-4">
-    <div>
-      <p className="block text-sm font-medium text-gray-500 dark:text-gray-400">اسم المنتج</p>
-      <p className="mt-1 text-lg">{product.name}</p>
-    </div>
-    <div>
-      <p className="block text-sm font-medium text-gray-500 dark:text-gray-400">الوصف</p>
-      <p className="mt-1 text-base whitespace-pre-wrap">{product.description}</p>
-    </div>
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <div>
-        <p className="block text-sm font-medium text-gray-500 dark:text-gray-400">السعر</p>
-        <p className="mt-1 text-lg">{product.price}</p>
-      </div>
-      <div>
-        <p className="block text-sm font-medium text-gray-500 dark:text-gray-400">المخزون</p>
-        <p className="mt-1 text-lg">{product.stock}</p>
-      </div>
-      <div>
-        <p className="block text-sm font-medium text-gray-500 dark:text-gray-400">حد إعادة الطلب</p>
-        <p className="mt-1 text-lg">{product.reorderLevel ?? 0}</p>
-      </div>
-    </div>
-  </div>
-);
+import { t } from '../src/i18n/t';
 
 const ProductForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -44,22 +18,27 @@ const ProductForm: React.FC = () => {
   const { addNotification } = useNotification();
   const { companyId } = useAuth();
   const canWrite = useCanWrite('products');
+
   const [product, setProduct] = useState<Omit<Product, 'id'>>({
     name: '',
     description: '',
     price: 0,
-    stock: 0,
-    reorderLevel: 0,
+    cost: 0,
+    sku: '',
+    quantity: 0,
+    unit: t('unitPiece'),
+    isActive: true,
   });
-  const [loading, setLoading] = useState(true);
+
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!canWrite && id) {
-      // allow viewing
+      // Allow viewing
     } else if (!canWrite) {
-      addNotification('لا تملك صلاحية إضافة المنتجات.', 'error');
+      addNotification(t('productNoPermission'), 'error');
       navigate('/app/products');
     }
   }, [canWrite, id, navigate, addNotification]);
@@ -69,16 +48,14 @@ const ProductForm: React.FC = () => {
       setLoading(true);
       getProductById(companyId, id)
         .then((productData) => {
-          if (productData) setProduct(productData);
-          else addNotification('لم يتم العثور على المنتج.', 'error');
+          if (productData) setProduct(productData as Omit<Product, 'id'>);
+          else addNotification(t('productNotFound'), 'error');
           setLoading(false);
         })
-        .catch((error: unknown) => {
+        .catch((error) => {
           addNotification(mapFirestoreError(error), 'error');
           setLoading(false);
         });
-    } else {
-      setLoading(false);
     }
   }, [id, companyId, addNotification]);
 
@@ -90,12 +67,14 @@ const ProductForm: React.FC = () => {
     }));
   };
 
+  const handleStatusChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setProduct((prev) => ({ ...prev, isActive: e.target.checked }));
+  };
+
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
-    if (!product.name.trim()) newErrors.name = 'اسم المنتج مطلوب.';
-    if (product.price <= 0) newErrors.price = 'السعر يجب أن يكون أكبر من صفر.';
-    if (product.stock < 0) newErrors.stock = 'المخزون لا يمكن أن يكون رقمًا سالبًا.';
-    if ((product.reorderLevel || 0) < 0) newErrors.reorderLevel = 'الحد لا يمكن أن يكون رقمًا سالبًا.';
+    if (!product.name.trim()) newErrors.name = t('commonRequiredField');
+    if (product.price < 0) newErrors.price = t('productValidatePrice');
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -104,11 +83,11 @@ const ProductForm: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canWrite) {
-      addNotification('لا تملك صلاحية الحفظ.', 'error');
+      addNotification(t('productNoPermissionSave'), 'error');
       return;
     }
     if (!validateForm()) {
-      addNotification('تحقق من البيانات قبل الحفظ.', 'error');
+      addNotification(t('productFillRequired'), 'error');
       return;
     }
     if (!companyId) return;
@@ -119,19 +98,18 @@ const ProductForm: React.FC = () => {
         : await saveProduct(companyId, product);
 
       if (result) {
-        addNotification('تم حفظ المنتج بنجاح.', 'success');
+        addNotification(t('productSaveSuccess'), 'success');
         navigate('/app/products');
       } else {
-        addNotification('تعذر حفظ المنتج.', 'error');
+        addNotification(t('productSaveError'), 'error');
       }
     } catch (error: unknown) {
       addNotification(mapFirestoreError(error), 'error');
-    } finally {
-      setSaving(false);
     }
+    setSaving(false);
   };
 
-  if (loading)
+  if (loading && id)
     return (
       <Card>
         <FormSkeleton />
@@ -139,20 +117,16 @@ const ProductForm: React.FC = () => {
     );
 
   return (
-    <Card
-      header={
-        <h2 className="text-xl font-bold">
-          {id ? (canWrite ? 'تعديل منتج' : 'عرض المنتج') : 'إضافة منتج جديد'}
-        </h2>
-      }
-    >
-      {!canWrite && id ? (
-        <ViewMode product={product} />
-      ) : (
+    <div className="form-page">
+      <div>
+        <div className="form-title">{id ? t('productFormTitleEdit') : t('productFormTitleNew')}</div>
+        <div className="form-subtitle">{t('productFormSubtitle')}</div>
+      </div>
+      <Card>
         <form onSubmit={handleSubmit} className="space-y-6">
           <fieldset disabled={!canWrite} className="space-y-6">
             <Input
-              label="اسم المنتج"
+              label={t('productFormName')}
               name="name"
               value={product.name}
               onChange={handleInputChange}
@@ -160,7 +134,7 @@ const ProductForm: React.FC = () => {
               error={errors.name}
             />
             <Textarea
-              label="الوصف"
+              label={t('productFormDescription')}
               name="description"
               value={product.description}
               onChange={handleInputChange}
@@ -168,48 +142,76 @@ const ProductForm: React.FC = () => {
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Input
-                label="السعر"
+                label={t('productFormPrice')}
                 type="number"
+                inputMode="decimal"
                 name="price"
                 value={product.price}
                 onChange={handleInputChange}
                 step="0.01"
-                required
                 error={errors.price}
               />
               <Input
-                label="المخزون"
+                label={t('productFormCost')}
                 type="number"
-                name="stock"
-                value={product.stock}
+                inputMode="decimal"
+                name="cost"
+                value={product.cost}
                 onChange={handleInputChange}
-                step="1"
-                required
-                error={errors.stock}
-              />
-              <Input
-                label="حد إعادة الطلب"
-                type="number"
-                name="reorderLevel"
-                value={product.reorderLevel ?? 0}
-                onChange={handleInputChange}
-                step="1"
-                error={errors.reorderLevel}
+                step="0.01"
               />
             </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Input
+                label={t('productFormSku')}
+                name="sku"
+                value={product.sku}
+                onChange={handleInputChange}
+              />
+              <Input
+                label={t('productFormQuantity')}
+                type="number"
+                inputMode="numeric"
+                name="quantity"
+                value={product.quantity}
+                onChange={handleInputChange}
+                step="1"
+              />
+            </div>
+            <Input
+              label={t('productFormUnit')}
+              name="unit"
+              value={product.unit || t('unitPiece')}
+              onChange={handleInputChange}
+            />
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="isActive"
+                checked={product.isActive}
+                onChange={handleStatusChange}
+                className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+              />
+              <label
+                htmlFor="isActive"
+                className="ms-2 block text-sm text-gray-900 dark:text-gray-300"
+              >
+                {t('productFormActive')}
+              </label>
+            </div>
           </fieldset>
+
           {canWrite && (
-            <div className="flex justify-start pt-4 border-t dark:border-gray-700">
-              <Button type="submit" loading={saving} size="lg" disabled={saving}>
-                حفظ المنتج
+            <div className="form-actions">
+              <Button type="submit" loading={saving} size="lg">
+                {t('productFormSave')}
               </Button>
             </div>
           )}
         </form>
-      )}
-    </Card>
+      </Card>
+    </div>
   );
 };
 
 export default ProductForm;
-

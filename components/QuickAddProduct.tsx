@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
+import { t } from '../src/i18n/t';
 
 interface Props {
   onAdd: (product: { name: string; price: number; stock: number; reorderLevel?: number }) => void;
@@ -34,30 +35,30 @@ const QuickAddProduct: React.FC<Props> = ({ onAdd }) => {
 
   return (
     <div className="p-4 bg-white dark:bg-gray-800 rounded shadow">
-      <h3 className="text-sm font-semibold mb-2">إضافة منتج سريع</h3>
+      <h3 className="text-sm font-semibold mb-2">{t('quickAddProductTitle')}</h3>
       <div className="space-y-2">
-        <Input label="اسم المنتج" value={name} onChange={(e) => setName(e.target.value)} />
+        <Input label={t('productFormName')} value={name} onChange={(e) => setName(e.target.value)} />
         <Input
-          label="السعر"
+          label={t('productFormPrice')}
           value={price}
           onChange={(e) => setPrice(e.target.value)}
           type="number"
         />
         <Input
-          label="المخزون"
+          label={t('productFormQuantity')}
           value={stock}
           onChange={(e) => setStock(e.target.value)}
           type="number"
         />
         <Input
-          label="حد إعادة الطلب (اختياري)"
+          label={t('quickAddProductReorder')}
           value={reorderLevel}
           onChange={(e) => setReorderLevel(e.target.value)}
           type="number"
         />
         <div className="flex justify-end">
           <Button onClick={submit} loading={loading}>
-            إضافة
+            {t('commonSave')}
           </Button>
         </div>
       </div>

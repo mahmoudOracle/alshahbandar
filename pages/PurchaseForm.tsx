@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { t } from '../src/i18n/t';
 import { getSuppliers, getProducts, createPurchase } from '../services/dataService';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
@@ -45,7 +46,7 @@ const PurchaseForm: React.FC = () => {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!companyId) return addNotification('الشركة غير محددة', 'error');
+    if (!companyId) return addNotification(t('companyNotSpecified'), 'error');
     if (!supplierId) return addNotification('اختر موردًا', 'error');
     if (!items.length) return addNotification('أضف عنصرًا واحدًا على الأقل', 'error');
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingScreen from './LoadingScreen';
+import { t } from '../src/i18n/t';
 
 export const AuthGuard = () => {
   const { status } = useAuth();
@@ -9,7 +10,7 @@ export const AuthGuard = () => {
   switch (status) {
     case 'authLoading':
     case 'resolvingMembership':
-      return <LoadingScreen message="جاري التحقق من الصلاحيات..." />;
+      return <LoadingScreen message={t('loadingCheckingAccess')} />;
 
     case 'loggedOut':
       return <Navigate to="/login" replace />;
@@ -23,7 +24,6 @@ export const AuthGuard = () => {
       return <Outlet />;
 
     default:
-      // Fallback safety
       return <Navigate to="/login" replace />;
   }
 };

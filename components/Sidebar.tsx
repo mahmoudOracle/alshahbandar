@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   HomeIcon,
@@ -6,118 +6,86 @@ import {
   UsersIcon,
   ArchiveBoxIcon,
   Cog6ToothIcon,
-  XMarkIcon,
-  DocumentDuplicateIcon,
   CurrencyDollarIcon,
   ChartPieIcon,
-  BuildingOffice2Icon,
+  WalletIcon,
 } from '@heroicons/react/24/outline';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth } from '../contexts/AuthContext';
 import useTenantConfig from '../hooks/useTenantConfig';
-import { t } from '../services/i18n';
+import { t } from '../src/i18n/t';
 import LanguageToggle from './LanguageToggle';
 import SyncStatusBadge from './SyncStatusBadge';
 import { Button } from './ui/Button';
 
-interface SidebarProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
+const Sidebar: React.FC = () => {
   const { settings } = useSettings();
-  const { user, logout, role, companyId } = useAuth();
+  const { user, logout, role } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center px-4 py-3 text-lg font-medium rounded-lg transition-colors duration-200 ${
-      isActive
-        ? 'bg-primary-600 text-white'
-        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-    }`;
+    `app-nav-link ${isActive ? 'is-active' : ''}`;
 
   const { config } = useTenantConfig();
-  const lang = (config && config.language) || 'ar';
   const roleLabel =
-    role === 'owner' ? 'مالك' : role === 'manager' ? 'مدير' : role === 'staff' ? 'موظف' : 'موظف';
+    role === 'owner'
+      ? t('roleOwner')
+      : role === 'manager'
+        ? t('roleManager')
+        : role === 'staff'
+          ? t('roleStaff')
+          : t('roleStaff');
 
   const tenantGroups = [
     {
-      title: 'الرئيسية',
-      items: [{ to: '/app/dashboard', text: t('dashboard', lang), icon: HomeIcon }],
-    },
-    {
-      title: 'المبيعات',
+      title: t('navGroupMain'),
       items: [
-        { to: '/app/invoices', text: t('invoices', lang), icon: DocumentTextIcon },
-        { to: '/app/customers', text: t('customers', lang), icon: UsersIcon },
-        { to: '/app/quotes', text: t('quotes', lang), icon: DocumentDuplicateIcon },
+        { to: '/app/dashboard', text: t('navDashboard'), icon: HomeIcon },
+        { to: '/app/invoices', text: t('navInvoices'), icon: DocumentTextIcon },
+        { to: '/app/products', text: t('navProducts'), icon: ArchiveBoxIcon },
+        { to: '/app/expenses', text: t('navExpenses'), icon: CurrencyDollarIcon },
+        { to: '/app/daily-collection', text: t('dailyCollectionTitle'), icon: WalletIcon },
+        { to: '/app/settings', text: t('navSettings'), icon: Cog6ToothIcon },
       ],
     },
     {
-      title: 'المخزون',
+      title: t('navGroupAdmin'),
       items: [
-        { to: '/app/products', text: t('products', lang), icon: ArchiveBoxIcon },
-        { to: '/app/purchases', text: t('purchases', lang), icon: CurrencyDollarIcon },
-        { to: '/app/suppliers', text: t('suppliers', lang), icon: UsersIcon },
-      ],
-    },
-    {
-      title: 'التقارير والإعدادات',
-      items: [
-        { to: '/app/expenses', text: t('expenses', lang), icon: CurrencyDollarIcon },
-        { to: '/app/reports', text: t('reports', lang), icon: ChartPieIcon },
-        { to: '/app/settings', text: t('settings', lang), icon: Cog6ToothIcon },
+        { to: '/app/customers', text: t('navCustomers'), icon: UsersIcon },
+        { to: '/app/purchases', text: t('navPurchases'), icon: CurrencyDollarIcon },
+        { to: '/app/suppliers', text: t('navSuppliers'), icon: UsersIcon },
+        { to: '/app/reports', text: t('navReports'), icon: ChartPieIcon },
       ],
     },
   ];
-const platformGroups = [
-    {
-      title: 'المنصة',
-      items: [{ to: '/platform', text: 'لوحة المنصة', icon: BuildingOffice2Icon }],
-    },
-  ];
 
-
-  const isTenantMode = true; // Always in single-tenant mode
-  const groups = tenantGroups;
-
-  const sidebarClasses = `
-    ${isCollapsed ? 'w-20' : 'w-64'} bg-white dark:bg-gray-800 shadow-lg flex flex-col p-3
-    fixed inset-y-0 start-0 h-screen z-30
-    transform transition-all duration-300 ease-in-out
-    ${isOpen ? 'translate-x-0' : 'translate-x-full'}
-    md:relative md:inset-auto md:translate-x-0 md:h-auto
-  `;
+  const sidebarClasses = `sidebar app-sidebar ${isCollapsed ? 'is-collapsed' : ''}`;
 
   return (
     <aside id="sidebar" className={sidebarClasses}>
-      <div className="flex justify-between items-center text-center py-3 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-3">
+      <div className="sidebar-header">
+        <div className="sidebar-brand">
           <div className="hidden md:block">
             {settings?.logo || config?.logoUrl ? (
               <img
                 src={settings?.logo || config?.logoUrl || ''}
                 alt="Logo"
-                className={`object-contain ${isCollapsed ? 'h-10 w-10' : 'h-16 w-16'}`}
+                className={`object-contain ${isCollapsed ? 'sidebar-logo-collapsed' : 'sidebar-logo'}`}
               />
             ) : (
               <div className="me-2">
-                <h1
-                  className={`font-bold ${isCollapsed ? 'text-lg' : 'text-2xl'} text-primary-600`}
-                >
+                <h1 className={`sidebar-title ${isCollapsed ? 'sidebar-title-collapsed' : ''}`}>
                   {isCollapsed
                     ? (settings?.businessName || config?.businessName || 'AS').slice(0, 2)
-                    : settings?.businessName || config?.businessName || t('app_name', lang)}
+                    : settings?.businessName || config?.businessName || t('appName')}
                 </h1>
               </div>
             )}
           </div>
           <button
             onClick={() => setIsCollapsed((c) => !c)}
-            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className="text-gray-500 dark:text-gray-400 rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-700 md:inline-flex hidden"
+            title={isCollapsed ? t('sidebarExpand') : t('sidebarCollapse')}
+            className="sidebar-collapse-btn"
             aria-pressed={isCollapsed}
           >
             {isCollapsed ? (
@@ -143,42 +111,26 @@ const platformGroups = [
             )}
           </button>
         </div>
-        <div className="md:hidden">
-          <button
-            onClick={onClose}
-            className="text-gray-500 dark:text-gray-400"
-            aria-controls="sidebar"
-            aria-label="Close sidebar"
-          >
-            <XMarkIcon className="h-6 w-6" />
-          </button>
-        </div>
       </div>
-      <div className="px-4 mt-3">
-        <div className="flex items-center justify-between">
-          <div />
-          <SyncStatusBadge />
-        </div>
+      <div className="sidebar-status">
+        <SyncStatusBadge />
       </div>
-      <nav className="flex-1 mt-4 space-y-4 overflow-y-auto">
-        {groups.map((group, gi) => (
-          <div key={gi} className="px-2">
-            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
-              {group.title}
-            </div>
-            <div className="space-y-2">
+      <nav className="sidebar-nav">
+        {tenantGroups.map((group, gi) => (
+          <div key={gi} className="sidebar-group">
+            <div className="sidebar-group-title">{group.title}</div>
+            <div className="sidebar-group-items">
               {group.items.map((item, index) => (
                 <NavLink
                   key={index}
                   to={item.to}
-                  onClick={onClose}
                   end={item.to === '/'}
                   className={({ isActive }) =>
-                    `${navLinkClass({ isActive })} ${isCollapsed ? 'justify-center' : ''}`
+                    `${navLinkClass({ isActive })} ${isCollapsed ? 'is-collapsed' : ''}`
                   }
                   title={isCollapsed ? item.text : undefined}
                 >
-                  <item.icon className="h-6 w-6 me-3" />
+                  <item.icon className="nav-icon" />
                   {!isCollapsed && item.text}
                 </NavLink>
               ))}
@@ -186,16 +138,14 @@ const platformGroups = [
           </div>
         ))}
       </nav>
-      <div className="mt-auto pt-4 border-t border-gray-200 dark:border-gray-700">
-        <div className="text-center">
-          <p className="font-semibold text-gray-800 dark:text-gray-200">
-            {user?.displayName || user?.email}
-          </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{roleLabel}</p>
+      <div className="sidebar-footer">
+        <div className="sidebar-user">
+          <p className="sidebar-user-name">{user?.displayName || user?.email}</p>
+          <p className="sidebar-user-role">{roleLabel}</p>
         </div>
         <LanguageToggle />
         <Button variant="secondary" className="w-full mt-4" onClick={logout}>
-          {t('logout', lang)}
+          {t('logoutLabel')}
         </Button>
       </div>
     </aside>
@@ -203,6 +153,3 @@ const platformGroups = [
 };
 
 export default Sidebar;
-
-
-

@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { SunIcon, MoonIcon, ComputerDesktopIcon } from '@heroicons/react/24/outline';
+import React, { useEffect, useRef, useState } from 'react';
+import { ComputerDesktopIcon, MoonIcon, SunIcon } from '@heroicons/react/24/outline';
+import { t } from '../src/i18n/t';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -11,10 +12,10 @@ const ThemeToggle: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const applyTheme = (t: Theme) => {
+    const applyTheme = (next: Theme) => {
       if (
-        t === 'dark' ||
-        (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        next === 'dark' ||
+        (next === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
       ) {
         document.documentElement.classList.add('dark');
       } else {
@@ -63,7 +64,7 @@ const ThemeToggle: React.FC = () => {
       <button
         onClick={() => setIsMenuOpen(!isMenuOpen)}
         className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
-        aria-label="Change theme"
+        aria-label={t('themeToggleLabel')}
       >
         {themeIcons[theme]}
       </button>
@@ -76,7 +77,7 @@ const ThemeToggle: React.FC = () => {
                 className="w-full flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 <SunIcon className="h-5 w-5 me-3" />
-                فاتح
+                {t('themeLight')}
               </button>
             </li>
             <li>
@@ -85,7 +86,7 @@ const ThemeToggle: React.FC = () => {
                 className="w-full flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 <MoonIcon className="h-5 w-5 me-3" />
-                داكن
+                {t('themeDark')}
               </button>
             </li>
             <li>
@@ -94,7 +95,7 @@ const ThemeToggle: React.FC = () => {
                 className="w-full flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 <ComputerDesktopIcon className="h-5 w-5 me-3" />
-                النظام
+                {t('themeSystem')}
               </button>
             </li>
           </ul>

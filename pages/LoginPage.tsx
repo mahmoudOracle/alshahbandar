@@ -1,16 +1,15 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { signInWithEmail } from '../services/authService';
 import { useNotification } from '../contexts/NotificationContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
-import useTenantConfig from '../hooks/useTenantConfig';
-import { t } from '../services/i18n';
 import LogoPlaceholder from '../components/LogoPlaceholder';
 import { useAuth } from '../contexts/AuthContext';
 import { getErrorMessage } from '../src/utils/errorMessage';
-import { LoadingScreen } from '../LoadingScreen';
+import LoadingScreen from '../components/LoadingScreen';
+import { t } from '../src/i18n/t';
 
 const LoginPage: React.FC = () => {
   const { isLoggedIn, status } = useAuth();
@@ -25,7 +24,7 @@ const LoginPage: React.FC = () => {
     try {
       await signInWithEmail(email, password);
     } catch (error: unknown) {
-      const message = 'تعذر تسجيل الدخول. تحقق من البريد وكلمة المرور.';
+      const message = t('loginError');
       addNotification(message, 'error');
       console.error(getErrorMessage(error, message));
     } finally {
@@ -33,19 +32,16 @@ const LoginPage: React.FC = () => {
     }
   };
 
-  const { config } = useTenantConfig();
-  const lang = config?.language || 'ar';
-
   if (isLoggedIn) {
     return <Navigate to="/app" replace />;
   }
 
   if (status === 'authLoading') {
-    return <LoadingScreen message="جاري تسجيل الدخول..." />;
+    return <LoadingScreen message={t('loadingSigningIn')} />;
   }
 
   if (status === 'resolvingMembership') {
-    return <LoadingScreen message="جاري التحقق من صلاحيات الحساب..." />;
+    return <LoadingScreen message={t('loadingCheckingAccess')} />;
   }
 
   return (
@@ -53,29 +49,25 @@ const LoginPage: React.FC = () => {
       <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
         <div className="hidden md:flex flex-col items-start justify-center space-y-6 p-8 rounded-lg bg-gradient-to-br from-slate-50 to-white shadow">
           <LogoPlaceholder size={84} />
-          <h2 className="text-3xl font-extrabold text-slate-900">{t('app_name', lang)}</h2>
-          <p className="text-slate-600">{t('login_tagline', lang) || 'إدارة بسيطة وسريعة لأعمالك.'}</p>
+          <h2 className="text-3xl font-extrabold text-slate-900">{t('appName')}</h2>
+          <p className="text-slate-600">{t('loginTagline')}</p>
           <div className="w-full mt-4">
             <ul className="space-y-2 text-sm text-slate-600">
-              <li>واجهة واضحة وسهلة الاستخدام</li>
-              <li>متابعة يومية للمبيعات والمصروفات</li>
-              <li>قرارات أسرع بأقل خطوات</li>
+              <li>{t('loginFeature1')}</li>
+              <li>{t('loginFeature2')}</li>
+              <li>{t('loginFeature3')}</li>
             </ul>
           </div>
         </div>
         <div className="w-full">
           <div className="text-center mb-6 md:mb-8">
-            <h1 className="text-2xl font-semibold text-slate-900">
-              {t('sign_in', lang) || 'تسجيل الدخول'}
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              {t('sign_in_sub', lang) || 'أدخل بياناتك للمتابعة'}
-            </p>
+            <h1 className="text-2xl font-semibold text-slate-900">{t('loginTitle')}</h1>
+            <p className="text-sm text-slate-500 mt-1">{t('loginSubtitle')}</p>
           </div>
           <Card>
             <form onSubmit={handleEmailSignIn} className="space-y-4">
               <Input
-                label="البريد الإلكتروني"
+                label={t('loginEmail')}
                 id="email"
                 type="email"
                 value={email}
@@ -84,7 +76,7 @@ const LoginPage: React.FC = () => {
                 autoComplete="email"
               />
               <Input
-                label="كلمة المرور"
+                label={t('loginPassword')}
                 id="password"
                 type="password"
                 value={password}
@@ -93,13 +85,13 @@ const LoginPage: React.FC = () => {
                 autoComplete="current-password"
               />
               <Button type="submit" loading={loading} className="w-full" size="lg">
-                {t('login_button', lang) || 'تسجيل الدخول'}
+                {t('loginSubmit')}
               </Button>
             </form>
             <p className="mt-4 text-center text-sm text-slate-500">
-              {t('no_account', lang) || 'ليس لديك حساب؟'}{' '}
+              {t('loginNoAccount')}{' '}
               <Link to="/register" className="font-medium text-primary-600 hover:text-primary-500">
-                {t('create_account', lang) || 'إنشاء حساب'}
+                {t('loginCreateAccount')}
               </Link>
             </p>
           </Card>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { t } from '../src/i18n/t';
 
 type SummaryItem = { label: string; value: string };
 
@@ -60,7 +61,7 @@ const PrintableReport: React.FC<PrintableReportProps> = ({
       <div className="mt-4">{children}</div>
 
       <footer className="mt-6 border-t border-gray-200 pt-3 text-xs text-gray-500 text-center">
-        تم إنشاء التقرير بواسطة الشاهبندر لإدارة الأعمال
+        {t('printableReportFooter')}
       </footer>
     </div>
   );

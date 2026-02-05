@@ -1,7 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthGuard } from './components/AuthGuard';
-import AppShell from './components/AppShell';
+import AppShell from './src/layout/AppShell';
 import LoginPage from './pages/LoginPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import DevDbInspector from './pages/dev/DevDbInspector';
@@ -24,6 +24,7 @@ import QuoteForm from './pages/QuoteForm';
 import QuoteDetail from './pages/QuoteDetail';
 import ExpenseList from './pages/ExpenseList';
 import ExpenseForm from './pages/ExpenseForm';
+import DailyCollection from './pages/DailyCollection';
 
 function App() {
   return (
@@ -36,7 +37,7 @@ function App() {
       {/* Protected Routes */}
       <Route path="/app" element={<AuthGuard />}>
         <Route element={<AppShell />}>
-          <Route index element={<Navigate to="/app/dashboard" replace />} />
+          <Route index element={<Navigate to="/app/reports" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="invoices" element={<InvoiceList />} />
           <Route path="invoices/new" element={<InvoiceForm />} />
@@ -55,6 +56,7 @@ function App() {
           <Route path="expenses" element={<ExpenseList />} />
           <Route path="expenses/new" element={<ExpenseForm />} />
           <Route path="expenses/edit/:id" element={<ExpenseForm />} />
+          <Route path="collection" element={<DailyCollection />} />
           <Route path="settings" element={<Settings />} />
           <Route path="reports" element={<Reports />} />
           <Route path="quotes" element={<QuoteList />} />

@@ -1,4 +1,5 @@
 import React from 'react';
+import { t } from '../src/i18n/t';
 
 interface SpinnerProps {
   size?: 'sm' | 'md' | 'lg';
@@ -16,7 +17,7 @@ export const Spinner: React.FC<SpinnerProps> = ({ size = 'md', className = '' })
     <div
       className={`animate-spin rounded-full border-gray-300 border-t-primary-600 ${sizeClasses[size]} ${className}`}
       role="status"
-      aria-label="Loading"
+      aria-label={t('commonLoading')}
     />
   );
 };
@@ -24,6 +25,6 @@ export const Spinner: React.FC<SpinnerProps> = ({ size = 'md', className = '' })
 export const FullPageSpinner: React.FC = () => (
   <div className="flex flex-col items-center justify-center h-screen bg-gray-100 dark:bg-gray-900">
     <Spinner size="lg" />
-    <p className="mt-4 text-lg text-gray-600 dark:text-gray-300">جاري التحميل...</p>
+    <p className="mt-4 text-lg text-gray-600 dark:text-gray-300">{t('commonLoading')}</p>
   </div>
 );

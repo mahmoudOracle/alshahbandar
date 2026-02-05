@@ -1,81 +1,22 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+﻿import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getCustomers } from '../services/dataService';
 import { Customer, UserRole } from '../types';
-import {
-  PlusIcon,
-  EyeIcon,
-  WalletIcon,
-  UsersIcon,
-  PencilIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-} from '@heroicons/react/24/outline';
+import { UsersIcon } from '@heroicons/react/24/outline';
 import PaymentForm from './PaymentForm';
 import TableSkeleton from '../components/TableSkeleton';
 import EmptyState from '../components/EmptyState';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Badge } from '../components/ui/Badge';
+import { Card } from '../src/ui/Card';
+import { Button } from '../src/ui/Button';
+import { Input } from '../src/ui/Input';
+import { Select } from '../src/ui/Select';
 import { Modal } from '../components/ui/Modal';
 import { mapFirestoreError } from '../services/firebaseErrors';
+import { t } from '../src/i18n/t';
 
 const PAGE_SIZE = 15;
-
-const CustomerCard: React.FC<{
-  customer: Customer;
-  canCreatePayments: boolean;
-  canWriteCustomers: boolean;
-  onAddPayment: (customer: Customer) => void;
-  onNavigate: (path: string) => void;
-}> = ({ customer, canCreatePayments, canWriteCustomers, onAddPayment, onNavigate }) => (
-  <Card
-    padding="sm"
-    className="md:hidden cursor-pointer"
-    onClick={() => onNavigate(`/app/customers/${customer.id}`)}
-  >
-    <div className="flex justify-between items-start mb-2">
-      <div>
-        <h3 className="font-bold text-lg">{customer.name}</h3>
-        <p className="text-sm text-gray-500">{customer.mobilePhone}</p>
-      </div>
-      <Badge variant={customer.isActive ? 'success' : 'default'}>
-        {customer.isActive ? 'نشط' : 'غير نشط'}
-      </Badge>
-    </div>
-    <div className="flex gap-2 mt-3 border-t border-gray-200 dark:border-gray-700 pt-3">
-      {canCreatePayments && (
-        <Button
-          variant="secondary"
-          size="sm"
-          className="w-full"
-          onClick={(e) => {
-            e.stopPropagation();
-            onAddPayment(customer);
-          }}
-        >
-          <WalletIcon className="h-4 w-4 me-2" />
-          تسجيل دفعة
-        </Button>
-      )}
-      {canWriteCustomers && (
-        <Link
-          to={`/app/customers/edit/${customer.id}`}
-          className="w-full"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Button variant="ghost" size="sm" className="w-full">
-            <PencilIcon className="h-4 w-4 me-2" />
-            تعديل
-          </Button>
-        </Link>
-      )}
-    </div>
-  </Card>
-);
 
 const CustomerList: React.FC = () => {
   const { companyId, role } = useAuth();
@@ -94,6 +35,8 @@ const CustomerList: React.FC = () => {
   const [isLastPage, setIsLastPage] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name_asc' | 'name_desc' | 'recent'>('name_asc');
+  const [showFilters, setShowFilters] = useState(false);
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
   const { addNotification } = useNotification();
   const navigate = useNavigate();
@@ -168,7 +111,7 @@ const CustomerList: React.FC = () => {
 
   const handleOpenPaymentModal = (customer: Customer) => {
     if (!canCreatePayments) {
-      addNotification('لا تملك صلاحية تسجيل الدفعات.', 'error');
+      addNotification(t('customersNoPaymentPermission'), 'error');
       return;
     }
     setSelectedCustomer(customer);
@@ -181,17 +124,17 @@ const CustomerList: React.FC = () => {
     fetchData(prevCursors[prevCursors.length - 1] || undefined);
   };
 
-  if (loading) return <TableSkeleton cols={6} rows={PAGE_SIZE} />;
+  if (loading) return <TableSkeleton cols={4} rows={PAGE_SIZE} />;
 
   if (customers.length === 0 && !loading) {
     return (
       <EmptyState
         icon={<UsersIcon className="h-8 w-8" />}
-        title="لا يوجد عملاء بعد"
-        message="ابدأ بإضافة أول عميل لتتبع الفواتير والمدفوعات."
+        title={t('customersEmptyTitle')}
+        message={t('customersEmptyMessage')}
         action={
           canWriteCustomers
-            ? { text: 'إضافة عميل', onClick: () => navigate('/app/customers/new') }
+            ? { text: t('customersAdd'), onClick: () => navigate('/app/customers/new') }
             : undefined
         }
       />
@@ -199,170 +142,158 @@ const CustomerList: React.FC = () => {
   }
 
   return (
-    <Card>
-      <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <Input
-            placeholder="ابحث عن عميل..."
-            className="w-full md:w-64"
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          <label className="flex items-center gap-2 cursor-pointer text-sm">
-            <input
-              type="checkbox"
-              checked={showInactive}
-              onChange={() => setShowInactive(!showInactive)}
-              className="form-checkbox h-5 w-5 text-primary-600 rounded"
-            />
-            إظهار العملاء غير النشطين
-          </label>
-        </div>
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <select
-            value={sortBy}
-            onChange={(e) => {
-              const v = e.target.value as 'name_asc' | 'name_desc' | 'recent';
-              setSortBy(v);
-            }}
-            className="px-3 py-2 border rounded-md bg-white dark:bg-gray-700"
-          >
-            <option value="name_asc">الاسم (أ-ي)</option>
-            <option value="name_desc">الاسم (ي-أ)</option>
-            <option value="recent">الأحدث</option>
-          </select>
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="page-section">
+        <div className="ui-section-header">
+          <div className="ui-section-text">
+            <h1 className="ui-section-title">{t('customersTitle') || 'العملاء'}</h1>
+            <p className="ui-section-subtitle">{t('customersSubtitle') || 'إدر قائمة عملائك'}</p>
+          </div>
           {canWriteCustomers && (
-            <Link to="/app/customers/new" className="w-full md:w-auto">
-              <Button variant="primary" className="w-full">
-                <PlusIcon className="h-5 w-5 me-2" />
-                إضافة عميل
-              </Button>
+            <Link to="/app/customers/new" className="ui-button primary">
+              {t('customersAdd') || 'إضافة عميل'}
             </Link>
           )}
         </div>
       </div>
 
-      {!canCreatePayments && (
-        <div className="mb-4 text-sm text-warning-700 bg-warning-50 border border-warning-200 rounded p-3">
-          لا تملك صلاحية تسجيل الدفعات.
+      <Card>
+        <div className="list-toolbar">
+          <Input
+            placeholder={t('customersSearch')}
+            className="list-search"
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <div className="list-toolbar-actions">
+            <Button type="button" variant="secondary" onClick={() => setShowFilters((s) => !s)}>
+              {t('commonFilter')}
+            </Button>
+            {canWriteCustomers && (
+              <Link to="/app/customers/new" className="ui-button primary">
+                {t('customersAdd')}
+              </Link>
+            )}
+          </div>
         </div>
-      )}
 
-      <div className="hidden md:block overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-700">
-            <tr>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                الاسم
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                الهاتف
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                الحالة
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                إجراءات
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {filteredCustomers.map((customer) => (
-              <tr
-                key={customer.id}
-                onClick={() => navigate(`/app/customers/${customer.id}`)}
-                className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-200 cursor-pointer"
-              >
-                <td className="px-6 py-4 whitespace-nowrap font-medium">{customer.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap">{customer.mobilePhone}</td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <Badge variant={customer.isActive ? 'success' : 'default'}>
-                    {customer.isActive ? 'نشط' : 'غير نشط'}
-                  </Badge>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/app/customers/${customer.id}`);
-                      }}
-                      aria-label="عرض العميل"
-                    >
-                      <EyeIcon className="h-5 w-5" />
-                    </Button>
+        {showFilters && (
+          <div className="filter-panel">
+            <Select
+              label={t('invoicesSort')}
+              value={sortBy}
+              onChange={(e) => {
+                const v = e.target.value as 'name_asc' | 'name_desc' | 'recent';
+                setSortBy(v);
+              }}
+              options={[
+                { value: 'name_asc', label: t('sortNameAsc') },
+                { value: 'name_desc', label: t('sortNameDesc') },
+                { value: 'recent', label: t('invoicesNewest') },
+              ]}
+            />
+            <Select
+              label={t('invoicesStatus')}
+              value={showInactive ? 'all' : 'active'}
+              onChange={(e) => setShowInactive(e.target.value === 'all')}
+              options={[
+                { value: 'active', label: t('customersActiveOnly') },
+                { value: 'all', label: t('customersAll') },
+              ]}
+            />
+          </div>
+        )}
+
+        <div className="invoice-list">
+          {filteredCustomers.map((customer) => (
+            <div key={customer.id} className="invoice-row group hover:shadow-lg transition-all">
+              <Link to={`/app/customers/${customer.id}`} className="invoice-main flex-1">
+                <div className="flex flex-col gap-1">
+                  <div className="invoice-title font-semibold text-lg">{customer.name}</div>
+                  <div className="flex flex-wrap gap-3 text-sm text-gray-600">
+                    <span className="flex items-center gap-1">📱 {customer.mobilePhone || '-'}</span>
+                    {customer.email && <span className="flex items-center gap-1">✉️ {customer.email}</span>}
+                    {customer.address && <span className="flex items-center gap-1">📍 {customer.address.substring(0, 30)}</span>}
+                  </div>
+                </div>
+              </Link>
+              <div className="invoice-side flex items-center gap-4">
+                <div className={`invoice-status badge ${customer.isActive ? 'badge--success' : 'badge--muted'}`}>
+                  {customer.isActive ? '✓ ' + t('customersActive') : '✕ ' + t('customersInactive')}
+                </div>
+              </div>
+              <div className="invoice-menu relative">
+                <button
+                  type="button"
+                  className="menu-button hover:bg-primary-100 p-2 rounded-lg transition-colors"
+                  onClick={() =>
+                    setActiveMenuId((prev) => (prev === customer.id ? null : customer.id))
+                  }
+                  aria-label={t('commonActionsMenu')}
+                >
+                  ⋯
+                </button>
+                {activeMenuId === customer.id && (
+                  <div className="menu-panel absolute top-full left-0 z-10 bg-white rounded-lg shadow-lg border border-gray-200">
+                    <Link to={`/app/customers/${customer.id}`} className="menu-item hover:bg-gray-50 px-4 py-2 block">
+                      👁️ {t('commonView')}
+                    </Link>
+                    {canWriteCustomers && (
+                      <Link to={`/app/customers/edit/${customer.id}`} className="menu-item hover:bg-gray-50 px-4 py-2 block">
+                        ✏️ {t('commonEdit')}
+                      </Link>
+                    )}
                     {canCreatePayments && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenPaymentModal(customer);
-                        }}
-                        aria-label="تسجيل دفعة"
+                      <button
+                        type="button"
+                        className="menu-item hover:bg-gray-50 px-4 py-2 w-full text-left"
+                        onClick={() => handleOpenPaymentModal(customer)}
                       >
-                        <WalletIcon className="h-5 w-5" />
-                      </Button>
+                        💳 {t('customersPayment')}
+                      </button>
                     )}
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
 
-      <div className="md:hidden space-y-4 mt-4">
-        {filteredCustomers.map((customer) => (
-          <CustomerCard
-            key={customer.id}
-            customer={customer}
-            canCreatePayments={canCreatePayments}
-            canWriteCustomers={canWriteCustomers}
-            onAddPayment={handleOpenPaymentModal}
-            onNavigate={navigate}
-          />
-        ))}
-      </div>
+        <div className="pagination-row">
+          <Button
+            onClick={handlePrevPage}
+            disabled={prevCursors.length === 0}
+            variant="secondary"
+            size="sm"
+          >
+            {t('commonPrev')}
+          </Button>
+          <Button
+            onClick={handleNextPage}
+            disabled={isLastPage}
+            variant="secondary"
+            size="sm"
+          >
+            {t('commonNext')}
+          </Button>
+        </div>
 
-      <div className="flex justify-center items-center mt-6 gap-2">
-        <Button
-          onClick={handlePrevPage}
-          disabled={prevCursors.length === 0}
-          variant="secondary"
-          size="sm"
-          aria-label="Previous Page"
+        <Modal
+          isOpen={isPaymentModalOpen}
+          onClose={() => setIsPaymentModalOpen(false)}
+          title={`${t('customersPayment')} - ${selectedCustomer?.name}`}
         >
-          <ChevronRightIcon className="h-5 w-5" />
-        </Button>
-        <Button
-          onClick={handleNextPage}
-          disabled={isLastPage}
-          variant="secondary"
-          size="sm"
-          aria-label="Next Page"
-        >
-          <ChevronLeftIcon className="h-5 w-5" />
-        </Button>
-      </div>
-
-      <Modal
-        isOpen={isPaymentModalOpen}
-        onClose={() => setIsPaymentModalOpen(false)}
-        title={`تسجيل دفعة - ${selectedCustomer?.name}`}
-      >
-        {selectedCustomer && (
-          <PaymentForm
-            customer={selectedCustomer}
-            onPaymentSaved={handlePaymentSaved}
-            onClose={() => setIsPaymentModalOpen(false)}
-          />
-        )}
-      </Modal>
-    </Card>
+          {selectedCustomer && (
+            <PaymentForm
+              customer={selectedCustomer}
+              onPaymentSaved={handlePaymentSaved}
+              onClose={() => setIsPaymentModalOpen(false)}
+            />
+          )}
+        </Modal>
+      </Card>
+    </div>
   );
 };
 
 export default CustomerList;
-

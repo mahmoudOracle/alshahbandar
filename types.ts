@@ -65,11 +65,11 @@ export interface Product {
 }
 
 export type PaymentMethod =
-  | 'كاش'
-  | 'محفظة'
-  | 'إنستاباي'
-  | 'تحويل بنكي'
-  | 'أخرى';
+  | 'cash'
+  | 'wallet'
+  | 'instapay'
+  | 'bank_transfer'
+  | 'other';
 
 export interface Payment {
   id: string;
@@ -84,6 +84,21 @@ export interface Payment {
   reference?: string;
   createdAt?: unknown;
   updatedAt?: unknown;
+}
+
+export interface Receipt {
+  id: string;
+  companyId: string;
+  customerId: string;
+  customerName: string;
+  amount: number;
+  date: string; // ISO 8601 local time
+  method: 'cash' | 'transfer' | 'check' | 'wallet' | 'other';
+  note?: string;
+  invoiceId?: string;
+  invoiceNumber?: string;
+  createdAt?: Date | unknown;
+  createdBy?: string;
 }
 
 export interface ReturnItem {

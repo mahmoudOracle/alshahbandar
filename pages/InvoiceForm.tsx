@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useReducer } from 'react';
+﻿import React, { useState, useEffect, useReducer } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getInvoiceById, saveInvoice, getCustomers, getProducts } from '../services/dataService';
 import { Invoice, InvoiceItem, Customer, Product, InvoiceStatus, PaymentType } from '../types';
@@ -20,6 +20,7 @@ import SearchableSelect from '../components/ui/SearchableSelect';
 import { FormSkeleton } from '../components/ui/FormSkeleton';
 import { mapFirestoreError } from '../services/firebaseErrors';
 import { getErrorMessage } from '../src/utils/errorMessage';
+import { t } from '../src/i18n/t';
 
 type State = Omit<Invoice, 'id' | 'subtotal' | 'total'>;
 
@@ -145,7 +146,7 @@ const InvoiceForm: React.FC = () => {
       // Allow viewing existing invoices
     } else if (!canWrite) {
       // Disallow creating new ones
-      addNotification('لا تملك صلاحية إنشاء الفاتورة.', 'error');
+      addNotification(t('invoiceNoPermissionCreate'), 'error');
       navigate('/app/invoices');
     }
   }, [canWrite, id, navigate, addNotification]);
@@ -175,7 +176,7 @@ const InvoiceForm: React.FC = () => {
             void _total;
             dispatch({ type: 'SET_INITIAL_INVOICE', payload: invoiceData as State });
           } else {
-            addNotification('لم يتم العثور على الفاتورة.', 'error');
+            addNotification(t('invoiceNotFound'), 'error');
           }
         }
         // Restore draft for new invoices
@@ -247,18 +248,18 @@ const InvoiceForm: React.FC = () => {
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
-    if (!invoice.customerId) newErrors.customerId = 'اختر العميل.';
-    if (!invoice.paymentType) newErrors.paymentType = 'اختر طريقة الدفع.';
-    if (!invoice.date) newErrors.date = 'أدخل تاريخ الفاتورة.';
-    else if (isNaN(new Date(invoice.date).getTime())) newErrors.date = 'تاريخ غير صالح.';
-    if (invoice.items.length === 0) newErrors.items = 'أضف بندًا واحدًا على الأقل.';
+    if (!invoice.customerId) newErrors.customerId = t('invoiceErrorsCustomer');
+    if (!invoice.paymentType) newErrors.paymentType = t('invoiceErrorsPayment');
+    if (!invoice.date) newErrors.date = t('invoiceErrorsDate');
+    else if (isNaN(new Date(invoice.date).getTime())) newErrors.date = t('invoiceErrorsDateInvalid');
+    if (invoice.items.length === 0) newErrors.items = t('invoiceErrorsItems');
     invoice.items.forEach((item, index) => {
       const productKey = `item_${index}_product`;
       const qtyKey = `item_${index}_quantity`;
       const priceKey = `item_${index}_price`;
-      if (!item.productId) newErrors[productKey] = 'اختر الصنف.';
-      if (item.quantity <= 0) newErrors[qtyKey] = 'أدخل كمية صحيحة.';
-      if (item.price < 0) newErrors[priceKey] = 'أدخل سعرًا صحيحًا.';
+      if (!item.productId) newErrors[productKey] = t('invoiceErrorsProduct');
+      if (item.quantity <= 0) newErrors[qtyKey] = t('invoiceErrorsQuantity');
+      if (item.price < 0) newErrors[priceKey] = t('invoiceErrorsPrice');
     });
 
     setErrors(newErrors);
@@ -273,7 +274,7 @@ const InvoiceForm: React.FC = () => {
     });
     setDraftAvailable(false);
     setDraftData(null);
-    addNotification('تمت استعادة المسودة.', 'info');
+    addNotification(t('invoiceDraftRestored'), 'info');
   };
 
   const handleDiscardDraft = () => {
@@ -284,21 +285,21 @@ const InvoiceForm: React.FC = () => {
     }
     setDraftAvailable(false);
     setDraftData(null);
-    addNotification('تم حذف المسودة.', 'info');
+    addNotification(t('invoiceDraftDeleted'), 'info');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canWrite) {
-      addNotification('لا تملك صلاحية الحفظ.', 'error');
+      addNotification(t('invoiceNoPermissionSave'), 'error');
       return;
     }
     if (!validateForm()) {
-      addNotification('تحقق من البيانات قبل الحفظ.', 'error');
+      addNotification(t('invoiceCheckData'), 'error');
       return;
     }
     if (!companyId) {
-      addNotification('لا يمكن حفظ الفاتورة بدون شركة فعّالة.', 'error');
+      addNotification(t('invoiceNoCompany'), 'error');
       return;
     }
     setSaving(true);
@@ -308,10 +309,10 @@ const InvoiceForm: React.FC = () => {
         ? await saveInvoice(companyId, { ...invoiceToSave, id }, originalInvoice)
         : await saveInvoice(companyId, invoiceToSave);
       if (result) {
-        addNotification(id ? 'تم حفظ التعديل بنجاح.' : 'تم حفظ الفاتورة بنجاح.', 'success');
+        addNotification(id ? t('invoiceSaveSuccessEdit') : t('invoiceSaveSuccessNew'), 'success');
         navigate('/app/invoices');
       } else {
-        addNotification('تعذر حفظ الفاتورة.', 'error');
+        addNotification(t('invoiceSaveError'), 'error');
       }
     } catch (error: unknown) {
       addNotification(mapFirestoreError(error), 'error');
@@ -328,18 +329,23 @@ const InvoiceForm: React.FC = () => {
     );
 
   return (
-    <form onSubmit={handleSubmit}>
+    <div className="form-page">
+      <div>
+        <div className="form-title">{id ? t('invoiceFormTitleEdit') : t('invoiceFormTitleNew')}</div>
+        <div className="form-subtitle">{t('invoiceFormSubtitle')}</div>
+      </div>
+      <form onSubmit={handleSubmit}>
       <Card>
         {draftAvailable && (
           <div className="mb-4 p-3 border-l-4 border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 rounded">
             <div className="flex justify-between items-center">
-              <div>وجدنا مسودة محفوظة. هل تريد استعادتها؟</div>
+              <div>{t('invoiceDraftFound')}</div>
               <div className="flex gap-2">
                 <Button type="button" onClick={handleRestoreDraft}>
-                  استعادة المسودة
+                  {t('invoiceDraftRestore')}
                 </Button>
                 <Button type="button" variant="ghost" onClick={handleDiscardDraft}>
-                  حذف المسودة
+                  {t('invoiceDraftDiscard')}
                 </Button>
               </div>
             </div>
@@ -348,31 +354,31 @@ const InvoiceForm: React.FC = () => {
         <fieldset disabled={!canWrite} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <SearchableSelect
-              label="العميل"
+              label={t('invoiceFormCustomer')}
               required
               value={invoice.customerId}
               onChange={handleCustomerSearchSelect}
               error={errors.customerId}
               options={customers.map((c) => ({ value: c.id, label: c.name }))}
-              placeholder="ابحث عن عميل"
+              placeholder={t('invoiceFormCustomerPlaceholder')}
               name="customer"
             />
 
             <Select
-              label="طريقة الدفع"
+              label={t('invoiceFormPaymentType')}
               name="paymentType"
               required
               value={invoice.paymentType}
               onChange={handleInputChange}
               error={errors.paymentType}
               options={[
-                { value: PaymentType.Credit, label: 'آجل' },
-                { value: PaymentType.Cash, label: 'نقدي' },
+                { value: PaymentType.Credit, label: t('invoiceFormPaymentCredit') },
+                { value: PaymentType.Cash, label: t('invoiceFormPaymentCash') },
               ]}
             />
 
             <DateInput
-              label="تاريخ الفاتورة"
+              label={t('invoiceFormDate')}
               name="date"
               required
               value={invoice.date}
@@ -381,7 +387,7 @@ const InvoiceForm: React.FC = () => {
             />
 
             <DateInput
-              label="تاريخ الاستحقاق (اختياري)"
+              label={t('invoiceFormDueDate')}
               name="dueDate"
               value={invoice.dueDate}
               onChange={handleInputChange}
@@ -390,7 +396,7 @@ const InvoiceForm: React.FC = () => {
           </div>
 
           <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold mb-4">بنود الفاتورة</h3>
+            <h3 className="text-lg font-semibold mb-4">{t('invoiceFormItemsTitle')}</h3>
             {invoice.items.map((item, index) => (
               <div
                 key={item.id}
@@ -399,7 +405,7 @@ const InvoiceForm: React.FC = () => {
                 {/* ROW 1: Product Select (full width on mobile, lg:4 on desktop) */}
                 <div className="col-span-1 md:col-span-2 lg:col-span-4">
                   <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                    الصنف *
+                    {t('invoiceFormItemProduct')}
                   </label>
                   <SearchableSelect
                     value={item.productId}
@@ -407,9 +413,9 @@ const InvoiceForm: React.FC = () => {
                     error={errors[`item_${index}_product`]}
                     options={products.map((p) => ({
                       value: p.id,
-                      label: `${p.name} (المخزون: ${p.stock})`,
+                      label: `${p.name} (${t('invoiceFormStockLabel')}: ${p.stock})`,
                     }))}
-                    placeholder="ابحث عن صنف"
+                    placeholder={t('invoiceFormProductPlaceholder')}
                     name={`product_${index}`}
                   />
                   <button
@@ -419,16 +425,16 @@ const InvoiceForm: React.FC = () => {
                       setQuickAddVisible(true);
                     }}
                     className="text-xs text-primary-600 hover:underline mt-1 inline-block"
-                    title="أضف صنج جديد وأدرجه مباشرة"
+                    title={t('invoiceFormQuickAddTitle')}
                   >
-                    + إضافة سريعة
+                    {t('invoiceFormQuickAddLabel')}
                   </button>
                 </div>
 
                 {/* ROW 1: Quantity (full width on mobile, md:2 col) */}
                 <div className="col-span-1 md:col-span-2 lg:col-span-2">
                   <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                    الكمية *
+                    {t('invoiceFormItemQuantity')}
                   </label>
                   <Input
                     type="number"
@@ -448,7 +454,7 @@ const InvoiceForm: React.FC = () => {
                 {/* ROW 1: Unit Cost Display (full width on mobile, md:2 col) */}
                 <div className="col-span-1 md:col-span-2 lg:col-span-2">
                   <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                    تكلفة الوحدة
+                    {t('invoiceFormItemUnitCost')}
                   </label>
                   <div className="text-center font-medium p-2 bg-gray-50 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600 min-h-[44px] flex items-center justify-center">
                     {(Number((item as any).unitCost) || 0).toFixed(2)} {settings?.currency}
@@ -458,7 +464,7 @@ const InvoiceForm: React.FC = () => {
                 {/* ROW 1: Price Input (full width on mobile, md:2 col) */}
                 <div className="col-span-1 md:col-span-2 lg:col-span-2">
                   <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                    السعر *
+                    {t('invoiceFormItemPrice')}
                   </label>
                   <Input
                     type="number"
@@ -473,7 +479,7 @@ const InvoiceForm: React.FC = () => {
                 {/* ROW 1: Line Total (full width on mobile, lg:1 col) */}
                 <div className="col-span-1 lg:col-span-1">
                   <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                    الإجمالي
+                    {t('invoiceFormItemTotal')}
                   </label>
                   <div className="text-center font-bold p-2 bg-primary-50 dark:bg-primary-900/20 rounded min-h-[44px] flex items-center justify-center">
                     {(item.quantity * item.price).toFixed(2)} {settings?.currency}
@@ -489,8 +495,8 @@ const InvoiceForm: React.FC = () => {
                       size="sm"
                       className="w-full"
                       onClick={() => removeItem(index)}
-                      aria-label={`حذف البند ${index + 1}`}
-                      title="حذف هذا البند"
+                      aria-label={t('invoiceFormDeleteItem', { index: index + 1 })}
+                      title={t('invoiceFormDeleteItem', { index: index + 1 })}
                     >
                       <TrashIcon className="h-5 w-5 text-danger-600" />
                     </Button>
@@ -518,7 +524,7 @@ const InvoiceForm: React.FC = () => {
             {canWrite && (
               <Button type="button" onClick={addItem} variant="secondary">
                 <PlusIcon className="h-4 w-4 me-2" />
-                إضافة بند
+                {t('invoiceFormAddItem')}
               </Button>
             )}
             {errors.items && <p className="text-sm text-danger-600 mt-1">{errors.items}</p>}
@@ -557,9 +563,9 @@ const InvoiceForm: React.FC = () => {
                       if (quickAddTargetIndex !== null) {
                         handleItemChange(quickAddTargetIndex, 'productId', saved.id);
                       }
-                      addNotification('تمت إضافة الصنف بنجاح.', 'success');
+                      addNotification(t('productQuickAddSuccess'), 'success');
                     } catch (err: unknown) {
-                      const msg = getErrorMessage(err, 'تعذر إضافة الصنف.');
+                      const msg = getErrorMessage(err, t('productQuickAddError'));
                       addNotification(msg, 'error');
                     } finally {
                       setQuickAddVisible(false);
@@ -576,25 +582,25 @@ const InvoiceForm: React.FC = () => {
         <div className="flex flex-col md:flex-row justify-end items-start gap-6 mt-6">
           <div className="w-full md:w-1/3 space-y-2 text-lg">
             <div className="flex justify-between">
-              <span>الإجمالي الفرعي:</span>
+              <span>{t('invoiceFormSubtotal')}</span>
               <span>
                 {subtotal.toFixed(2)} {settings?.currency}
               </span>
             </div>
             <div className="flex justify-between">
-              <span>تكلفة البضاعة:</span>
+              <span>{t('invoiceFormCostTotal')}</span>
               <span>
                 {costTotal.toFixed(2)} {settings?.currency}
               </span>
             </div>
             <div className="flex justify-between font-bold text-xl border-t dark:border-gray-700 pt-2 mt-2">
-              <span>الإجمالي:</span>
+              <span>{t('invoiceFormTotal')}</span>
               <span>
                 {total.toFixed(2)} {settings?.currency}
               </span>
             </div>
             <div className="flex justify-between text-sm">
-              <span>الربح التقريبي:</span>
+              <span>{t('invoiceFormProfit')}</span>
               <span>
                 {profit.toFixed(2)} {settings?.currency}
               </span>
@@ -603,17 +609,19 @@ const InvoiceForm: React.FC = () => {
         </div>
 
         {canWrite && (
-          <div className="flex justify-start pt-6 border-t dark:border-gray-700 mt-6">
+          <div className="form-actions">
             <Button type="submit" loading={saving} size="lg" disabled={saving}>
-              {id ? 'حفظ التعديل' : 'حفظ الفاتورة'}
+              {id ? t('invoiceFormSaveEdit') : t('invoiceFormSaveNew')}
             </Button>
           </div>
         )}
       </Card>
     </form>
+    </div>
   );
 };
 
 export default InvoiceForm;
+
 
 

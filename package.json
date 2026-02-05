@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "check:mojibake": "node scripts/check-mojibake.js",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
     "lint": "eslint \"**/*.{ts,tsx,js,jsx}\" --ext .ts,.tsx,.js,.jsx --ignore-pattern dist --ignore-pattern functions --ignore-pattern src/__tests__ --ignore-pattern '**/*.test.*' --rule \"@typescript-eslint/no-explicit-any:off\" --rule \"@typescript-eslint/no-unused-vars:warn\"",

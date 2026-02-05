@@ -9,6 +9,7 @@ import { Input } from '../components/ui/Input';
 import DateInput from '../components/ui/DateInput';
 import { Select } from '../components/ui/Select';
 import { mapFirestoreError } from '../services/firebaseErrors';
+import { t } from '../src/i18n/t';
 
 interface PaymentFormProps {
   customer: Customer;
@@ -17,7 +18,25 @@ interface PaymentFormProps {
   onClose: () => void;
 }
 
-const PAYMENT_METHODS: PaymentMethod[] = ['كاش', 'محفظة', 'إنستاباي', 'تحويل بنكي', 'أخرى'];
+const PAYMENT_METHODS: PaymentMethod[] = [
+  'cash',
+  'wallet',
+  'instapay',
+  'bank_transfer',
+  'other',
+];
+
+const getPaymentMethodLabel = (method: PaymentMethod | ''): string => {
+  if (!method) return '';
+  const methodMap: Record<PaymentMethod, string> = {
+    'cash': t('paymentMethodCash'),
+    'wallet': t('paymentMethodWallet'),
+    'instapay': t('paymentMethodInstapay'),
+    'bank_transfer': t('paymentMethodBank'),
+    'other': t('paymentMethodOther'),
+  };
+  return methodMap[method] || '';
+};
 
 const toDateValue = (value: unknown): Date | null => {
   if (!value) return null;
@@ -47,9 +66,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
   const { addNotification } = useNotification();
 
   const canCreatePayments =
-    role === UserRole.Owner ||
-    role === UserRole.Manager ||
-    role === UserRole.Employee;
+    role === UserRole.Owner || role === UserRole.Manager || role === UserRole.Employee;
 
   useEffect(() => {
     if (!customer || !companyId) return;
@@ -126,7 +143,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
   }, [unpaidInvoices, invoice]);
 
   const remainingLabel =
-    remaining !== null ? `المتبقي على الفاتورة: ${remaining.toFixed(2)}` : '';
+    remaining !== null ? t('paymentRemainingLabel', { amount: remaining.toFixed(2) }) : '';
 
   if (!customer) return null;
 
@@ -134,30 +151,30 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
     e.preventDefault();
     setFormError(null);
     if (!canCreatePayments) {
-      addNotification('لا تملك صلاحية تسجيل الدفعات.', 'error');
+      addNotification(t('paymentNoPermission'), 'error');
       return;
     }
     if (!method) {
-      addNotification('اختر طريقة الدفع.', 'error');
+      addNotification(t('paymentSelectMethod'), 'error');
       return;
     }
     if (!date) {
-      addNotification('أدخل تاريخ الدفع.', 'error');
+      addNotification(t('paymentEnterDate'), 'error');
       return;
     }
     if (amount <= 0 || !companyId) {
-      addNotification('أدخل مبلغًا صحيحًا.', 'error');
+      addNotification(t('paymentEnterAmount'), 'error');
       return;
     }
     if (invoiceId && remaining !== null && amount > remaining) {
-      setFormError('المبلغ أكبر من المتبقي على الفاتورة.');
+      setFormError(t('paymentAmountTooHigh'));
       return;
     }
     setSaving(true);
     try {
       const parsedDate = new Date(date);
       if (Number.isNaN(parsedDate.getTime())) {
-        setFormError('تاريخ الدفع غير صحيح.');
+        setFormError(t('paymentInvalidDate'));
         setSaving(false);
         return;
       }
@@ -174,10 +191,10 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
       });
 
       if (result) {
-        addNotification('تم تسجيل الدفعة بنجاح.', 'success');
+        addNotification(t('paymentSaveSuccess'), 'success');
         onPaymentSaved();
       } else {
-        addNotification('تعذر حفظ الدفعة.', 'error');
+        addNotification(t('paymentSaveFail'), 'error');
       }
     } catch (error: unknown) {
       addNotification(mapFirestoreError(error), 'error');
@@ -190,7 +207,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
     <form onSubmit={handleSubmit} className="space-y-4">
       {!canCreatePayments && (
         <div className="text-sm text-warning-700 bg-warning-50 border border-warning-200 rounded p-3">
-          لا تملك صلاحية تسجيل الدفعات.
+          {t('paymentNoPermission')}
         </div>
       )}
       {formError && (
@@ -199,7 +216,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
         </div>
       )}
       <Input
-        label="المبلغ"
+        label={t('paymentAmount')}
         type="number"
         value={amount}
         onChange={(e) => {
@@ -215,21 +232,21 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
         hint={remainingLabel || undefined}
       />
       <DateInput
-        label="تاريخ الدفع"
+        label={t('paymentDate')}
         name="date"
         value={date}
         onChange={(e) => setDate(e.target.value)}
         required
       />
       <Select
-        label="طريقة الدفع"
+        label={t('paymentMethod')}
         value={method}
         onChange={(e) => setMethod(e.target.value as PaymentMethod)}
-        options={PAYMENT_METHODS.map((m) => ({ value: m, label: m }))}
+        options={PAYMENT_METHODS.map((m) => ({ value: m, label: getPaymentMethodLabel(m) }))}
         required
       />
       <Select
-        label="رقم الفاتورة (اختياري)"
+        label={t('paymentInvoiceOptional')}
         value={invoiceId}
         onChange={(e) => {
           setInvoiceId(e.target.value);
@@ -239,26 +256,26 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
           setInvoiceNumber(inv?.invoiceNumber || '');
         }}
         options={[
-          { value: '', label: 'دفعة على الحساب' },
+          { value: '', label: t('paymentOnAccount') },
           ...invoiceOptions,
         ]}
       />
       <Input
-        label="ملاحظات (اختياري)"
+        label={t('paymentNotes')}
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
       />
       <Input
-        label="مرجع التحويل (اختياري)"
+        label={t('paymentReference')}
         value={reference}
         onChange={(e) => setReference(e.target.value)}
       />
       <div className="flex justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
         <Button type="button" variant="secondary" onClick={onClose}>
-          إلغاء
+          {t('commonCancel')}
         </Button>
         <Button type="submit" loading={saving} disabled={saving || !canCreatePayments}>
-          تسجيل دفعة
+          {t('paymentSave')}
         </Button>
       </div>
     </form>

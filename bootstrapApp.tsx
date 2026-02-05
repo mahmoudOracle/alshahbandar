@@ -57,16 +57,20 @@ export const bootstrapApp = (root: ReactDOM.Root) => {
       initSentry(SENTRY_DSN as string).catch((e) => console.warn('Sentry init failed', e));
     }
     // 1. Inject the concrete service implementation into the data service proxy.
-    // In development you can enable `VITE_USE_MOCK=true` to use an in-memory
-    // mock service which provides sample data (handy when Cloud Functions
-    // or Firestore data are unavailable). By default we use Firestore.
+    // DEFAULT: Always use real Firestore (recommended for production & most development)
+    // To use mock data for development/testing ONLY, set VITE_USE_MOCK=true explicitly.
+    // Mock service is disabled in production builds (import.meta.env.PROD).
+    const canUseMock = !import.meta.env.PROD; // Only allow mock in development builds
     const useMock =
+      canUseMock &&
       typeof import.meta !== 'undefined' &&
       (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_USE_MOCK === 'true';
+    
     if (useMock) {
-      console.info('[DEV] Using mock data service (VITE_USE_MOCK=true)');
-      // seed mock data once (company id is not relevant for mock seeding)
-      // intentionally ignore failures
+      console.warn('[DEV WARNING] Using mock data service (VITE_USE_MOCK=true). This is development-only mode.');
+      console.warn('[DEV WARNING] Real Firestore data will be IGNORED. To use real data, set VITE_USE_MOCK=false or unset it.');
+      // Seed mock data once (company id is not relevant for mock seeding)
+      // Intentionally ignore failures
       try {
         mockService.seedData?.('mock-company-id');
       } catch {
@@ -74,6 +78,11 @@ export const bootstrapApp = (root: ReactDOM.Root) => {
       }
       setDataServiceImpl(mockService as unknown as typeof firestoreService, 'mock');
     } else {
+      // DEFAULT: Use real Firestore
+      if (!canUseMock) {
+        // Production build - explicitly confirm we're using real data
+        console.info('[PRODUCTION] Using real Firestore data service');
+      }
       setDataServiceImpl(firestoreService, 'firestore');
     }
 

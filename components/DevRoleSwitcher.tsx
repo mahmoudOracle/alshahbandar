@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types';
+import { t } from '../src/i18n/t';
 
 export function DevRoleSwitcher() {
   const { role: currentRole } = useAuth();
@@ -13,7 +14,9 @@ export function DevRoleSwitcher() {
       dir="rtl"
       className="fixed bottom-2 right-2 bg-white/90 dark:bg-slate-800/90 shadow p-2 rounded text-xs z-50 border dark:border-slate-700"
     >
-      <div>الدور الحالي: {role}</div>
+      <div>
+        {t('devRoleCurrent')}: {role}
+      </div>
       <select
         value={role}
         onChange={(e) => {
@@ -24,9 +27,9 @@ export function DevRoleSwitcher() {
         }}
         className="border rounded px-1 py-0.5 mt-1 w-full bg-white dark:bg-slate-700 dark:border-slate-600"
       >
-        <option value={UserRole.Manager}>مدير</option>
-        <option value={UserRole.Employee}>موظف</option>
-        <option value={UserRole.Viewer}>مستخدم عادي</option>
+        <option value={UserRole.Manager}>{t('roleManager')}</option>
+        <option value={UserRole.Employee}>{t('roleStaff')}</option>
+        <option value={UserRole.Viewer}>{t('roleViewer')}</option>
       </select>
     </div>
   );

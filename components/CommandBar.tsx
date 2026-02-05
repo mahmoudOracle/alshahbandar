@@ -1,19 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  HomeIcon,
-  DocumentTextIcon,
-  UsersIcon,
   ArchiveBoxIcon,
-  DocumentPlusIcon,
   CurrencyDollarIcon,
+  DocumentPlusIcon,
+  DocumentTextIcon,
+  HomeIcon,
   MagnifyingGlassIcon,
+  UsersIcon,
 } from '@heroicons/react/24/outline';
-import { getInvoices, getCustomers, getExpenses } from '../services/dataService';
-import SyncStatusBadge from './SyncStatusBadge';
+import { getCustomers, getExpenses, getInvoices } from '../services/dataService';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
-import { Spinner } from './Spinner';
 import { decodeUnicodeText } from '../src/utils/textDecode';
+import { Spinner } from './Spinner';
+import SyncStatusBadge from './SyncStatusBadge';
+import { t } from '../src/i18n/t';
 
 interface CommandBarProps {
   isOpen: boolean;
@@ -65,18 +66,18 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
   const resultsRef = useRef<HTMLUListElement>(null);
 
   const staticActions: StaticAction[] = [
-    { id: 'nav-1', title: 'ملخّص', category: 'Navigation', icon: HomeIcon, path: '/app/dashboard' },
+    { id: 'nav-1', title: t('commandNavDashboard'), category: 'Navigation', icon: HomeIcon, path: '/app/dashboard' },
     {
       id: 'nav-2',
-      title: 'الفواتير',
+      title: t('commandNavInvoices'),
       category: 'Navigation',
       icon: DocumentTextIcon,
       path: '/app/invoices',
     },
-    { id: 'nav-3', title: 'العملاء', category: 'Navigation', icon: UsersIcon, path: '/app/customers' },
+    { id: 'nav-3', title: t('commandNavCustomers'), category: 'Navigation', icon: UsersIcon, path: '/app/customers' },
     {
       id: 'nav-4',
-      title: 'المنتجات والمخزون',
+      title: t('commandNavProducts'),
       category: 'Navigation',
       icon: ArchiveBoxIcon,
       path: '/app/products',
@@ -85,7 +86,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
       ? [
           {
             id: 'create-1',
-            title: 'فاتورة جديدة',
+            title: t('commandCreateInvoice'),
             category: 'Create' as const,
             icon: DocumentPlusIcon,
             path: '/app/invoices/new',
@@ -96,7 +97,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
       ? [
           {
             id: 'create-2',
-            title: 'عميل جديد',
+            title: t('commandCreateCustomer'),
             category: 'Create' as const,
             icon: DocumentPlusIcon,
             path: '/app/customers/new',
@@ -107,7 +108,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
       ? [
           {
             id: 'create-3',
-            title: 'منتج جديد',
+            title: t('commandCreateProduct'),
             category: 'Create' as const,
             icon: DocumentPlusIcon,
             path: '/app/products/new',
@@ -126,29 +127,19 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
   const getCategoryLabel = (category: ActionItem['category']) => {
     switch (category) {
       case 'Navigation':
-        return 'التنقل';
+        return t('commandCategoryNavigation');
       case 'Create':
-        return 'إنشاء';
+        return t('commandCategoryCreate');
       case 'Invoices':
-        return 'فواتير';
+        return t('commandCategoryInvoices');
       case 'Customers':
-        return 'عملاء';
+        return t('commandCategoryCustomers');
       case 'Expenses':
-        return 'مصروفات';
+        return t('commandCategoryExpenses');
       default:
         return decodeUnicodeText(category);
     }
   };
-
-  useEffect(() => {
-    if (import.meta.env.DEV && staticActions.length > 0) {
-      const sample = staticActions[0];
-      console.info('[PALETTE_DEBUG] sample titles:', {
-        raw: sample.title,
-        decoded: decodeUnicodeText(sample.title),
-      });
-    }
-  }, [staticActions]);
 
   useEffect(() => {
     const performSearch = async () => {
@@ -271,7 +262,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
           <input
             ref={inputRef}
             type="text"
-            placeholder="ابحث عن أي شيء..."
+            placeholder={t('commandSearchPlaceholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-transparent px-12 py-4 border-b dark:border-slate-700 focus:outline-none"
@@ -322,7 +313,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
             ))
           ) : (
             <div className="text-center p-8 text-gray-500">
-              <p>لا توجد نتائج.</p>
+              <p>{t('commandNoResults')}</p>
             </div>
           )}
         </ul>
@@ -332,5 +323,3 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
 };
 
 export default CommandBar;
-
-

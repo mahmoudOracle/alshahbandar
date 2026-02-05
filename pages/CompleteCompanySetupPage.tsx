@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
+import { t } from '../src/i18n/t';
 import { useAuth } from '../contexts/AuthContext';
 import * as dataService from '../services/dataService';
 import { useNotification } from '../contexts/NotificationContext';
@@ -29,7 +30,7 @@ const CompleteCompanySetupPage: React.FC = () => {
           companyId?: string;
         } | null;
         if (!profile || !profile.companyId) {
-          addNotification('لم يتم ربط حسابك بشركة. لا يوجد شيء لإكماله.', 'error');
+          addNotification(t('companyDataNotFound'), 'error');
           return;
         }
         setCompanyId(profile.companyId);
@@ -40,7 +41,7 @@ const CompleteCompanySetupPage: React.FC = () => {
             ? company
             : await dataService.getCompany(profile.companyId);
         if (!company) {
-          addNotification('لم يتم العثور على بيانات الشركة.', 'error');
+          addNotification(t('companyDataNotFound'), 'error');
           return;
         }
         const compObj = company as Record<string, unknown>;
@@ -68,11 +69,11 @@ const CompleteCompanySetupPage: React.FC = () => {
         phone: phone.trim(),
         businessType: businessType.trim(),
       });
-      addNotification('تم حفظ بيانات الشركة بنجاح. سيتم إعلام الإدارة لمراجعتها.', 'success');
+      addNotification(t('companyDataSavedSuccess'), 'success');
       navigate('/');
     } catch (err) {
       console.error(err);
-      addNotification('فشل حفظ بيانات الشركة.', 'error');
+      addNotification(t('companyDataSaveFailed'), 'error');
     } finally {
       setLoading(false);
     }
@@ -82,7 +83,7 @@ const CompleteCompanySetupPage: React.FC = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold">إكمال بيانات الشركة</h1>
+          <h1 className="text-2xl font-bold">{t('completeCompanyDataTitle')}</h1>
           <p className="text-sm text-gray-600">
             أكمل بيانات شركتك حتى يتمكن فريقنا من مراجعة واعتماد الحساب.
           </p>
@@ -90,7 +91,7 @@ const CompleteCompanySetupPage: React.FC = () => {
         <Card>
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
-              label="اسم الشركة"
+              label={t('companyNameLabel')}
               id="companyName"
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Company } from '../../../types';
+import { t } from '../../../src/i18n/t';
 import { createCompany } from '../../../services/dataService';
 import { useNotification } from '../../../contexts/NotificationContext';
 import { Modal } from '../../../components/ui/Modal';
@@ -46,17 +47,17 @@ const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    if (!name.trim()) newErrors.name = 'اسم الشركة مطلوب.';
-    if (!address.trim()) newErrors.address = 'عنوان الشركة مطلوب.';
-    if (!companyId.trim()) newErrors.companyId = 'معرف الشركة مطلوب.';
+    if (!name.trim()) newErrors.name = t('companyNameRequired');
+    if (!address.trim()) newErrors.address = t('companyAddressRequired');
+    if (!companyId.trim()) newErrors.companyId = t('companyIdRequired');
     if (!ownerEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail)) {
-      newErrors.ownerEmail = 'بريد إلكتروني صالح مطلوب.';
+      newErrors.ownerEmail = t('validEmailRequired');
     }
-    if (!ownerFirstName.trim()) newErrors.ownerFirstName = 'الاسم الأول للمالك مطلوب.';
-    if (!ownerLastName.trim()) newErrors.ownerLastName = 'اسم العائلة للمالك مطلوب.';
-    if (!ownerMobile.trim()) newErrors.ownerMobile = 'رقم جوال المالك مطلوب.';
+    if (!ownerFirstName.trim()) newErrors.ownerFirstName = t('ownerFirstNameRequired');
+    if (!ownerLastName.trim()) newErrors.ownerLastName = t('ownerLastNameRequired');
+    if (!ownerMobile.trim()) newErrors.ownerMobile = t('ownerMobileRequired');
     if (!/^[a-z0-9-]+$/.test(companyId)) {
-      newErrors.companyId = 'المعرف يجب أن يحتوي على أحرف إنجليزية صغيرة وأرقام وشرطات فقط.';
+      newErrors.companyId = t('companyIdFormatError');
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -78,19 +79,17 @@ const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
       businessType: '',
       status: 'approved' as const,
     };
-    console.log('[DEBUG][CreateCompany] payload', payload);
 
     try {
       const newCompany = await createCompany(payload);
-      addNotification('تم إنشاء الشركة بنجاح!', 'success');
-      console.log('[DEBUG][CreateCompany] Firestore write success', newCompany);
+      addNotification(t('companyCreatedSuccess'), 'success');
       onCompanyCreated(newCompany);
       resetForm();
     } catch (error: unknown) {
-      console.error('[DEBUG][CreateCompany] Firestore write error', getErrorMessage(error));
+      console.error('[CreateCompany] Error creating company', getErrorMessage(error));
       const code = (error as Record<string, unknown>)?.code as string | undefined;
       if (code === 'already-exists') {
-        setErrors((prev) => ({ ...prev, companyId: 'معرف الشركة هذا مستخدم بالفعل.' }));
+        setErrors((prev) => ({ ...prev, companyId: t('companyIdAlreadyInUse') }));
       } else {
         addNotification(mapFirestoreError(error), 'error');
       }
@@ -114,16 +113,16 @@ const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="إضافة شركة جديدة">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <h3 className="text-lg font-semibold border-b pb-2 mb-4">بيانات الشركة</h3>
+        <h3 className="text-lg font-semibold border-b pb-2 mb-4">{t('companyDataTitle')}</h3>
         <Input
-          label="اسم الشركة"
+          label={t('companyNameLabel')}
           value={name}
           onChange={handleNameChange}
           error={errors.name}
           required
         />
         <Textarea
-          label="عنوان الشركة"
+          label={t('companyAddressLabel')}
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           error={errors.address}
@@ -131,7 +130,7 @@ const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
           rows={2}
         />
         <Input
-          label="معرف الشركة (companyId)"
+          label={t('companyIdFormLabel')}
           value={companyId}
           onChange={(e) => setCompanyId(e.target.value)}
           error={errors.companyId}
@@ -180,10 +179,10 @@ const CreateCompanyModal: React.FC<CreateCompanyModalProps> = ({
 
         <div className="flex justify-end gap-4 pt-4 border-t dark:border-gray-700">
           <Button type="button" variant="secondary" onClick={onClose}>
-            إلغاء
+            {t('commonCancel')}
           </Button>
           <Button type="submit" loading={loading}>
-            إنشاء الشركة
+            {t('createCompanyButton')}
           </Button>
         </div>
       </form>

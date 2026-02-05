@@ -8,6 +8,7 @@ const CashFlow = lazy(() => import('@/pages/CashFlow'));
 const CustomerList = lazy(() => import('@/pages/CustomerList'));
 const CustomerForm = lazy(() => import('@/pages/CustomerForm'));
 const CustomerDetail = lazy(() => import('@/pages/CustomerDetail'));
+const DailyCollection = lazy(() => import('@/pages/DailyCollection'));
 const QuoteList = lazy(() => import('@/pages/QuoteList'));
 const QuoteForm = lazy(() => import('@/pages/QuoteForm'));
 const QuoteDetail = lazy(() => import('@/pages/QuoteDetail'));
@@ -47,6 +48,7 @@ export const routes = [
   { path: '/customers/new', component: CustomerForm, title: 'عميل جديد' },
   { path: '/customers/edit/:id', component: CustomerForm, title: 'تعديل عميل' },
   { path: '/customers/:id', component: CustomerDetail, title: 'تفاصيل العميل' },
+  { path: '/daily-collection', component: DailyCollection, title: 'التحصيل اليومي' },
   { path: '/products', component: ProductList, title: 'المنتجات والمخزون' },
   { path: '/products/new', component: ProductForm, title: 'منتج جديد' },
   { path: '/products/edit/:id', component: ProductForm, title: 'تعديل منتج' },

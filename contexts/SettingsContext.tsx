@@ -1,10 +1,11 @@
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
+import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import { Settings } from '../types';
 import { getSettings, saveSettings as saveSettingsService } from '../services/dataService';
 import { useAuth } from './AuthContext';
 import { useNotification } from './NotificationContext';
 import { getErrorMessage } from '../src/utils/errorMessage';
-import { LoadingScreen } from '../LoadingScreen';
+import LoadingScreen from '../components/LoadingScreen';
+import { t } from '../src/i18n/t';
 
 interface SettingsContextType {
   settings: Settings | null;
@@ -51,7 +52,7 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
           setSettings({ ...hardcodedDefaultSettings, source: 'firestore' });
         }
       } catch (err: unknown) {
-        const msg = getErrorMessage(err, 'تعذر تحميل الإعدادات من قاعدة البيانات.');
+        const msg = getErrorMessage(err, t('settingsLoadError'));
         console.warn('Could not load settings from Firestore. Error:', msg);
         addNotification(msg, 'error');
         setSettings(hardcodedDefaultSettings);
@@ -71,7 +72,7 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
   };
 
   if (loading) {
-    return <LoadingScreen message="جاري تحميل الإعدادات..." />;
+    return <LoadingScreen message={t('settingsLoading')} />;
   }
 
   if (!companyId || !settings) {

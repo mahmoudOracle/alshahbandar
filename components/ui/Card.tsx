@@ -6,6 +6,8 @@ interface CardProps {
   children: React.ReactNode;
   className?: string;
   padding?: 'none' | 'sm' | 'md' | 'lg';
+  variant?: 'default' | 'elevated' | 'outlined';
+  hoverable?: boolean;
 }
 
 export const Card: React.FC<CardProps> = ({
@@ -14,22 +16,34 @@ export const Card: React.FC<CardProps> = ({
   children,
   className = '',
   padding = 'md',
+  variant = 'default',
+  hoverable = false,
 }) => {
   const paddingClasses = {
-    none: '',
-    sm: 'p-4',
-    md: 'p-6',
-    lg: 'p-8',
+    none: 'card-body--none',
+    sm: 'card-body--sm',
+    md: 'card-body--md',
+    lg: 'card-body--lg',
   };
 
+  const variantClasses = {
+    default: 'card--default',
+    elevated: 'card--elevated',
+    outlined: 'card--outlined',
+  };
+
+  const hoverClasses = hoverable ? 'card--hoverable' : '';
+
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-md ${className}`}>
+    <div
+      className={`card ${variantClasses[variant]} ${hoverClasses} ${className}`}
+    >
       {header && (
-        <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4">{header}</div>
+        <div className="card-header">{header}</div>
       )}
-      <div className={paddingClasses[padding]}>{children}</div>
+      <div className={`card-body ${paddingClasses[padding]}`}>{children}</div>
       {footer && (
-        <div className="border-t border-gray-200 dark:border-gray-700 px-6 py-4">{footer}</div>
+        <div className="card-footer">{footer}</div>
       )}
     </div>
   );

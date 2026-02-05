@@ -1,6 +1,7 @@
-import React, { Component, ReactNode, ErrorInfo } from 'react';
-import { reportError } from '../services/errorReporting';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { reportError } from '../services/errorReporting';
+import { t } from '../src/i18n/t';
 
 type Props = React.PropsWithChildren<{
   fallback?: ReactNode;
@@ -19,7 +20,6 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Log locally and attempt centralized reporting.
     console.error('ErrorBoundary caught an error:', error, errorInfo);
     try {
       reportError({ error, info: errorInfo });
@@ -41,14 +41,14 @@ class ErrorBoundary extends Component<Props, State> {
             </div>
             <div className="mt-4 text-center">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                حدث خطأ غير متوقع
+                {t('errorBoundaryTitle')}
               </h3>
               <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                <p>نعتذر عن الإزعاج. يرجى تحديث الصفحة أو الاتصال بالدعم إذا استمرت المشكلة.</p>
+                <p>{t('errorBoundaryMessage')}</p>
                 {this.state.error && (
                   <details className="mt-4 text-right">
                     <summary className="cursor-pointer text-gray-700 dark:text-gray-300">
-                      تفاصيل الخطأ
+                      {t('errorBoundaryDetails')}
                     </summary>
                     <pre className="mt-2 text-xs text-gray-600 dark:text-gray-400 overflow-auto">
                       {this.state.error.toString()}
@@ -61,7 +61,7 @@ class ErrorBoundary extends Component<Props, State> {
                   onClick={() => window.location.reload()}
                   className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                 >
-                  تحديث الصفحة
+                  {t('errorBoundaryReload')}
                 </button>
               </div>
             </div>

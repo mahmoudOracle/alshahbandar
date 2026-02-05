@@ -57,7 +57,7 @@ const deepClone = <T>(obj: T): T => JSON.parse(JSON.stringify(obj));
 
 export const seedData = async (companyId: string) => {
   if (isSeeded) return;
-  console.log(`Seeding MOCK data for company: ${companyId}`);
+  console.warn(`[MOCK] Seeding mock data for company: ${companyId}. This is for development/testing only.`);
 
   try {
     const [brandingRes, settingsRes] = await Promise.all([

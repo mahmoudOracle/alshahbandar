@@ -1,15 +1,7 @@
-import React from 'react';
+﻿import React from 'react';
 import { ShieldExclamationIcon } from '@heroicons/react/24/outline';
 import { Button } from '../components/ui/Button';
-
-const decodeUnicode = (str: string | undefined | null): string => {
-  if (!str) return '';
-  const normalizedStr = str.replace(/\\\\u/g, '\\u');
-  const decoded = normalizedStr.replace(/\\\u([\dA-F]{4})/gi, (_, grp) =>
-    String.fromCharCode(parseInt(grp, 16))
-  );
-  return decoded;
-};
+import { t } from '../src/i18n/t';
 
 interface FatalErrorPageProps {
   title?: string;
@@ -34,13 +26,6 @@ const FatalErrorPage: React.FC<FatalErrorPageProps> = ({
   message,
   showRetry = true,
 }) => {
-  const defaultTitle = 'O§USOñ U.OæOñO-';
-  const defaultMessage =
-    'O-O_O® OrOúOœ O§USOñ U.O¦U^U,O1. USOñOªU% OU,U.O-OU^U,Oc U.OñOc OœOrOñU%.';
-
-  const decodedTitle = decodeUnicode(title || defaultTitle);
-  const decodedMessage = decodeUnicode(message || defaultMessage);
-
   return (
     <div className="flex items-center justify-center h-screen bg-gray-100 dark:bg-gray-900 p-4">
       <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
@@ -48,15 +33,15 @@ const FatalErrorPage: React.FC<FatalErrorPageProps> = ({
           <ShieldExclamationIcon className="h-7 w-7 text-danger-600 dark:text-danger-400" />
         </div>
         <h1 className="mt-5 text-2xl font-bold text-gray-900 dark:text-white">
-          {decodedTitle}
+          {title || t('fatalErrorTitle')}
         </h1>
         <div className="mt-3 text-gray-600 dark:text-gray-400">
-          <p className="whitespace-pre-line">{decodedMessage}</p>
+          <p className="whitespace-pre-line">{message || t('fatalErrorMessage')}</p>
         </div>
         <div className="mt-6 space-y-2">
           {showRetry && (
             <Button variant="primary" onClick={reloadPage} className="w-full">
-              {decodeUnicode('OU,O1U^O_Oc OU,U% OU,OæU?O-Oc OU,OñOÝUSO3USOc')}
+              {t('fatalErrorRetry')}
             </Button>
           )}
           <Button
@@ -64,14 +49,14 @@ const FatalErrorPage: React.FC<FatalErrorPageProps> = ({
             onClick={navigateToHash('#/login')}
             className="w-full"
           >
-            Go to Login
+            {t('fatalErrorLogin')}
           </Button>
           <Button
             variant="ghost"
             onClick={navigateToHash('#/app')}
             className="w-full"
           >
-            Go to App
+            {t('fatalErrorApp')}
           </Button>
         </div>
       </div>

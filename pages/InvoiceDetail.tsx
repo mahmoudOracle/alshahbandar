@@ -9,7 +9,7 @@ import {
   getProducts,
 } from '../services/dataService';
 import PaymentForm from './PaymentForm';
-import { Invoice, InvoiceStatus, Customer, ReturnDoc } from '../types';
+import { Invoice, InvoiceStatus, Customer, ReturnDoc, Product } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
@@ -20,6 +20,7 @@ import ReturnForm from './ReturnForm';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { t } from '../src/i18n/t';
 
 const toDateValue = (value: unknown): Date | null => {
   if (!value) return null;
@@ -88,30 +89,31 @@ const InvoiceDetail: React.FC = () => {
 
   const handleSendEmail = () => {
     if (!customer || !invoice || !settings) return;
-    const subject = `فاتورة ${invoice.invoiceNumber} من ${settings.businessName}`;
-    const body = `
-السيد/ة ${customer.name}
-
-يرجى الاطلاع على الفاتورة رقم ${invoice.invoiceNumber}.
-
-الإجمالي: ${Number(invoice.total || 0).toFixed(2)} ${settings.currency}
-تاريخ الاستحقاق: ${formatDate(invoice.dueDate)}
-
-${settings.businessName}
-    `;
+    const subject = t('invoiceDetailEmailSubject', {
+      invoiceNumber: invoice.invoiceNumber,
+      businessName: settings.businessName
+    });
+    const body = t('invoiceDetailEmailBody', {
+      customerName: customer.name,
+      invoiceNumber: invoice.invoiceNumber,
+      total: Number(invoice.total || 0).toFixed(2),
+      currency: settings.currency,
+      dueDate: formatDate(invoice.dueDate),
+      businessName: settings.businessName
+    });
     const mailtoLink = `mailto:${customer.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body.trim())}`;
     window.location.href = mailtoLink;
   };
 
   const handleDelete = async () => {
     if (!invoice || !companyId) return;
-    const ok = window.confirm('هل أنت متأكد من حذف الفاتورة؟ يمكنك التراجع لاحقًا.');
+    const ok = window.confirm(t('invoiceDetailDeleteConfirmMessage'));
     if (!ok) return;
     try {
       const res = await deleteInvoice(companyId, invoice.id);
       if (res) {
-        addNotification('تم حذف الفاتورة.', 'success', {
-          label: 'تراجع',
+        addNotification(t('invoiceDetailDeleteSuccess'), 'success', {
+          label: t('invoiceDetailDeleteUndo'),
           onClick: async () => {
             try {
               const restored = await undeleteDocument(companyId, 'invoices', invoice.id);
@@ -125,22 +127,22 @@ ${settings.businessName}
         });
         navigate('/app/invoices');
       } else {
-        addNotification('تعذر حذف الفاتورة.', 'error');
+        addNotification(t('invoiceDetailDeleteFailed'), 'error');
       }
     } catch (err: unknown) {
-      addNotification(mapFirestoreError(err) || 'تعذر حذف الفاتورة.', 'error');
+      addNotification(mapFirestoreError(err) || t('invoiceDetailDeleteFailed'), 'error');
     }
   };
 
-  if (loading || settingsLoading) return <div>جاري تحميل الفاتورة...</div>;
-  if (!invoice || !settings) return <div>لا يمكن العثور على الفاتورة.</div>;
+  if (loading || settingsLoading) return <div>{t('invoiceDetailLoadingMessage')}</div>;
+  if (!invoice || !settings) return <div>{t('invoiceDetailNotFound')}</div>;
 
   const statusLabel = () => {
     const isOverdue =
       invoice.status === InvoiceStatus.Due && toDateValue(invoice.dueDate) && toDateValue(invoice.dueDate)! < new Date();
-    if (invoice.status === InvoiceStatus.Paid) return 'مدفوعة';
-    if (invoice.status === InvoiceStatus.Cancelled) return 'ملغاة';
-    return isOverdue ? 'متأخرة' : 'غير مدفوعة';
+    if (invoice.status === InvoiceStatus.Paid) return t('invoiceDetailStatusPaid');
+    if (invoice.status === InvoiceStatus.Cancelled) return t('invoiceDetailStatusCancelled');
+    return isOverdue ? t('invoiceDetailStatusOverdue') : t('invoiceDetailStatusUnpaid');
   };
 
   const canCreatePayments =
@@ -206,7 +208,7 @@ ${settings.businessName}
           </div>
           <div className="text-left">
             <h2 className="text-3xl font-bold uppercase text-gray-400 dark:text-gray-500">
-              فاتورة
+              {t('invoiceDetailTitle')}
             </h2>
             <p className="text-gray-700 dark:text-gray-300 mt-2"># {invoice.invoiceNumber}</p>
           </div>
@@ -214,7 +216,7 @@ ${settings.businessName}
 
         <section className="flex justify-between items-start mt-8">
           <div>
-            <h3 className="font-semibold text-gray-700 dark:text-gray-300">العميل:</h3>
+            <h3 className="font-semibold text-gray-700 dark:text-gray-300">{t('invoiceDetailCustomerLabel')}</h3>
             <p className="font-bold text-lg text-gray-900 dark:text-white">
               {invoice.customerName}
             </p>
@@ -223,19 +225,19 @@ ${settings.businessName}
           <div className="text-left">
             <p>
               <span className="font-semibold text-gray-700 dark:text-gray-300">
-                تاريخ الفاتورة:
+                {t('invoiceDetailDateLabel')}
               </span>{' '}
               {formatDate(invoice.date)}
             </p>
             <p>
               <span className="font-semibold text-gray-700 dark:text-gray-300">
-                تاريخ الاستحقاق:
+                {t('invoiceDetailDueDateLabel')}
               </span>{' '}
               {formatDate(invoice.dueDate)}
             </p>
             <p>
               <span className="font-semibold text-gray-700 dark:text-gray-300">
-                طريقة الدفع:
+                {t('invoiceDetailPaymentTypeLabel')}
               </span>{' '}
               {invoice.paymentType}
             </p>
@@ -248,16 +250,16 @@ ${settings.businessName}
             <thead className="bg-gray-100 dark:bg-gray-700">
               <tr>
                 <th className="px-6 py-3 text-right text-sm font-semibold text-gray-600 dark:text-gray-300">
-                  البيان
+                  {t('invoiceDetailItemsTableHeader')}
                 </th>
                 <th className="px-6 py-3 text-center text-sm font-semibold text-gray-600 dark:text-gray-300">
-                  الكمية
+                  {t('invoiceDetailQuantityHeader')}
                 </th>
                 <th className="px-6 py-3 text-center text-sm font-semibold text-gray-600 dark:text-gray-300">
-                  السعر
+                  {t('invoiceDetailPriceHeader')}
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-gray-600 dark:text-gray-300">
-                  الإجمالي
+                  {t('invoiceDetailTotalHeader')}
                 </th>
               </tr>
             </thead>
@@ -265,7 +267,7 @@ ${settings.businessName}
               {invoice.items.map((item) => {
                 const unitPrice = Number(item.price ?? item.unitPrice ?? 0);
                 const lineTotal = Number(item.quantity || 0) * unitPrice;
-                const displayProductName = item.productName || products.find(p => p.id === item.productId)?.name || 'صنف غير معروف';
+                const displayProductName = item.productName || products.find(p => p.id === item.productId)?.name || t('invoiceDetailUnknownProduct');
                 return (
                   <tr key={item.id} className="border-b dark:border-gray-700">
                     <td className="px-6 py-4">{displayProductName}</td>
@@ -286,14 +288,14 @@ ${settings.businessName}
         <section className="flex justify-end mt-8">
           <div className="w-full md:w-1/2 lg:w-1/3 space-y-2">
             <div className="flex justify-between py-2">
-              <span className="font-semibold text-gray-700 dark:text-gray-300">الإجمالي الفرعي:</span>
+              <span className="font-semibold text-gray-700 dark:text-gray-300">{t('invoiceDetailSubtotal')}</span>
               <span>
                 {Number(invoice.subtotal || 0).toFixed(2)} {settings.currency}
               </span>
             </div>
             {invoice.paymentsSummary && (
               <div className="flex justify-between py-2">
-                <span className="font-semibold text-gray-700 dark:text-gray-300">المدفوع:</span>
+                <span className="font-semibold text-gray-700 dark:text-gray-300">{t('invoiceDetailPaid')}</span>
                 <span>
                   {Number(invoice.paymentsSummary.paid || 0).toFixed(2)} {settings.currency}
                 </span>
@@ -302,7 +304,7 @@ ${settings.businessName}
             {invoice.taxAmount !== undefined && invoice.taxAmount > 0 && (
               <div className="flex justify-between py-2">
                 <span className="font-semibold text-gray-700 dark:text-gray-300">
-                  الضريبة ({invoice.taxRate || 0}%):
+                  {t('invoiceDetailTax', { rate: invoice.taxRate || 0 })}
                 </span>
                 <span>
                   {Number(invoice.taxAmount || 0).toFixed(2)} {settings.currency}
@@ -310,7 +312,7 @@ ${settings.businessName}
               </div>
             )}
             <div className="flex justify-between py-3 bg-gray-100 dark:bg-gray-700 px-4 rounded-md mt-2">
-              <span className="font-bold text-xl text-gray-900 dark:text-white">الإجمالي:</span>
+              <span className="font-bold text-xl text-gray-900 dark:text-white">{t('invoiceDetailGrandTotal')}</span>
               <span className="font-bold text-xl text-gray-900 dark:text-white">
                 {Number(invoice.total || 0).toFixed(2)} {settings.currency}
               </span>
@@ -323,21 +325,21 @@ ${settings.businessName}
           onClick={() => window.print()}
           className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700"
         >
-          طباعة
+          {t('invoiceDetailPrint')}
         </button>
         <button
           onClick={handleSendEmail}
           disabled={!customer?.email}
           className="px-4 py-2 text-white bg-teal-500 rounded-md hover:bg-teal-600 disabled:bg-gray-400"
         >
-          إرسال بالبريد
+          {t('invoiceDetailSendEmail')}
         </button>
         {canWrite && (
           <Link
             to={`/app/invoices/edit/${id}`}
             className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500"
           >
-            تعديل
+            {t('invoiceDetailEdit')}
           </Link>
         )}
         {canWrite && (
@@ -345,7 +347,7 @@ ${settings.businessName}
             onClick={handleDelete}
             className="px-4 py-2 text-white bg-red-600 rounded-md hover:bg-red-700"
           >
-            حذف
+            {t('invoiceDetailDelete')}
           </button>
         )}
         {canWrite && canCreatePayments && (

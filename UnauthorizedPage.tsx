@@ -1,31 +1,30 @@
-import React from 'react';
+﻿import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
+import { t } from '../src/i18n/t';
 
 export const UnauthorizedPage = () => {
   const { status, user, logout } = useAuth();
 
-  // If somehow we ended up here but are actually authorized, go to app
   if (status === 'authorized') {
     return <Navigate to="/app" replace />;
   }
 
-  // If logged out, go to login
   if (status === 'loggedOut') {
     return <Navigate to="/login" replace />;
   }
 
-  let title = "غير مصرح لك بالدخول";
-  let message = "لا تملك الصلاحيات الكافية للوصول إلى هذا النظام.";
+  let title = t('unauthorizedTitle');
+  let message = t('unauthorizedMessage');
 
   if (status === 'unauthorized_notMember') {
-    message = "حسابك غير مسجل ضمن أعضاء الشركة. يرجى التواصل مع المسؤول.";
+    message = t('unauthorizedNotMember');
   } else if (status === 'unauthorized_companyInactive') {
-    title = "الشركة غير نشطة";
-    message = "تم إيقاف حساب الشركة مؤقتاً. يرجى التواصل مع الدعم الفني.";
+    title = t('unauthorizedCompanyInactiveTitle');
+    message = t('unauthorizedCompanyInactiveMessage');
   } else if (status === 'error') {
-    title = "خطأ في النظام";
-    message = "حدث خطأ أثناء التحقق من البيانات. يرجى المحاولة مرة أخرى.";
+    title = t('unauthorizedErrorTitle');
+    message = t('unauthorizedErrorMessage');
   }
 
   return (
@@ -45,7 +44,7 @@ export const UnauthorizedPage = () => {
       <p style={{ color: '#666' }}>{user?.email}</p>
       
       <button onClick={() => logout()} style={{ padding: '10px 20px', cursor: 'pointer' }}>
-        تسجيل الخروج (Logout)
+        {t('logoutLabel')}
       </button>
     </div>
   );
