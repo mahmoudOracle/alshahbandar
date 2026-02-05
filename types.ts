@@ -93,7 +93,7 @@ export interface Receipt {
   customerName: string;
   amount: number;
   date: string; // ISO 8601 local time
-  method: 'cash' | 'transfer' | 'check' | 'wallet' | 'other';
+  method: 'cash' | 'transfer' | 'check' | 'wallet' | 'instapay' | 'other';
   note?: string;
   invoiceId?: string;
   invoiceNumber?: string;

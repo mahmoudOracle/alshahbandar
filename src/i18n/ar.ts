@@ -805,6 +805,35 @@
   paymentMethodTransfer: 'تحويل بنكي',
   paymentMethodCheck: 'شيك',
   commonSaving: 'جاري الحفظ...',
+  
+  // Daily Collection Form
+  dailyCollectionFormTitle: 'تسجيل تحصيل',
+  dailyCollectionFormSubtitle: 'سجل المدفوعات من العملاء بسهولة',
+  dailyCollectionFormCustomer: 'العميل',
+  dailyCollectionFormAmount: 'المبلغ',
+  dailyCollectionFormMethod: 'طريقة الدفع',
+  dailyCollectionFormDate: 'التاريخ',
+  dailyCollectionFormNote: 'ملاحظة',
+  dailyCollectionFormNotePlaceholder: 'ملاحظات اختيارية...',
+  dailyCollectionValidationRequired: 'يرجى ملء جميع الحقول المطلوبة',
+  dailyCollectionValidationAmount: 'المبلغ يجب أن يكون أكبر من صفر',
+  dailyCollectionValidationCustomer: 'العميل المختار غير موجود',
+  dailyCollectionSaved: 'تم حفظ التحصيل بنجاح',
+  dailyCollectionDeleted: 'تم حذف التحصيل بنجاح',
+  dailyCollectionCustomers: 'عدد العملاء',
+  dailyCollectionListTitle: 'تحصيلات اليوم',
+  dailyCollectionDeleteTitle: 'حذف التحصيل',
+  
+  dailyCollectionQuickAdd: 'إضافة سريعة',
+  dailyCollectionTodayCollections: 'تحصيلات اليوم',
+  dailyCollectionCollectionsSummary: 'ملخص التحصيلات',
+  dailyCollectionTotalCollected: 'إجمالي المحصل',
+  dailyCollectionNumCollections: 'عدد التحصيلات',
+  dailyCollectionTransfer: 'تحويل',
+  dailyCollectionCheck: 'شيك',
+  dailyCollectionViewDetails: 'عرض التفاصيل',
+  dailyCollectionDeleteConfirm: 'هل تريد حقاً حذف هذه التحصيلة؟',
+  dailyCollectionEmptyState: 'لا توجد تحصيلات حتى الآن. أضف واحدة للبدء.',
 };
 
 export type ArKey = keyof typeof ar;
