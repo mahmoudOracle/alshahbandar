@@ -7,6 +7,7 @@ import {
   Timestamp,
   deleteDoc,
   doc,
+  serverTimestamp,
 } from 'firebase/firestore';
 import { getFirestoreDb } from './firebase';
 import { Receipt } from '../types';
@@ -16,6 +17,12 @@ const db = getFirestoreDb();
 /**
  * Create a new receipt (payment record).
  * Validates amount and date on client.
+ * 
+ * IMPORTANT:
+ * - date: ISO 8601 string (YYYY-MM-DD), stored as business date
+ * - createdAt: Server timestamp (ensures consistency across timezones)
+ * - createdBy: User UID (unique identifier, not email)
+ * - createdByEmail: User email (optional, for display)
  */
 export async function createReceipt(
   companyId: string,
@@ -27,6 +34,7 @@ export async function createReceipt(
   note?: string,
   invoiceId?: string,
   invoiceNumber?: string,
+  userId?: string,
   userEmail?: string
 ): Promise<string> {
   const receiptsRef = collection(db, 'companies', companyId, 'receipts');
@@ -44,12 +52,13 @@ export async function createReceipt(
     customerName,
     amount,
     method,
-    date, // ISO 8601 local time
+    date, // ISO 8601 local time (business date)
     note: note || '',
     invoiceId: invoiceId || null,
     invoiceNumber: invoiceNumber || '',
-    createdAt: Timestamp.now(),
-    createdBy: userEmail || 'unknown',
+    createdAt: serverTimestamp(), // Server time (consistent across timezones)
+    createdBy: userId || 'unknown', // User UID
+    createdByEmail: userEmail || '', // Optional display field
   });
 
   return docRef.id;

@@ -12,6 +12,7 @@ import {
 import { getCustomers, getExpenses, getInvoices } from '../services/dataService';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import { decodeUnicodeText } from '../src/utils/textDecode';
+import { getRoutePath } from '../src/routes';
 import { Spinner } from './Spinner';
 import SyncStatusBadge from './SyncStatusBadge';
 import { t } from '../src/i18n/t';
@@ -66,21 +67,21 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
   const resultsRef = useRef<HTMLUListElement>(null);
 
   const staticActions: StaticAction[] = [
-    { id: 'nav-1', title: t('commandNavDashboard'), category: 'Navigation', icon: HomeIcon, path: '/app/dashboard' },
+    { id: 'nav-1', title: t('commandNavDashboard'), category: 'Navigation', icon: HomeIcon, path: getRoutePath('dashboard') },
     {
       id: 'nav-2',
       title: t('commandNavInvoices'),
       category: 'Navigation',
       icon: DocumentTextIcon,
-      path: '/app/invoices',
+      path: getRoutePath('invoices'),
     },
-    { id: 'nav-3', title: t('commandNavCustomers'), category: 'Navigation', icon: UsersIcon, path: '/app/customers' },
+    { id: 'nav-3', title: t('commandNavCustomers'), category: 'Navigation', icon: UsersIcon, path: getRoutePath('customers') },
     {
       id: 'nav-4',
       title: t('commandNavProducts'),
       category: 'Navigation',
       icon: ArchiveBoxIcon,
-      path: '/app/products',
+      path: getRoutePath('products'),
     },
     ...(canWriteInvoices
       ? [
@@ -89,7 +90,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
             title: t('commandCreateInvoice'),
             category: 'Create' as const,
             icon: DocumentPlusIcon,
-            path: '/app/invoices/new',
+            path: getRoutePath('invoices-new'),
           },
         ]
       : []),
@@ -100,7 +101,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
             title: t('commandCreateCustomer'),
             category: 'Create' as const,
             icon: DocumentPlusIcon,
-            path: '/app/customers/new',
+            path: getRoutePath('customers-new'),
           },
         ]
       : []),
@@ -111,7 +112,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ isOpen, onClose }) => {
             title: t('commandCreateProduct'),
             category: 'Create' as const,
             icon: DocumentPlusIcon,
-            path: '/app/products/new',
+            path: getRoutePath('products-new'),
           },
         ]
       : []),

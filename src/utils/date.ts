@@ -22,8 +22,31 @@
 import { Timestamp } from 'firebase/firestore';
 
 /**
+ * Extract date components safely (YYYY, MM, DD) from a Date object
+ * Uses local timezone, not UTC, to preserve business date
+ * E.g., Feb 6, 2025 in Cairo stays "2025-02-06" (not converted to UTC)
+ */
+function extractLocalDateComponents(date: Date): { year: number; month: number; day: number } {
+  return {
+    year: date.getFullYear(),
+    month: date.getMonth() + 1,
+    day: date.getDate(),
+  };
+}
+
+/**
+ * Format date components to ISO string (YYYY-MM-DD)
+ */
+function formatDateComponents(year: number, month: number, day: number): string {
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/**
  * Normalize date input to ISO 8601 string (YYYY-MM-DD)
  * Accepts: ISO string, Timestamp, Date object, or DD-MM-YYYY string
+ * 
+ * CRITICAL: Uses local date components, NOT toISOString() (which converts to UTC)
+ * This preserves the business date in the user's local timezone.
  */
 function normalizeToISO(date: string | Timestamp | Date | unknown): string | null {
   if (!date) return null;
@@ -31,12 +54,15 @@ function normalizeToISO(date: string | Timestamp | Date | unknown): string | nul
   try {
     // Firestore Timestamp
     if (date instanceof Timestamp) {
-      return date.toDate().toISOString().split('T')[0];
+      const d = date.toDate();
+      const { year, month, day } = extractLocalDateComponents(d);
+      return formatDateComponents(year, month, day);
     }
 
-    // JavaScript Date
+    // JavaScript Date — use local components, NOT toISOString()
     if (date instanceof Date) {
-      return date.toISOString().split('T')[0];
+      const { year, month, day } = extractLocalDateComponents(date);
+      return formatDateComponents(year, month, day);
     }
 
     // String

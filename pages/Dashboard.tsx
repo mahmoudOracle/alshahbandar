@@ -11,6 +11,7 @@ import { SectionHeader } from '../src/ui/SectionHeader';
 import { ListRow } from '../src/ui/ListRow';
 import { BanknotesIcon, CurrencyDollarIcon, ChartBarIcon } from '@heroicons/react/24/outline';
 import { getErrorMessage } from '../src/utils/errorMessage';
+import { getRoutePath } from '../src/routes';
 import { t } from '../src/i18n/t';
 
 const DAILY_LIMIT = 500;
@@ -43,7 +44,12 @@ const toDateObject = (value: unknown): Date | null => {
   return null;
 };
 
-const toISODate = (date: Date) => date.toISOString().split('T')[0];
+const toISODate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const Dashboard: React.FC = () => {
   const { companyId } = useAuth();
@@ -230,12 +236,12 @@ const Dashboard: React.FC = () => {
           action={
             <div className="flex gap-2 flex-wrap">
               {canWriteInvoices && (
-                <Link to="/app/invoices/new" className="ui-button primary">
+                <Link to={getRoutePath('invoices-new')} className="ui-button primary">
                   {t('dashboardNewInvoice')}
                 </Link>
               )}
               {canWriteExpenses && (
-                <Link to="/app/expenses/new" className="ui-button secondary">
+                <Link to={getRoutePath('expenses-new')} className="ui-button secondary">
                   {t('dashboardNewExpense')}
                 </Link>
               )}
@@ -293,7 +299,7 @@ const Dashboard: React.FC = () => {
           <div className="card-header">
             <div className="flex justify-between items-center">
               <h3>{t('dashboardLatestInvoices')}</h3>
-              <Link to="/app/invoices" className="text-primary-600 hover:text-primary-700 text-sm font-semibold">
+              <Link to={getRoutePath('invoices')} className="text-primary-600 hover:text-primary-700 text-sm font-semibold">
                 {t('commonViewAll')} →
               </Link>
             </div>
@@ -304,7 +310,7 @@ const Dashboard: React.FC = () => {
               <p className="text-sm text-gray-600">{t('dashboardNoInvoices')}</p>
               {canWriteInvoices && (
                 <div className="mt-4">
-                  <Link to="/app/invoices/new" className="ui-button primary">
+                  <Link to={getRoutePath('invoices-new')} className="ui-button primary">
                     {t('dashboardAddInvoice')}
                   </Link>
                 </div>
@@ -334,7 +340,7 @@ const Dashboard: React.FC = () => {
           <div className="card-header">
             <div className="flex justify-between items-center">
               <h3>{t('dashboardLatestExpenses')}</h3>
-              <Link to="/app/expenses" className="text-primary-600 hover:text-primary-700 text-sm font-semibold">
+              <Link to={getRoutePath('expenses')} className="text-primary-600 hover:text-primary-700 text-sm font-semibold">
                 {t('commonViewAll')} →
               </Link>
             </div>
@@ -345,7 +351,7 @@ const Dashboard: React.FC = () => {
               <p className="text-sm text-gray-600">{t('dashboardNoExpenses')}</p>
               {canWriteExpenses && (
                 <div className="mt-4">
-                  <Link to="/app/expenses/new" className="ui-button secondary">
+                  <Link to={getRoutePath('expenses-new')} className="ui-button secondary">
                     {t('dashboardAddExpense')}
                   </Link>
                 </div>

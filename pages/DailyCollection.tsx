@@ -15,10 +15,16 @@ import { ListRow } from '../src/ui/ListRow';
 import { ActionMenu } from '../src/ui/ActionMenu';
 import { Modal } from '../components/ui/Modal';
 import { t } from '../src/i18n/t';
+import { getTodayISO, formatDate, formatDateTime } from '../src/utils/date';
 
 const toIsoDate = (date: Date | string) => {
   if (typeof date === 'string') return date;
-  return date.toISOString().split('T')[0];
+  // Use local date components instead of toISOString() to preserve local timezone
+  const d = date instanceof Date ? date : new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 const methodLabel = (method: string): string => {
@@ -381,14 +387,13 @@ const DailyCollection: React.FC = () => {
                         </p>
                       )}
                     </div>
-
                     <div className="flex items-center gap-4 ml-4">
                       <div className="text-right">
                         <p className="font-bold text-lg text-gray-900 dark:text-white">
                           {receipt.amount.toFixed(2)}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-500">
-                          {new Date(receipt.date).toLocaleDateString('ar-EG')}
+                          {formatDate(receipt.date, 'ar')}
                         </p>
                       </div>
 
