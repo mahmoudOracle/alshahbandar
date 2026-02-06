@@ -56,7 +56,7 @@ function App() {
           <Route path="expenses" element={<ExpenseList />} />
           <Route path="expenses/new" element={<ExpenseForm />} />
           <Route path="expenses/edit/:id" element={<ExpenseForm />} />
-          <Route path="collection" element={<DailyCollection />} />
+          <Route path="daily-collection" element={<DailyCollection />} />
           <Route path="settings" element={<Settings />} />
           <Route path="reports" element={<Reports />} />
           <Route path="quotes" element={<QuoteList />} />
