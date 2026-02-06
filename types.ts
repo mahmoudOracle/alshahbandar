@@ -79,7 +79,7 @@ export interface Payment {
   invoiceNumber?: string;
   amount: number;
   method: PaymentMethod;
-  date: string | unknown; // ISO 8601 or Firestore Timestamp
+  date: string; // ISO 8601 (YYYY-MM-DD) — standardized for reporting
   notes?: string;
   reference?: string;
   createdAt?: unknown;
@@ -161,7 +161,7 @@ export interface StockLedgerEntry {
   sourceType: StockSourceType;
   sourceId?: string; // reference to purchase/invoice/adjustment
   userId?: string;
-  timestamp: unknown;
+  timestamp: unknown; // Firestore Timestamp — queryable for reports
   notes?: string;
 }
 
