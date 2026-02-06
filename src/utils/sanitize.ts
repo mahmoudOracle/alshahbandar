@@ -15,6 +15,7 @@
 
 import { Invoice, Payment, Product, Customer, ReturnDoc, Expense, Quote, RecurringInvoice, Purchase } from '../../types';
 import { InvoiceStatus, PaymentType, QuoteStatus } from '../../types';
+import { getTodayISO, toISODateCairo } from './date';
 
 // ============================================================================
 // BASIC SANITIZERS
@@ -69,7 +70,7 @@ export function sanitizeDateISO(
   const { defaultToToday = true } = options;
 
   if (input === null || input === undefined) {
-    return defaultToToday ? new Date().toISOString().split('T')[0] : '';
+    return defaultToToday ? getTodayISO() : '';
   }
 
   let date: Date | null = null;
@@ -97,10 +98,10 @@ export function sanitizeDateISO(
   }
 
   if (date && !isNaN(date.getTime())) {
-    return date.toISOString().split('T')[0];
+    return toISODateCairo(date);
   }
 
-  return defaultToToday ? new Date().toISOString().split('T')[0] : '';
+  return defaultToToday ? getTodayISO() : '';
 }
 
 /**

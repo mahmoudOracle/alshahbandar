@@ -9,7 +9,7 @@
  * - Missing optional fields
  * - Orphaned references
  * 
- * Does NOT modify Firestore data. Purely read-side normalization.
+import { toISODateCairo } from './date'; * Does NOT modify Firestore data. Purely read-side normalization.
  */
 
 import {
@@ -106,7 +106,7 @@ export function toDateValue(value: unknown, fallback: string = ''): string {
   }
 
   if (date && !isNaN(date.getTime())) {
-    return date.toISOString().split('T')[0]; // YYYY-MM-DD
+    return toISODateCairo(date); // YYYY-MM-DD
   }
 
   return fallback;

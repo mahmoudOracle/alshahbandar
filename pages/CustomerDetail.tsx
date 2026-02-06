@@ -15,7 +15,7 @@ import PrintableReport from '../components/PrintableReport';
 import { exportElementAs } from '../services/exportUtils';
 import { t } from '../src/i18n/t';
 
-const toIsoDate = (date: Date) => date.toISOString().split('T')[0];
+const toIsoDate = (date: Date) => toISODateCairo(date);
 
 const toDateValue = (value: unknown): Date | null => {
   if (!value) return null;

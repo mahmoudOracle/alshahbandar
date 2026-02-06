@@ -26,6 +26,7 @@ import {
   StockLedgerEntry,
 } from '../types';
 import { User } from 'firebase/auth';
+import { getTodayISO, toISODateCairo, addDays } from '../src/utils/date';
 
 let customers: Customer[] = [];
 let products: Product[] = [];
@@ -165,8 +166,8 @@ export const seedData = async (companyId: string) => {
       invoiceNumber: `INV-${String(lastInvoiceNumber).padStart(4, '0')}`,
       customerId: customer.id,
       customerName: customer.name,
-      date: subtractDays(new Date(), getRandomInt(1, 30)).toISOString().split('T')[0],
-      dueDate: new Date().toISOString().split('T')[0],
+      date: toISODateCairo(subtractDays(new Date(), getRandomInt(1, 30))),
+      dueDate: getTodayISO(),
       items,
       subtotal,
       total,
@@ -177,7 +178,7 @@ export const seedData = async (companyId: string) => {
 
   // seed a sample daily sales report for the most recent date
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayISO();
     const salesTotal = invoices.reduce((s, inv) => s + ((inv as any).total || 0), 0);
     reports.push({
       id: `daily_${today}`,
@@ -789,8 +790,8 @@ export const createInvoiceFromQuote = async (_companyId: string, quoteId: string
     invoiceNumber: '',
     customerId: quote.customerId,
     customerName: quote.customerName,
-    date: new Date().toISOString().split('T')[0],
-    dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    date: getTodayISO(),
+    dueDate: toISODateCairo(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
     items: quote.items,
     subtotal: quote.subtotal,
     taxRate: quote.taxRate,

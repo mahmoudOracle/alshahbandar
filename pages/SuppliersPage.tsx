@@ -24,6 +24,7 @@ import { exportElementAs } from '../services/exportUtils';
 import { Timestamp } from 'firebase/firestore';
 import { useSettings } from '../contexts/SettingsContext';
 import { t } from '../src/i18n/t';
+import { getTodayISO, toISODateCairo } from '../src/utils/date';
 
 const PAYMENT_METHODS = [
   'cash',
@@ -48,7 +49,7 @@ const getSupplierPaymentMethodLabel = (method: typeof PAYMENT_METHODS[number] | 
 const STATEMENT_PAGE_SIZE = 50;
 const SUPPLIERS_PAGE_SIZE = 50;
 
-const toIsoDate = (date: Date) => date.toISOString().split('T')[0];
+const toIsoDate = (date: Date) => toISODateCairo(date);
 
 const toDateValue = (value: unknown): Date | null => {
   if (!value) return null;
@@ -92,7 +93,7 @@ const SuppliersPage: React.FC = () => {
   const printableRef = useRef<HTMLDivElement | null>(null);
 
   const [paymentAmount, setPaymentAmount] = useState(0);
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentDate, setPaymentDate] = useState(getTodayISO());
   const [paymentMethod, setPaymentMethod] = useState<(typeof PAYMENT_METHODS)[number] | ''>('');
   const [paymentNotes, setPaymentNotes] = useState('');
   const [paymentReference, setPaymentReference] = useState('');

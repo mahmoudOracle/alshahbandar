@@ -68,6 +68,7 @@ import { serverTimestamp } from 'firebase/firestore';
 import { DEBUG_MODE } from '../config';
 import { isPosted, isPeriodLocked } from './accountingSafety';
 import * as normalize from '../src/utils/normalize';
+import { getTodayISO, toISODateCairo, addDays } from '../src/utils/date';
 
 const IS_FREE_MODE = (import.meta.env.VITE_FREE_MODE ?? 'true') === 'true';
 const FUNCTIONS_DISABLED = true;
@@ -2242,8 +2243,8 @@ export const createInvoiceFromQuote = async (
     invoiceNumber: '',
     customerId: quote.customerId,
     customerName: quote.customerName,
-    date: new Date().toISOString().split('T')[0],
-    dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    date: getTodayISO(),
+    dueDate: toISODateCairo(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
     items: quote.items,
     subtotal: quote.subtotal,
     total: quote.total,
@@ -2282,7 +2283,7 @@ export const generateInvoicesFromRecurring = async (companyId: string): Promise<
   ensureWriteAllowed('invoices'); // Generating invoices requires invoice permissions
   const recurringResult = await getRecurringInvoices(companyId);
   const recurring = recurringResult.data;
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayISO();
   const invoicesToCreate: Omit<Invoice, 'id'>[] = [];
   const recurringToUpdate: RecurringInvoice[] = [];
 
@@ -2313,7 +2314,7 @@ export const generateInvoicesFromRecurring = async (companyId: string): Promise<
       if (rec.frequency === Frequency.Yearly)
         nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
 
-      recurringToUpdate.push({ ...rec, nextDueDate: nextDueDate.toISOString().split('T')[0] });
+      recurringToUpdate.push({ ...rec, nextDueDate: toISODateCairo(nextDueDate) });
     }
   }
 

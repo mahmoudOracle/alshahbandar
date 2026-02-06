@@ -9,6 +9,7 @@ import { Input } from '../components/ui/Input';
 import DateInput from '../components/ui/DateInput';
 import { Select } from '../components/ui/Select';
 import { mapFirestoreError } from '../services/firebaseErrors';
+import { getTodayISO } from '../src/utils/date';
 
 interface ReturnFormProps {
   invoice: Invoice;
@@ -27,7 +28,7 @@ type ReturnLine = {
 const ReturnForm: React.FC<ReturnFormProps> = ({ invoice, onSaved, onClose }) => {
   const { companyId } = useAuth();
   const { addNotification } = useNotification();
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getTodayISO());
   const [reason, setReason] = useState('');
   const [mode, setMode] = useState<'refund_cash' | 'credit_note'>('credit_note');
   const [saving, setSaving] = useState(false);

@@ -12,6 +12,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import { mapFirestoreError } from '../services/firebaseErrors';
+import { getTodayISO } from '../src/utils/date';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -37,8 +38,8 @@ const RecurringInvoiceForm: React.FC = () => {
     customerName: '',
     items: [{ id: String(Date.now()), productId: '', productName: '', quantity: 1, price: 0 }],
     frequency: Frequency.Monthly,
-    startDate: new Date().toISOString().split('T')[0],
-    nextDueDate: new Date().toISOString().split('T')[0],
+    startDate: getTodayISO(),
+    nextDueDate: getTodayISO(),
     endDate: '',
     taxRate: 0,
     autoSend: false,

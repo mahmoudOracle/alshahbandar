@@ -13,6 +13,7 @@ import TableSkeleton from '../components/TableSkeleton';
 import EmptyState from '../components/EmptyState';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
+import { toISODateCairo } from '../src/utils/date';
 import { Button } from '../src/ui/Button';
 import { Input } from '../src/ui/Input';
 import { Select } from '../src/ui/Select';
@@ -74,7 +75,7 @@ const InvoiceList: React.FC = () => {
     start.setHours(0, 0, 0, 0);
     const end = new Date(date);
     end.setHours(23, 59, 59, 999);
-    const formatISO = (d: Date) => d.toISOString().split('T')[0];
+    const formatISO = (d: Date) => toISODateCairo(d);
 
     let startDate: string | undefined;
     let endDate: string | undefined;

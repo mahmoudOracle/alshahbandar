@@ -17,10 +17,11 @@ import { Input } from '../src/ui/Input';
 import { Button } from '../src/ui/Button';
 import { BanknotesIcon, CurrencyDollarIcon, ArrowTrendingDownIcon, ArrowTrendingUpIcon } from '@heroicons/react/24/outline';
 import { t } from '../src/i18n/t';
+import { toISODateCairo } from '../src/utils/date';
 
 type DateRangePreset = 'today' | '7' | '30' | 'custom';
 
-const toIsoDate = (date: Date) => date.toISOString().split('T')[0];
+const toIsoDate = (date: Date) => toISODateCairo(date);
 
 const toDateValue = (value: unknown): Date | null => {
   if (!value) return null;

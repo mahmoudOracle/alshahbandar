@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '../services/firebase'; // Adjust path if needed
 import { useAuth } from '../contexts/AuthContext'; // Adjust path if needed
+import { formatDate, toISODateCairo, getTodayISO } from '../src/utils/date';
 
 const ExportData: React.FC = () => {
   const { companyId } = useAuth();
@@ -70,11 +71,11 @@ const ExportData: React.FC = () => {
           ...d,
           // Convert timestamps to readable strings
           createdAt: d.createdAt instanceof Timestamp ? d.createdAt.toDate().toISOString() : d.createdAt,
-          date: d.date instanceof Timestamp ? d.date.toDate().toISOString().split('T')[0] : d.date,
+          date: d.date instanceof Timestamp ? formatDate(d.date.toDate()) : formatDate(d.date),
         };
       });
 
-      downloadCSV(data, `${collectionName}-${new Date().toISOString().split('T')[0]}`);
+      downloadCSV(data, `${collectionName}-${getTodayISO()}`);
     } catch (error) {
       console.error('Export failed', error);
       alert('حدث خطأ أثناء التصدير: ' + (error as Error).message);

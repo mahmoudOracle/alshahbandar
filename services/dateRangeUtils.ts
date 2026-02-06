@@ -5,6 +5,8 @@
  * Single source of truth for date calculations
  */
 
+import { toISODateCairo, formatDate as formatDMY } from '../src/utils/date';
+
 export type DateRangeType = 'today' | 'yesterday' | 'thisWeek' | 'thisMonth' | 'last7' | 'last30' | 'custom' | 'all';
 
 export interface DateRange {
@@ -16,9 +18,10 @@ export interface DateRange {
 
 /**
  * Convert a date to ISO string (YYYY-MM-DD)
+ * Uses Cairo-safe conversion
  */
 export function toIsoDate(date: Date): string {
-  return date.toISOString().split('T')[0];
+  return toISODateCairo(date);
 }
 
 /**

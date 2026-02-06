@@ -464,3 +464,138 @@ export function toISO(date: Date | Timestamp | string | unknown): string {
   const iso = normalizeToISO(date);
   return iso || '';
 }
+
+/**
+ * Convert date to ISO 8601 string using Cairo timezone
+ * CRITICAL FOR EGYPT: Ensures business date remains consistent in Africa/Cairo timezone
+ * Replaces any `.toISOString().split('T')[0]` for business date extraction
+ * 
+ * @param date - JS Date, Timestamp, ISO string, DMY string, or unknown
+ * @returns ISO date string "YYYY-MM-DD" in Cairo timezone or empty if invalid
+ * 
+ * Example:
+ *   toISODateCairo(new Date())  // "2026-02-07" (local Cairo time)
+ *   toISODateCairo('07-02-2026')  // "2026-02-07"
+ */
+export function toISODateCairo(date: Date | Timestamp | string | unknown): string {
+  try {
+    let dateObj: Date | null = null;
+
+    if (date instanceof Timestamp) {
+      dateObj = date.toDate();
+    } else if (date instanceof Date) {
+      dateObj = date;
+    } else if (typeof date === 'string') {
+      const iso = normalizeToISO(date);
+      if (!iso) return '';
+      dateObj = new Date(iso);
+    } else {
+      return '';
+    }
+
+    if (!dateObj || isNaN(dateObj.getTime())) return '';
+
+    // Use Intl.DateTimeFormat to extract date in Cairo timezone
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Africa/Cairo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+
+    const parts = formatter.formatToParts(dateObj);
+    const year = parts.find((p) => p.type === 'year')?.value || '';
+    const month = parts.find((p) => p.type === 'month')?.value || '';
+    const day = parts.find((p) => p.type === 'day')?.value || '';
+
+    if (!year || !month || !day) return '';
+
+    return `${year}-${month}-${day}`;
+  } catch (err) {
+    console.error('[DATE] Failed to convert to Cairo ISO:', date, err);
+    return '';
+  }
+}
+
+/**
+ * Format date for UI display in DD-MM-YYYY format
+ * Alias for formatDate() with explicit naming
+ * 
+ * @param date - ISO string, Timestamp, Date, or DD-MM-YYYY string
+ * @param locale - 'ar' or 'en' (currently same format for both)
+ * @returns Formatted string "DD-MM-YYYY" or empty string if invalid
+ * 
+ * Example:
+ *   formatDMY('2026-02-07')      // "07-02-2026"
+ *   formatDMY('07-02-2026')      // "07-02-2026" (pass-through)
+ */
+export function formatDMY(
+  date: string | Timestamp | Date | unknown,
+  locale: 'ar' | 'en' = 'en'
+): string {
+  return formatDate(date, locale);
+}
+
+/**
+ * Parse user-entered DD-MM-YYYY string strictly to ISO 8601
+ * Validates format before conversion
+ * 
+ * @param dateStr - User-entered date string (DD-MM-YYYY)
+ * @returns ISO 8601 string (YYYY-MM-DD) or empty string if invalid
+ * @throws Never throws; returns empty string on validation failure
+ * 
+ * Example:
+ *   parseDMYToISO('07-02-2026')  // "2026-02-07"
+ *   parseDMYToISO('invalid')     // ""
+ */
+export function parseDMYToISO(dateStr: string): string {
+  if (!dateStr || typeof dateStr !== 'string') return '';
+
+  const trimmed = dateStr.trim();
+
+  // Validate DD-MM-YYYY format strictly
+  if (!/^\d{2}-\d{2}-\d{4}$/.test(trimmed)) {
+    console.warn(`[DATE] Invalid DMY format: ${dateStr}. Expected DD-MM-YYYY`);
+    return '';
+  }
+
+  try {
+    const [day, month, year] = trimmed.split('-');
+    const dayNum = parseInt(day, 10);
+    const monthNum = parseInt(month, 10);
+    const yearNum = parseInt(year, 10);
+
+    // Validate ranges
+    if (monthNum < 1 || monthNum > 12) {
+      console.warn(`[DATE] Invalid month: ${month}`);
+      return '';
+    }
+
+    if (dayNum < 1 || dayNum > 31) {
+      console.warn(`[DATE] Invalid day: ${day}`);
+      return '';
+    }
+
+    // Validate day in month (basic check, not considering leap years strictly)
+    const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    if (
+      yearNum % 4 === 0 &&
+      (yearNum % 100 !== 0 || yearNum % 400 === 0)
+    ) {
+      daysInMonth[1] = 29; // Leap year
+    }
+
+    if (dayNum > daysInMonth[monthNum - 1]) {
+      console.warn(
+        `[DATE] Day ${day} exceeds max for month ${month} (max: ${daysInMonth[monthNum - 1]})`
+      );
+      return '';
+    }
+
+    // Return ISO format
+    return `${yearNum}-${String(monthNum).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+  } catch (err) {
+    console.error('[DATE] Error parsing DMY:', dateStr, err);
+    return '';
+  }
+}
