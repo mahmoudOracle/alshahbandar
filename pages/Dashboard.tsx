@@ -4,6 +4,7 @@ import { getInvoices, getExpenses } from '../services/dataService';
 import { Expense, Invoice } from '../types';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
+import { formatDate } from '../src/utils/date';
 import { Card } from '../src/ui/Card';
 import { StatCard } from '../src/ui/StatCard';
 import { CardSkeleton } from '../components/ui/CardSkeleton';
@@ -194,7 +195,7 @@ const Dashboard: React.FC = () => {
       recentInvoices.map((inv) => ({
         id: inv.id,
         title: inv.customerName || t('commonCustomer'),
-        date: toDateObject(inv.date)?.toLocaleDateString('ar-EG') || '-',
+        date: formatDate(inv.date, 'ar'),
         total: formatMoney(getInvoiceTotal(inv)),
       })),
     [recentInvoices, formatMoney]
@@ -205,7 +206,7 @@ const Dashboard: React.FC = () => {
       recentExpenses.map((exp) => ({
         id: exp.id,
         title: exp.category || t('commonExpense'),
-        date: toDateObject(exp.date)?.toLocaleDateString('ar-EG') || '-',
+        date: formatDate(exp.date, 'ar'),
         total: formatMoney(exp.amount || 0),
       })),
     [recentExpenses, formatMoney]

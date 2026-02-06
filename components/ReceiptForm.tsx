@@ -9,6 +9,7 @@ import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { Textarea } from './ui/Textarea';
 import { t } from '../src/i18n/t';
+import { getTodayISO } from '../src/utils/date';
 import { Customer } from '../types';
 
 interface ReceiptFormProps {
@@ -18,7 +19,7 @@ interface ReceiptFormProps {
 }
 
 export const ReceiptForm: React.FC<ReceiptFormProps> = ({
-  defaultDate = new Date().toISOString().split('T')[0],
+  defaultDate = getTodayISO(),
   onClose,
   onReceiptSaved,
 }) => {

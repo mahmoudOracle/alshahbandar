@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useReducer } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getRoutePath } from '../src/routes';
+import { getTodayISO, addDays } from '../src/utils/date';
 import { getInvoiceById, saveInvoice, getCustomers, getProducts } from '../services/dataService';
 import { Invoice, InvoiceItem, Customer, Product, InvoiceStatus, PaymentType } from '../types';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
@@ -42,7 +43,7 @@ const initialState: State = {
   invoiceNumber: '',
   customerId: '',
   customerName: '',
-  date: new Date().toISOString().split('T')[0],
+  date: getTodayISO(),
   dueDate: '',
   items: [{ id: String(Date.now()), productId: '', productName: '', quantity: 1, price: 0 }],
   paymentType: PaymentType.Credit,

@@ -14,6 +14,7 @@ import {
   CurrencyDollarIcon,
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../contexts/AuthContext';
+import { formatDate } from '../src/utils/date';
 import LanguageToggle from '../components/LanguageToggle';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -135,7 +136,7 @@ const ModernAppShell: React.FC = () => {
               fontWeight: '500',
               color: 'var(--text-secondary)',
             }}>
-              {new Date().toLocaleDateString()}
+              {formatDate(new Date(), 'ar')}
             </span>
           </div>
         </header>

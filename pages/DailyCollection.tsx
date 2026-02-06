@@ -344,7 +344,7 @@ const DailyCollection: React.FC = () => {
         {/* SECTION B: TODAY'S COLLECTIONS LIST */}
         <SectionHeader
           title={t('dailyCollectionListTitle')}
-          subtitle={new Date(date).toLocaleDateString('ar-EG')}
+          subtitle={formatDate(date, 'ar')}
         />
 
         {loading ? (

@@ -431,3 +431,36 @@ export function toYearMonth(isoDate: string): string {
 
   return iso.substring(0, 7); // "YYYY-MM"
 }
+
+/**
+ * Get today's date as ISO 8601 string (YYYY-MM-DD) safely
+ * CRITICAL: Uses local date components, NOT toISOString() (which converts to UTC)
+ * Replaces: new Date().toISOString().split('T')[0]
+ * 
+ * @returns Today's date as "YYYY-MM-DD" in local timezone
+ * 
+ * Example:
+ *   getTodayISO()  // "2026-02-07"
+ */
+export function toISODateSafe(): string {
+  return getTodayISO();
+}
+
+/**
+ * Convert Date or Timestamp to ISO 8601 string (YYYY-MM-DD) safely
+ * CRITICAL: Uses local date components, NOT toISOString() (which converts to UTC)
+ * Replaces: date.toISOString().split('T')[0]
+ * 
+ * @param date - JavaScript Date, Firestore Timestamp, ISO string, or DMY string
+ * @returns ISO date string "YYYY-MM-DD" or empty string if invalid
+ * 
+ * Example:
+ *   toISO(new Date())           // "2026-02-07"
+ *   toISO(Timestamp.now())      // "2026-02-07"
+ *   toISO('2026-02-07')         // "2026-02-07"
+ *   toISO('07-02-2026')         // "2026-02-07"
+ */
+export function toISO(date: Date | Timestamp | string | unknown): string {
+  const iso = normalizeToISO(date);
+  return iso || '';
+}

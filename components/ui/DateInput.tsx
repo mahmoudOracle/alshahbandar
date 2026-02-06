@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { getTodayISO } from '../../src/utils/date';
 
 interface Props {
   label?: string;
@@ -257,8 +258,7 @@ const DateInput: React.FC<Props> = ({
         <button
           type="button"
           onClick={() => {
-            const today = new Date();
-            const todayIso = today.toISOString().split('T')[0];
+            const todayIso = getTodayISO();
             const p = isoToParts(todayIso);
             setDay(p.d);
             setMonth(p.m);

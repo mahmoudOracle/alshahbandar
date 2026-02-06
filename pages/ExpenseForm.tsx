@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getRoutePath } from '../src/routes';
+import { getTodayISO } from '../src/utils/date';
 import { getExpenseById, saveExpense, getExpenseCategories, saveExpenseCategory } from '../services/dataService';
 import { Expense, StoredExpenseCategory } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -23,7 +24,7 @@ const ExpenseForm: React.FC = () => {
   const canWrite = useCanWrite('expenses');
 
   const [expense, setExpense] = useState<Omit<Expense, 'id'>>({
-    date: new Date().toISOString().split('T')[0],
+    date: getTodayISO(),
     category: '',
     vendor: '',
     description: '',

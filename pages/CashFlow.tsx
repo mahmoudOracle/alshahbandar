@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getCashFlow } from '../services/reportsService';
+import { getTodayISO, addDays } from '../src/utils/date';
 import { useAuth } from '../contexts/AuthContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { useNotification } from '../contexts/NotificationContext';
@@ -10,8 +11,8 @@ const CashFlow: React.FC = () => {
   const { addNotification } = useNotification();
 
   const [dateRange, setDateRange] = useState({
-    start: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0],
-    end: new Date().toISOString().split('T')[0],
+    start: addDays(getTodayISO(), -30) || getTodayISO(),
+    end: getTodayISO(),
   });
 
   const [loading, setLoading] = useState(false);

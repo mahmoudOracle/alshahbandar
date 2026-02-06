@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { Customer, Invoice, PaymentMethod, UserRole } from '../types';
 import { getInvoices, savePayment, totalPaidForInvoice } from '../services/dataService';
+import { getTodayISO, formatDate } from '../src/utils/date';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/Button';
@@ -53,7 +54,7 @@ const toDateValue = (value: unknown): Date | null => {
 const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentSaved, onClose }) => {
   const { companyId, role } = useAuth();
   const [amount, setAmount] = useState(0);
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getTodayISO());
   const [invoiceId, setInvoiceId] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [unpaidInvoices, setUnpaidInvoices] = useState<Invoice[]>([]);
@@ -83,7 +84,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
   useEffect(() => {
     if (!customer) return;
     setAmount(0);
-    setDate(new Date().toISOString().split('T')[0]);
+    setDate(getTodayISO());
     setMethod('');
     setNotes('');
     setReference('');
@@ -131,12 +132,12 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ customer, invoice, onPaymentS
   const invoiceOptions = useMemo(() => {
     const base = unpaidInvoices.map((inv) => ({
       value: inv.id,
-      label: `${inv.invoiceNumber} - ${toDateValue(inv.date)?.toLocaleDateString('ar-EG') || ''}`,
+      label: `${inv.invoiceNumber} - ${formatDate(inv.date, 'ar')}`,
     }));
     if (invoice && !base.find((opt) => opt.value === invoice.id)) {
       base.unshift({
         value: invoice.id,
-        label: `${invoice.invoiceNumber} - ${toDateValue(invoice.date)?.toLocaleDateString('ar-EG') || ''}`,
+        label: `${invoice.invoiceNumber} - ${formatDate(invoice.date, 'ar')}`,
       });
     }
     return base;

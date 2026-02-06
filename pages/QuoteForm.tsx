@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useReducer } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getRoutePath } from '../src/routes';
+import { getTodayISO, addDays } from '../src/utils/date';
 import { getQuoteById, saveQuote, getCustomers, getProducts } from '../services/dataService';
 import { Quote, QuoteItem, Customer, Product, QuoteStatus } from '../types';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
@@ -28,8 +29,8 @@ const initialState: State = {
   quoteNumber: '',
   customerId: '',
   customerName: '',
-  date: new Date().toISOString().split('T')[0],
-  expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+  date: getTodayISO(),
+  expiryDate: addDays(getTodayISO(), 14) || getTodayISO(),
   items: [{ id: String(Date.now()), productId: '', productName: '', quantity: 1, price: 0 }],
   status: QuoteStatus.Draft,
   taxRate: 0,
