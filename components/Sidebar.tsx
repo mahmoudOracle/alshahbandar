@@ -1,19 +1,10 @@
 ﻿import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import {
-  HomeIcon,
-  DocumentTextIcon,
-  UsersIcon,
-  ArchiveBoxIcon,
-  Cog6ToothIcon,
-  CurrencyDollarIcon,
-  ChartPieIcon,
-  WalletIcon,
-} from '@heroicons/react/24/outline';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth } from '../contexts/AuthContext';
 import useTenantConfig from '../hooks/useTenantConfig';
 import { t } from '../src/i18n/t';
+import { SIDEBAR_GROUPS } from '../src/routes';
 import LanguageToggle from './LanguageToggle';
 import SyncStatusBadge from './SyncStatusBadge';
 import { Button } from './ui/Button';
@@ -36,26 +27,23 @@ const Sidebar: React.FC = () => {
           ? t('roleStaff')
           : t('roleStaff');
 
+  // ✅ UNIFIED ROUTING: Use SIDEBAR_GROUPS from src/routes.ts (single source of truth)
   const tenantGroups = [
     {
       title: t('navGroupMain'),
-      items: [
-        { to: '/app/dashboard', text: t('navDashboard'), icon: HomeIcon },
-        { to: '/app/invoices', text: t('navInvoices'), icon: DocumentTextIcon },
-        { to: '/app/products', text: t('navProducts'), icon: ArchiveBoxIcon },
-        { to: '/app/expenses', text: t('navExpenses'), icon: CurrencyDollarIcon },
-        { to: '/app/daily-collection', text: t('dailyCollectionTitle'), icon: WalletIcon },
-        { to: '/app/settings', text: t('navSettings'), icon: Cog6ToothIcon },
-      ],
+      items: SIDEBAR_GROUPS.main.map((route) => ({
+        to: route.path,
+        text: route.labelKey ? t(route.labelKey) : route.path,
+        icon: null,
+      })),
     },
     {
       title: t('navGroupAdmin'),
-      items: [
-        { to: '/app/customers', text: t('navCustomers'), icon: UsersIcon },
-        { to: '/app/purchases', text: t('navPurchases'), icon: CurrencyDollarIcon },
-        { to: '/app/suppliers', text: t('navSuppliers'), icon: UsersIcon },
-        { to: '/app/reports', text: t('navReports'), icon: ChartPieIcon },
-      ],
+      items: SIDEBAR_GROUPS.admin.map((route) => ({
+        to: route.path,
+        text: route.labelKey ? t(route.labelKey) : route.path,
+        icon: null,
+      })),
     },
   ];
 
@@ -130,7 +118,7 @@ const Sidebar: React.FC = () => {
                   }
                   title={isCollapsed ? item.text : undefined}
                 >
-                  <item.icon className="nav-icon" />
+                  {item.icon && <item.icon className="nav-icon" />}
                   {!isCollapsed && item.text}
                 </NavLink>
               ))}

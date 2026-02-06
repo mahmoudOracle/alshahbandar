@@ -54,6 +54,7 @@
   navInvoices: 'الفواتير',
   navProducts: 'المنتجات',
   navExpenses: 'المصروفات',
+  navDailyCollection: 'التحصيل اليومي',
   navSettings: 'الإعدادات',
   navCustomers: 'العملاء',
   navPurchases: 'المشتريات',
