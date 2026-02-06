@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { getRoutePath } from '../src/routes';
 import { getExpenseById, saveExpense, getExpenseCategories, saveExpenseCategory } from '../services/dataService';
 import { Expense, StoredExpenseCategory } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -41,7 +42,7 @@ const ExpenseForm: React.FC = () => {
       // allow viewing
     } else if (!canWrite) {
       addNotification(t('expenseNoPermissionAdd'), 'error');
-      navigate('/app/expenses');
+      navigate(getRoutePath('expenses'));
     }
   }, [canWrite, id, navigate, addNotification]);
 
@@ -133,7 +134,7 @@ const ExpenseForm: React.FC = () => {
 
       if (result) {
         addNotification(t('expenseSaveSuccess'), 'success');
-        navigate('/app/expenses');
+        navigate(getRoutePath('expenses'));
       } else {
         addNotification(t('expenseSaveError'), 'error');
       }

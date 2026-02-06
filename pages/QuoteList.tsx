@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getQuotes } from '../services/dataService';
+import { getRoutePath } from '../src/routes';
 import { Quote, QuoteStatus } from '../types';
 import { PencilIcon, EyeIcon, PlusIcon, DocumentDuplicateIcon } from '@heroicons/react/24/outline';
 import { useSettings } from '../contexts/SettingsContext';
@@ -85,7 +86,7 @@ const QuoteList: React.FC = () => {
         title="لا يوجد عروض أسعار بعد"
         message="ابدأ بإنشاء عرض سعرك الأول."
         action={
-          canWrite ? { text: 'إنشاء عرض سعر', onClick: () => navigate('/app/quotes/new') } : undefined
+          canWrite ? { text: t('quotesNew'), onClick: () => navigate(getRoutePath('quoteForm')) } : undefined
         }
       />
     );

@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { getRoutePath } from '../src/routes';
 import { getCustomers } from '../services/dataService';
 import { Customer, UserRole } from '../types';
 import { UsersIcon } from '@heroicons/react/24/outline';
@@ -134,7 +135,7 @@ const CustomerList: React.FC = () => {
         message={t('customersEmptyMessage')}
         action={
           canWriteCustomers
-            ? { text: t('customersAdd'), onClick: () => navigate('/app/customers/new') }
+            ? { text: t('customersAdd'), onClick: () => navigate(getRoutePath('customerForm')) }
             : undefined
         }
       />

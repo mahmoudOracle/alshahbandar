@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useReducer } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { getRoutePath } from '../src/routes';
 import { getInvoiceById, saveInvoice, getCustomers, getProducts } from '../services/dataService';
 import { Invoice, InvoiceItem, Customer, Product, InvoiceStatus, PaymentType } from '../types';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
@@ -147,7 +148,7 @@ const InvoiceForm: React.FC = () => {
     } else if (!canWrite) {
       // Disallow creating new ones
       addNotification(t('invoiceNoPermissionCreate'), 'error');
-      navigate('/app/invoices');
+      navigate(getRoutePath('invoices'));
     }
   }, [canWrite, id, navigate, addNotification]);
 
@@ -310,7 +311,7 @@ const InvoiceForm: React.FC = () => {
         : await saveInvoice(companyId, invoiceToSave);
       if (result) {
         addNotification(id ? t('invoiceSaveSuccessEdit') : t('invoiceSaveSuccessNew'), 'success');
-        navigate('/app/invoices');
+        navigate(getRoutePath('invoices'));
       } else {
         addNotification(t('invoiceSaveError'), 'error');
       }

@@ -373,50 +373,43 @@ export const getRouteById = (id: RouteId): AppRoute | undefined => {
 };
 
 // ============================================================================
-// LEGACY EXPORTS (For backwards compatibility)
+// ROUTING SAFETY VERIFICATION (DEV ONLY)
 // ============================================================================
 
-const devRoutes = import.meta.env.DEV
-  ? [{ path: '/dev/debug', component: DevDebugPage, title: 'Dev Debug' }]
-  : [];
+if (import.meta.env.DEV) {
+  // Verify critical routes
+  const dailyCollection = APP_ROUTES.find((r) => r.id === 'dailyCollection');
+  const reports = APP_ROUTES.find((r) => r.id === 'reports');
 
-export const routes = [
-  { path: '/invite/accept', component: AcceptInvitationPage, title: 'قبول الدعوة' },
-  {
-    path: '/invite/accept/:companyId/:inviteId/:token',
-    component: AcceptInvitationPage,
-    title: 'قبول الدعوة',
-  },
-  { path: '/complete-setup', component: CompleteCompanySetupPage, title: 'إكمال الإعداد' },
-  { path: '/dashboard', component: Dashboard, title: 'ملخّص' },
-  { path: '/invoices', component: InvoiceList, title: 'الفواتير' },
-  { path: '/invoices/new', component: InvoiceForm, title: 'فاتورة جديدة' },
-  { path: '/invoices/edit/:id', component: InvoiceForm, title: 'تعديل فاتورة' },
-  { path: '/invoices/:id', component: InvoiceDetail, title: 'تفاصيل الفاتورة' },
-  { path: '/customers', component: CustomerList, title: 'العملاء' },
-  { path: '/customers/new', component: CustomerForm, title: 'عميل جديد' },
-  { path: '/customers/edit/:id', component: CustomerForm, title: 'تعديل عميل' },
-  { path: '/customers/:id', component: CustomerDetail, title: 'تفاصيل العميل' },
-  { path: '/daily-collection', component: DailyCollection, title: 'التحصيل اليومي' },
-  { path: '/products', component: ProductList, title: 'المنتجات والمخزون' },
-  { path: '/products/new', component: ProductForm, title: 'منتج جديد' },
-  { path: '/products/edit/:id', component: ProductForm, title: 'تعديل منتج' },
-  { path: '/profile', component: ProfilePage, title: 'ملف الشركة' },
-  { path: '/quotes', component: QuoteList, title: 'عروض الأسعار' },
-  { path: '/quotes/new', component: QuoteForm, title: 'إنشاء عرض سعر' },
-  { path: '/quotes/edit/:id', component: QuoteForm, title: 'تعديل عرض سعر' },
-  { path: '/quotes/:id', component: QuoteDetail, title: 'تفاصيل عرض السعر' },
-  { path: '/expenses', component: ExpenseList, title: 'المصروفات' },
-  { path: '/expenses/new', component: ExpenseForm, title: 'مصروف جديد' },
-  { path: '/expenses/edit/:id', component: ExpenseForm, title: 'تعديل مصروف' },
-  { path: '/reports', component: Reports, title: 'التقارير' },
-  { path: '/cash-flow', component: CashFlow, title: 'تدفق نقدي' },
-  { path: '/purchases', component: PurchasesPage, title: 'المشتريات' },
-  { path: '/suppliers', component: SuppliersPage, title: 'الموردون' },
-  { path: '/admin/*', component: NotAuthorizedPage, title: 'غير مصرح' },
-  { path: '/settings', component: SettingsPage, title: 'الإعدادات' },
-  { path: '/settings/*', component: SettingsPage, title: 'الإعدادات' },
-  { path: '/platform', component: PlatformAdminPage, title: 'شركات المنصة' },
-  ...devRoutes,
-  { path: '*', component: NotAuthorizedPage, title: 'غير مصرح' },
-];
+  if (dailyCollection?.path !== '/app/daily-collection') {
+    console.error(
+      `[ROUTING ERROR] Daily Collection route path is incorrect: ${dailyCollection?.path} (expected /app/daily-collection)`
+    );
+  }
+
+  if (reports?.path !== '/app/reports') {
+    console.error(
+      `[ROUTING ERROR] Reports route path is incorrect: ${reports?.path} (expected /app/reports)`
+    );
+  }
+
+  // Log navigation routes generated for UI
+  console.log(
+    '[ROUTING DEBUG] Sidebar Routes:',
+    SIDEBAR_GROUPS.main.map((r) => `${r.id}: ${r.path}`),
+    SIDEBAR_GROUPS.admin.map((r) => `${r.id}: ${r.path}`)
+  );
+
+  console.log(
+    '[ROUTING DEBUG] Bottom Nav Routes:',
+    NAV_ROUTES_BOTTOM.map((r) => `${r.id}: ${r.path}`)
+  );
+
+  console.log('[ROUTING DEBUG] Total APP_ROUTES:', APP_ROUTES.length);
+  console.log(
+    '[ROUTING DEBUG] Sidebar+BottomNav routes synchronized from src/routes.ts ✅'
+  );
+}
+
+
+

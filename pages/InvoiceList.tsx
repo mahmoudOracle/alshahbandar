@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { getRoutePath } from '../src/routes';
 import {
   getInvoices,
   deleteInvoice,
@@ -254,7 +255,7 @@ const InvoiceList: React.FC = () => {
         message={t('invoicesEmptyMessage')}
         action={
           canWrite
-            ? { text: t('invoicesNew'), onClick: () => navigate('/app/invoices/new') }
+            ? { text: t('invoicesNew'), onClick: () => navigate(getRoutePath('invoiceForm')) }
             : undefined
         }
       />
@@ -373,7 +374,7 @@ const InvoiceList: React.FC = () => {
             message={t('invoicesEmptyMessage')}
             action={
               canWrite
-                ? { text: t('invoicesNew'), onClick: () => navigate('/app/invoices/new') }
+                ? { text: t('invoicesNew'), onClick: () => navigate(getRoutePath('invoiceForm')) }
                 : undefined
             }
           />

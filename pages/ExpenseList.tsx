@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { getRoutePath } from '../src/routes';
 import { getExpenses, deleteExpense, undeleteDocument } from '../services/dataService';
 import { Expense } from '../types';
 import { CurrencyDollarIcon } from '@heroicons/react/24/outline';
@@ -141,7 +142,7 @@ const ExpenseList: React.FC = () => {
         title={t('expensesEmptyTitle')}
         message={t('expensesEmptyMessage')}
         action={
-          canWrite ? { text: t('expensesAdd'), onClick: () => navigate('/app/expenses/new') } : undefined
+          canWrite ? { text: t('expensesAdd'), onClick: () => navigate(getRoutePath('expenseForm')) } : undefined
         }
       />
     );

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useReducer } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { getRoutePath } from '../src/routes';
 import { getQuoteById, saveQuote, getCustomers, getProducts } from '../services/dataService';
 import { Quote, QuoteItem, Customer, Product, QuoteStatus } from '../types';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
@@ -103,7 +104,7 @@ const QuoteForm: React.FC = () => {
       // Allow viewing
     } else if (!canWrite) {
       addNotification('ليس لديك الصلاحية للوصول لهذه الصفحة.', 'error');
-      navigate('/app/quotes');
+      navigate(getRoutePath('quotes'));
     }
   }, [canWrite, id, navigate, addNotification]);
 
@@ -177,7 +178,7 @@ const QuoteForm: React.FC = () => {
         await saveQuote(companyId, quoteToSave);
       }
       addNotification(id ? 'تم تحديث عرض السعر بنجاح!' : 'تم إنشاء عرض السعر بنجاح!', 'success');
-      navigate('/app/quotes');
+      navigate(getRoutePath('quotes'));
     } catch (error) {
       addNotification(mapFirestoreError(error), 'error');
     } finally {

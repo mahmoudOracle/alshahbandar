@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { getRoutePath } from '../src/routes';
 import { getCustomerById, saveCustomer } from '../services/dataService';
 import { Customer } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -35,7 +36,7 @@ const CustomerForm: React.FC = () => {
       // Allow viewing
     } else if (!canWrite) {
       addNotification(t('customerNoPermission'), 'error');
-      navigate('/app/customers');
+      navigate(getRoutePath('customers'));
     }
   }, [canWrite, id, navigate, addNotification]);
 
@@ -104,7 +105,7 @@ const CustomerForm: React.FC = () => {
 
       if (result) {
         addNotification(t('customerSaveSuccess'), 'success');
-        navigate('/app/customers');
+        navigate(getRoutePath('customers'));
       } else {
         addNotification(t('customerSaveError'), 'error');
       }

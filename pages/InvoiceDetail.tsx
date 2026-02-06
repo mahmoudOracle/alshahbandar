@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { getRoutePath } from '../src/routes';
 import {
   getInvoiceById,
   getCustomerById,
@@ -125,7 +126,7 @@ const InvoiceDetail: React.FC = () => {
             }
           },
         });
-        navigate('/app/invoices');
+        navigate(getRoutePath('invoices'));
       } else {
         addNotification(t('invoiceDetailDeleteFailed'), 'error');
       }

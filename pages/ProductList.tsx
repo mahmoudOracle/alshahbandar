@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArchiveBoxIcon } from '@heroicons/react/24/outline';
+import { getRoutePath } from '../src/routes';
 import { deleteProduct, getProducts, undeleteDocument } from '../services/dataService';
 import { useAuth, useCanWrite } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
@@ -172,7 +173,7 @@ const ProductList: React.FC = () => {
         title={t('productsEmptyTitle')}
         message={canWrite ? t('productsEmptyMessage') : t('productsEmptyReadonly')}
         action={
-          canWrite ? { text: t('productsAdd'), onClick: () => navigate('/app/products/new') } : undefined
+          canWrite ? { text: t('productsAdd'), onClick: () => navigate(getRoutePath('productForm')) } : undefined
         }
       />
     );

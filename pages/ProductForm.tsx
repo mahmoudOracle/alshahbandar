@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { getRoutePath } from '../src/routes';
 import { getProductById, saveProduct } from '../services/dataService';
 import { Product } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
@@ -39,7 +40,7 @@ const ProductForm: React.FC = () => {
       // Allow viewing
     } else if (!canWrite) {
       addNotification(t('productNoPermission'), 'error');
-      navigate('/app/products');
+      navigate(getRoutePath('products'));
     }
   }, [canWrite, id, navigate, addNotification]);
 
@@ -99,7 +100,7 @@ const ProductForm: React.FC = () => {
 
       if (result) {
         addNotification(t('productSaveSuccess'), 'success');
-        navigate('/app/products');
+        navigate(getRoutePath('products'));
       } else {
         addNotification(t('productSaveError'), 'error');
       }
